@@ -119,7 +119,7 @@ export const columns = ({ onEdit, onDelete, onViewDetails, onSendCredentials, is
   {
     id: "actions",
     cell: ({ row }) => <CustomerActionsCell 
-        row={row} 
+        user={row.original} 
         onEdit={onEdit} 
         onDelete={onDelete} 
         onViewDetails={onViewDetails}
