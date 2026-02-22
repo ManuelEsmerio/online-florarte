@@ -16,6 +16,7 @@ import { Gem, Mail, Phone, Calendar, Home, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 
 interface CustomerDetailModalProps {
   isOpen: boolean;
@@ -51,14 +52,14 @@ export function CustomerDetailModal({
           <DialogDescription className="text-xs md:text-sm font-medium">
             Información completa del usuario y su actividad.
           </DialogDescription>
-          <Button 
+          {/* <Button 
             variant="ghost" 
             size="icon" 
             onClick={() => onOpenChange(false)}
             className="absolute right-4 top-4 rounded-full h-10 w-10 text-muted-foreground hover:text-primary transition-all"
           >
             <X className="h-5 w-5" />
-          </Button>
+          </Button> */}
         </DialogHeader>
         
         <div className="flex-grow overflow-y-auto custom-scrollbar p-6 md:p-8 space-y-8">
