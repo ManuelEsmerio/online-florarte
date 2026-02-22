@@ -1,5 +1,3 @@
-
-// src/app/admin/ads/page.tsx
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -21,13 +19,11 @@ import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleto
 import { columns } from './columns';
 import { AdForm } from './ad-form';
 import type { Announcement } from '@/lib/definitions';
-import { useAuth } from '@/context/AuthContext';
-import { handleApiResponse } from '@/utils/handleApiResponse';
+import { allAds as mockAds } from '@/lib/data/ad-data'; // Importación directa
 import { Input } from '@/components/ui/input';
 
 export default function AdsPage() {
   const { toast } = useToast();
-  const { apiFetch } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -40,22 +36,11 @@ export default function AdsPage() {
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
-  const fetchAnnouncements = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await apiFetch('/api/admin/announcements');
-      const data = await handleApiResponse(res, []);
-      setAnnouncements(data);
-    } catch (error: any) {
-      toast({ title: 'Error al cargar anuncios', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [apiFetch, toast]);
-
   useEffect(() => {
-    fetchAnnouncements();
-  }, [fetchAnnouncements]);
+    setIsLoading(true);
+    setAnnouncements(mockAds);
+    setIsLoading(false);
+  }, []);
 
   const handleAdd = () => {
     setSelectedAd(null);
@@ -69,66 +54,43 @@ export default function AdsPage() {
 
   const handleDelete = async (id: number) => {
     setIsDeletingId(id);
-    try {
-      await handleApiResponse(await apiFetch(`/api/admin/announcements/${id}`, { method: 'DELETE' }));
-      toast({ title: '¡Anuncio Eliminado!', description: 'El anuncio se ha eliminado correctamente.', variant: 'success' });
-      await fetchAnnouncements();
-    } catch (error: any) {
-      toast({ title: 'Error al eliminar', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsDeletingId(null);
-    }
+    await new Promise(r => setTimeout(r, 500)); // Simular delay
+    setAnnouncements(prev => prev.filter(ad => ad.id !== id));
+    toast({ title: '¡Anuncio Eliminado!', description: 'El anuncio se ha eliminado correctamente.', variant: 'success' });
+    setIsDeletingId(null);
   };
   
   const handleToggleActive = async (ad: Announcement) => {
     setUpdatingStatusId(ad.id);
-    const updatedAdData = { ...ad, is_active: !ad.is_active };
-    try {
-      const formData = new FormData();
-      formData.append('announcementData', JSON.stringify(updatedAdData));
-      
-      const res = await apiFetch(`/api/admin/announcements/${ad.id}`, {
-        method: 'POST', // Usar POST para FormData con PUT
-        body: formData,
-      });
-
-      await handleApiResponse(res);
-      toast({ title: 'Estado actualizado', description: `El anuncio "${ad.title}" ahora está ${updatedAdData.is_active ? 'activo' : 'inactivo'}.` });
-      await fetchAnnouncements();
-    } catch (error: any) {
-      toast({ title: 'Error al actualizar', description: error.message, variant: 'destructive' });
-    } finally {
-      setUpdatingStatusId(null);
-    }
+    await new Promise(r => setTimeout(r, 500)); // Simular delay
+    setAnnouncements(prev => prev.map(currentAd => 
+      currentAd.id === ad.id ? { ...currentAd, is_active: !currentAd.is_active } : currentAd
+    ));
+    toast({ title: 'Estado actualizado', description: `El anuncio "${ad.title}" ahora está ${!ad.is_active ? 'activo' : 'inactivo'}.` });
+    setUpdatingStatusId(null);
   };
 
-  const handleSave = async (data: any, images: { desktop?: File, mobile?: File }) => {
+  const handleSave = async (data: any) => {
     setIsSaving(true);
-    const formData = new FormData();
-    formData.append('announcementData', JSON.stringify(data));
-    if (images.desktop) formData.append('image_desktop', images.desktop);
-    if (images.mobile) formData.append('image_mobile', images.mobile);
+    await new Promise(r => setTimeout(r, 1000)); // Simular delay
     
     const isEditing = !!data.id;
-    const url = isEditing ? `/api/admin/announcements/${data.id}` : '/api/admin/announcements';
-    const method = 'POST';
-
-    try {
-      const res = await apiFetch(url, { method, body: formData });
-      await handleApiResponse(res);
-      toast({ title: isEditing ? '¡Anuncio Actualizado!' : '¡Anuncio Creado!', variant: 'success' });
-      setIsFormOpen(false);
-      await fetchAnnouncements();
-    } catch (error: any) {
-      toast({ title: 'Error al guardar', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsSaving(false);
+    if (isEditing) {
+      setAnnouncements(prev => prev.map(ad => ad.id === data.id ? { ...ad, ...data } : ad));
+    } else {
+      const newId = Math.max(...announcements.map(ad => ad.id), 0) + 1;
+      const newAd: Announcement = { ...data, id: newId, sort_order: announcements.length };
+      setAnnouncements(prev => [newAd, ...prev]);
     }
+
+    toast({ title: isEditing ? '¡Anuncio Actualizado!' : '¡Anuncio Creado!', variant: 'success' });
+    setIsFormOpen(false);
+    setIsSaving(false);
   };
 
   const tableColumns = useMemo(
     () => columns({ onEdit: handleEdit, onDelete: handleDelete, onToggleActive: handleToggleActive, isDeletingId, updatingStatusId }),
-    [isDeletingId, updatingStatusId, handleEdit, handleDelete, handleToggleActive]
+    [isDeletingId, updatingStatusId]
   );
 
   const table = useReactTable({

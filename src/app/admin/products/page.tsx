@@ -15,21 +15,21 @@ import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleto
 import { ProductDetailModal } from './product-detail-modal';
 import type { Occasion } from '@/lib/definitions';
 import { ProductForm } from './product-form';
-import { useAuth } from '@/context/AuthContext';
-import { useProductContext } from '@/context/ProductContext';
-import { handleApiResponse } from '@/utils/handleApiResponse';
+
+// Importación directa de datos de prueba
+import { allProducts } from '@/lib/data/product-data';
+import { allCategories } from '@/lib/data/category-data';
+import { allOccasions } from '@/lib/data/occasion-data';
+import { allTags } from '@/lib/data/tag-data';
 
 export default function ProductsPage() {
-  const { apiFetch } = useAuth();
   const { toast } = useToast();
-  const { 
-    products,
-    categories, 
-    occasions,
-    tags,
-    isLoading: isContextLoading, 
-    fetchAppData 
-  } = useProductContext();
+  
+  // Estado local para manejar todos los datos de la aplicación
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [occasions, setOccasions] = useState<Occasion[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -48,8 +48,14 @@ export default function ProductsPage() {
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   
   useEffect(() => {
-    setIsLoading(isContextLoading);
-  }, [isContextLoading]);
+    // Cargar todos los datos de prueba en el estado local
+    setIsLoading(true);
+    setProducts(allProducts);
+    setCategories(allCategories);
+    setOccasions(allOccasions);
+    setTags(allTags);
+    setIsLoading(false);
+  }, []);
 
   const flattenedProducts = useMemo((): ProductRow[] => {
     return products.flatMap(p => {
@@ -99,66 +105,43 @@ export default function ProductsPage() {
   };
 
   const handleDeleteProduct = useCallback(async (slug: string) => {
-    try {
-        const productToDelete = products.find(p => p.slug === slug);
-        if (!productToDelete) throw new Error("Producto no encontrado");
-
-        await apiFetch(`/api/admin/products/${productToDelete.slug}`, { 
-            method: 'DELETE'
-        });
-        toast({ title: '¡Producto Eliminado!', description: 'El producto ha sido eliminado correctamente.', variant: 'success' });
-        await fetchAppData();
-    } catch (error: any) {
-        toast({ title: 'Error', description: error.message || 'No se pudo eliminar el producto.', variant: 'destructive'});
-    }
-  }, [apiFetch, fetchAppData, toast, products]);
+    await new Promise(r => setTimeout(r, 500)); // Simular delay
+    setProducts(prev => prev.filter(p => p.slug !== slug));
+    toast({ title: '¡Producto Eliminado!', description: 'El producto ha sido eliminado correctamente.', variant: 'success' });
+  }, []);
 
   const handleToggleStatus = useCallback(async (product: Product) => {
     const newStatus = product.status === 'publicado' ? 'oculto' : 'publicado';
     setUpdatingStatusId(product.slug);
-    try {
-        const response = await apiFetch(`/api/admin/products/${product.slug}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ isStatusUpdate: true, productData: { status: newStatus } }),
-        });
-        
-        await handleApiResponse(response);
-        await fetchAppData();
-        toast({ title: '¡Estado Actualizado!', description: `El estado del producto ha sido cambiado a ${newStatus}.`, variant: 'success' });
-    } catch (error: any) {
-        toast({ title: 'Error', description: error.message || 'No se pudo actualizar el estado.', variant: 'destructive' });
-    } finally {
-        setUpdatingStatusId(null);
-    }
-  }, [apiFetch, toast, fetchAppData]);
+    await new Promise(r => setTimeout(r, 500)); // Simular delay
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, status: newStatus } : p));
+    toast({ title: '¡Estado Actualizado!', description: `El estado del producto ha sido cambiado a ${newStatus}.`, variant: 'success' });
+    setUpdatingStatusId(null);
+  }, []);
 
-  const handleSaveProduct = useCallback(async (productData: any, imageFiles: { main: File[], variants: { index: number, files: File[] }[] }, originalProduct?: Product | null) => {
+  const handleSaveProduct = useCallback(async (productData: any, imageFiles: any, originalProduct?: Product | null) => {
     setIsSaving(true);
-    
-    const formData = new FormData();
-    formData.append('productData', JSON.stringify(productData));
-    imageFiles.main.forEach(file => formData.append('images', file));
-    imageFiles.variants.forEach(variantImages => {
-        variantImages.files.forEach(file => formData.append(`variant_${variantImages.index}_images`, file));
-    });
+    await new Promise(r => setTimeout(r, 1000)); // Simular delay
 
     const isEditing = !!originalProduct && !isCopyMode;
-    const url = isEditing ? `/api/admin/products/${originalProduct.slug}` : '/api/admin/products';
-    const method = 'POST'; // Usar POST para simplificar el manejo de FormData con PUT/POST en Next.js
-
-    try {
-        const response = await apiFetch(url, { method, body: formData });
-        const result = await handleApiResponse(response);
-        toast({ title: isEditing ? '¡Producto Actualizado!' : '¡Producto Creado!', description: result.message || `El producto se ha guardado exitosamente.`, variant: 'success' });
-        setIsFormOpen(false);
-        await fetchAppData();
-    } catch (error: any) {
-        toast({ title: 'Error al Guardar', description: error.message, variant: 'destructive' });
-    } finally {
-        setIsSaving(false);
+    
+    if (isEditing) {
+        setProducts(prev => prev.map(p => p.id === originalProduct.id ? { ...p, ...productData, id: originalProduct.id } : p));
+    } else {
+        const newId = `prod_${Math.max(...products.map(p => parseInt(p.id.split('_')[1])), 0) + 1}`;
+        const newProduct: Product = { 
+            ...productData, 
+            id: newId,
+            slug: productData.name.toLowerCase().replace(/ /g, '-'), // simple slug generation
+            variants: productData.variants || [],
+        };
+        setProducts(prev => [newProduct, ...prev]);
     }
-  }, [apiFetch, toast, fetchAppData, isCopyMode]);
+
+    toast({ title: isEditing ? '¡Producto Actualizado!' : '¡Producto Creado!', description: `El producto se ha guardado exitosamente.`, variant: 'success' });
+    setIsFormOpen(false);
+    setIsSaving(false);
+  }, [isCopyMode, products]);
 
 
   const tableColumns = useMemo(() => columns({
@@ -221,35 +204,21 @@ export default function ProductsPage() {
     if (selectedSlugs.length === 0) return;
     
     setIsDeleting(action === 'delete');
+    await new Promise(r => setTimeout(r, 1000)); // Simular delay
 
-    try {
-        let response;
-        if (action === 'delete') {
-            response = await apiFetch(`/api/admin/products`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ slugs: selectedSlugs }),
-            });
-        } else {
-            const newStatus = action === 'publish' ? 'publicado' : 'oculto';
-            response = await apiFetch(`/api/admin/products`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ slugs: selectedSlugs, status: newStatus }),
-            });
-        }
-       await handleApiResponse(response);
-       toast({ title: '¡Acción en lote exitosa!', description: `${selectedSlugs.length} productos se han actualizado.`, variant: 'success' });
-      table.resetRowSelection();
-      await fetchAppData();
-    } catch (error: any) {
-       toast({ title: 'Error', description: error.message || 'No se pudo realizar la acción en lote.', variant: 'destructive' });
-    } finally {
-       setIsDeleting(false);
+    if (action === 'delete') {
+        setProducts(prev => prev.filter(p => !selectedSlugs.includes(p.slug)));
+    } else {
+        const newStatus = action === 'publish' ? 'publicado' : 'oculto';
+        setProducts(prev => prev.map(p => selectedSlugs.includes(p.slug) ? { ...p, status: newStatus } : p));
     }
-  }, [apiFetch, fetchAppData, toast, table]);
 
-  if (isLoading || isContextLoading) {
+    toast({ title: '¡Acción en lote exitosa!', description: `${selectedSlugs.length} productos se han actualizado.`, variant: 'success' });
+    table.resetRowSelection();
+    setIsDeleting(false);
+  }, [table]);
+
+  if (isLoading) {
     return (
        <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">

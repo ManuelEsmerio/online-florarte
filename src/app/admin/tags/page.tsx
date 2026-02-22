@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -11,15 +10,11 @@ import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleto
 import { Tag } from '@/lib/definitions';
 import { columns } from './columns';
 import { TagForm } from './tag-form';
-import { useAuth } from '@/context/AuthContext';
-import { handleApiResponse } from '@/utils/handleApiResponse';
-import { useProductContext } from '@/context/ProductContext';
-
+import { allTags as mockTags } from '@/lib/data/tag-data'; // Importación directa
 
 export default function TagsPage() {
   const { toast } = useToast();
-  const { apiFetch } = useAuth();
-  const { tags, fetchAppData, isLoading: isContextLoading } = useProductContext();
+  const [tags, setTags] = useState<Tag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
@@ -27,9 +22,10 @@ export default function TagsPage() {
   const [selectedTag, setSelectedTag] = useState<Tag | null>(null);
   
   useEffect(() => {
-    setIsLoading(isContextLoading);
-  }, [isContextLoading]);
-
+    setIsLoading(true);
+    setTags(mockTags);
+    setIsLoading(false);
+  }, []);
 
   const handleAdd = () => {
     setSelectedTag(null);
@@ -43,42 +39,31 @@ export default function TagsPage() {
 
   const handleDelete = async (id: number) => {
     setIsDeletingId(id);
-     try {
-      const res = await apiFetch(`/api/admin/tags/${id}`, { method: 'DELETE' });
-      await handleApiResponse(res);
-      toast({ title: '¡Etiqueta Eliminada!', description: 'La etiqueta se ha eliminado correctamente.', variant: 'success' });
-      await fetchAppData();
-    } catch (error: any) {
-      toast({ title: 'Error al eliminar', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsDeletingId(null);
-    }
+    await new Promise(r => setTimeout(r, 500)); // Simular delay
+    setTags(prev => prev.filter(t => t.id !== id));
+    toast({ title: '¡Etiqueta Eliminada!', description: 'La etiqueta se ha eliminado correctamente.', variant: 'success' });
+    setIsDeletingId(null);
   };
   
   const handleSave = async (data: Omit<Tag, 'id'>, id?: number) => {
     setIsSaving(true);
+    await new Promise(r => setTimeout(r, 1000)); // Simular delay
     const isEditing = !!id;
-    const url = isEditing ? `/api/admin/tags/${id}` : '/api/admin/tags';
-    const method = isEditing ? 'PUT' : 'POST';
     
-    try {
-        const res = await apiFetch(url, { 
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data) 
-        });
-        await handleApiResponse(res);
-        toast({ title: isEditing ? '¡Etiqueta Actualizada!' : '¡Etiqueta Creada!', description: 'La etiqueta ha sido guardada.', variant: 'success'});
-        setIsFormOpen(false);
-        await fetchAppData();
-    } catch (error: any) {
-        toast({ title: 'Error al guardar', description: error.message, variant: 'destructive' });
-    } finally {
-        setIsSaving(false);
+    if (isEditing) {
+      setTags(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
+    } else {
+      const newId = Math.max(...tags.map(t => t.id), 0) + 1;
+      const newTag: Tag = { ...data, id: newId, product_count: 0 };
+      setTags(prev => [newTag, ...prev]);
     }
+
+    toast({ title: isEditing ? '¡Etiqueta Actualizada!' : '¡Etiqueta Creada!', description: 'La etiqueta ha sido guardada.', variant: 'success'});
+    setIsFormOpen(false);
+    setIsSaving(false);
   };
 
-  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, isDeletingId }), [handleEdit, handleDelete, isDeletingId]);
+  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, isDeletingId }), [isDeletingId]);
 
   const table = useReactTable({
     data: tags,
@@ -95,7 +80,7 @@ export default function TagsPage() {
             <h2 className="text-4xl font-bold font-headline tracking-tight text-slate-900 dark:text-white">Etiquetas</h2>
             <Button disabled className="rounded-2xl h-11 px-6 font-bold shadow-lg shadow-primary/20"><PlusCircle className="mr-2 h-4 w-4" />Crear Etiqueta</Button>
         </div>
-        <DataTableSkeleton columnCount={2} />
+        <DataTableSkeleton columnCount={3} />
       </div>
     );
   }

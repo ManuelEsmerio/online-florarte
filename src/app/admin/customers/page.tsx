@@ -1,4 +1,3 @@
-
 'use client';
 
 import { User, columns } from './columns';
@@ -8,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { CustomerForm } from './customer-form';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/context/AuthContext';
+import { allUsers } from '@/lib/data/user-data'; // Importación directa
 import { 
   useReactTable, 
   getCoreRowModel, 
@@ -22,13 +21,11 @@ import {
 } from '@tanstack/react-table';
 import { DataTableToolbar } from './customer-table-toolbar';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { CustomerDetailModal } from './customer-detail-modal';
-import { userService } from '@/services/userService';
 
 export default function CustomersPage() {
   const { toast } = useToast();
-  const { allUsers } = useAuth();
   
   const [users, setUsers] = useState<User[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -48,71 +45,39 @@ export default function CustomersPage() {
   ]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const loadUsers = useCallback(async () => {
+  const loadUsers = useCallback(() => {
       setIsLoading(true);
-      try {
-          const data = await userService.getAllUsersForAdmin({
-              status: 'all',
-              searchTerm: '',
-              roles: []
-          });
-          setUsers(data);
-      } catch (error) {
-          console.error("Error loading users:", error);
-      } finally {
-          setIsLoading(false);
-      }
+      // Simulación de carga desde datos de prueba
+      setUsers(allUsers);
+      setIsLoading(false);
   }, []);
 
   useEffect(() => {
     loadUsers();
-  }, [loadUsers, allUsers]);
+  }, [loadUsers]);
 
 
   const handleAddUser = () => {
     setSelectedUser(null);
-     setTimeout(() => {
-      setIsFormOpen(true);
-    }, 100);
+    setIsFormOpen(true);
   };
 
-  const handleEditUser = async (user: User) => {
-    setIsLoading(true);
-    try {
-        const fullUser = await userService.getUserById(user.id);
-        setSelectedUser(fullUser);
-        setIsFormOpen(true);
-    } catch (e) {
-        toast({ title: "Error", description: "No se pudieron obtener los datos del usuario.", variant: "destructive" });
-    } finally {
-        setIsLoading(false);
-    }
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    setIsFormOpen(true);
   };
 
-  const handleViewDetails = async (user: User) => {
-    setIsLoading(true);
-    try {
-        const fullUser = await userService.getUserById(user.id);
-        setSelectedUser(fullUser);
-        setIsDetailModalOpen(true);
-    } catch (e) {
-        toast({ title: "Error", description: "No se pudieron obtener los detalles.", variant: "destructive" });
-    } finally {
-        setIsLoading(false);
-    }
+  const handleViewDetails = (user: User) => {
+    setSelectedUser(user);
+    setIsDetailModalOpen(true);
   };
 
   const handleDeleteUser = async (id: number) => {
     setIsDeletingId(id);
-    try {
-        await userService.deleteUser(id);
-        toast({ title: '¡Usuario Eliminado!', description: 'El usuario ha sido desactivado del sistema.', variant: 'success' });
-        await loadUsers();
-    } catch (error: any) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } finally {
-        setIsDeletingId(null);
-    }
+    await new Promise(resolve => setTimeout(resolve, 500)); // Simular delay
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, is_deleted: true } : u));
+    toast({ title: '¡Usuario Desactivado!', description: 'El usuario ha sido desactivado del sistema.', variant: 'success' });
+    setIsDeletingId(null);
   };
   
   const handleSendCredentials = async (user: User) => {
@@ -133,7 +98,7 @@ export default function CustomersPage() {
     onSendCredentials: handleSendCredentials,
     isSendingCredentialsFor,
     isDeletingId,
-  }), [isSendingCredentialsFor, isDeletingId, handleEditUser, handleDeleteUser]);
+  }), [isSendingCredentialsFor, isDeletingId]);
 
   const table = useReactTable({
     data: users,
@@ -162,38 +127,34 @@ export default function CustomersPage() {
     const selectedRows = table.getFilteredSelectedRowModel().rows;
     const selectedIds = selectedRows.map(row => row.original.id);
     
-    try {
-        await userService.bulkDeleteUsers(selectedIds, 1); // Mock creator ID
-        toast({ title: '¡Usuarios Eliminados!', description: 'Los usuarios seleccionados han sido desactivados.', variant: 'success' });
-        table.resetRowSelection();
-        await loadUsers();
-    } catch (e) {
-        toast({ title: "Error", description: "Ocurrió un error en la eliminación masiva.", variant: "destructive" });
-    } finally {
-        setIsDeleting(false);
-    }
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simular delay
+    setUsers(prev => prev.map(u => selectedIds.includes(u.id) ? { ...u, is_deleted: true } : u));
+    toast({ title: '¡Usuarios Desactivados!', description: 'Los usuarios seleccionados han sido desactivados.', variant: 'success' });
+    table.resetRowSelection();
+    setIsDeleting(false);
   };
 
 
-  const handleSaveUser = async (userData: any) => {
+  const handleSaveUser = async (userData: any, id?: number) => {
     setIsSaving(true);
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simular delay
     try {
-        const isEditing = !!selectedUser;
-        if (isEditing) {
-            await userService.updateUserByAdmin(selectedUser.id, userData, 1); // Mock editor ID
+        if (id) {
+            setUsers(prev => prev.map(u => u.id === id ? { ...u, ...userData } : u));
         } else {
-            await userService.createUserByAdmin(userData, 1); // Mock creator ID
+            const newId = Math.max(...users.map(u => u.id), 0) + 1;
+            const newUser: User = { ...userData, id: newId, date_joined: new Date().toISOString() };
+            setUsers(prev => [newUser, ...prev]);
         }
 
         toast({
-          title: isEditing ? '¡Usuario Actualizado!' : '¡Usuario Creado!',
+          title: id ? '¡Usuario Actualizado!' : '¡Usuario Creado!',
           description: `El usuario ${userData.name} ha sido guardado exitosamente.`,
           variant: 'success'
         });
         
         setIsFormOpen(false);
         setSelectedUser(null);
-        await loadUsers();
     } catch (error: any) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -229,7 +190,7 @@ export default function CustomersPage() {
       <CustomerForm
         isOpen={isFormOpen}
         onOpenChange={setIsFormOpen}
-        onSave={handleSaveUser}
+        onSave={(data) => handleSaveUser(data, selectedUser?.id)}
         user={selectedUser}
         isSaving={isSaving}
       />
@@ -269,13 +230,15 @@ export default function CustomersPage() {
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="gap-2">
-                      <AlertDialogCancel className="rounded-2xl h-12 border-none bg-muted font-bold text-foreground hover:bg-primary">Cancelar</AlertDialogCancel>
+                      <AlertDialogCancel asChild>
+                         <Button variant="ghost" className="rounded-2xl h-12 font-bold">Cancelar</Button>
+                      </AlertDialogCancel>
                       <AlertDialogAction
                         className="bg-destructive hover:bg-destructive/90 rounded-2xl h-12 font-bold shadow-lg shadow-destructive/20 text-white"
                         onClick={handleBulkDelete}
                         disabled={isDeleting}
                       >
-                        {isDeleting ? "Eliminando..." : "Sí, desactivar"}
+                        {isDeleting ? "Desactivando..." : "Sí, desactivar"}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -9,15 +8,12 @@ import { DataTable } from '@/components/ui/data-table/data-table';
 import { useReactTable, getCoreRowModel, getPaginationRowModel, getSortedRowModel, RowSelectionState, PaginationState, SortingState } from '@tanstack/react-table';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { ShippingZone } from '@/lib/definitions';
+import { allShippingZones } from '@/lib/data/shipping-zone-data'; // Importación directa
 import { columns } from './columns';
 import { ShippingZoneForm } from './shipping-zone-form';
-import { useAuth } from '@/context/AuthContext';
-import { handleApiResponse } from '@/utils/handleApiResponse';
-
 
 export default function ShippingPage() {
   const { toast } = useToast();
-  const { apiFetch } = useAuth();
   const [shippingZones, setShippingZones] = useState<ShippingZone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -29,22 +25,12 @@ export default function ShippingPage() {
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await apiFetch('/api/admin/shipping');
-      const data = await handleApiResponse(res, []);
-      setShippingZones(data);
-    } catch(err: any) {
-        toast({ title: 'Error', description: err.message, variant: 'destructive'});
-    } finally {
-        setIsLoading(false);
-    }
-  }, [apiFetch, toast]);
-
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    // Cargar datos de prueba directamente en lugar de usar fetch
+    setIsLoading(true);
+    setShippingZones(allShippingZones);
+    setIsLoading(false);
+  }, []);
 
   const handleAdd = () => {
     setSelectedZone(null);
@@ -58,50 +44,34 @@ export default function ShippingPage() {
 
   const handleDelete = async (id: number) => {
     setIsDeletingId(id);
-    try {
-      const response = await apiFetch(`/api/admin/shipping/${id}`, { method: 'DELETE' });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Ocurrió un error al eliminar.');
-      }
-      toast({ title: '¡Zona Eliminada!', description: 'La zona de envío ha sido eliminada.', variant: 'success' });
-      await fetchData();
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive'});
-    } finally {
-        setIsDeletingId(null);
-    }
+    // Simular retraso de la API
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setShippingZones(prev => prev.filter(zone => zone.id !== id));
+    toast({ title: '¡Zona Eliminada!', description: 'La zona de envío ha sido eliminada.', variant: 'success' });
+    setIsDeletingId(null);
   };
   
   const handleSave = async (data: Omit<ShippingZone, 'id'>, id?: number) => {
     setIsSaving(true);
-    const isEditing = !!id;
-    const url = isEditing ? `/api/admin/shipping/${id}` : '/api/admin/shipping';
-    const method = isEditing ? 'PUT' : 'POST';
-
-    try {
-      const response = await apiFetch(url, { 
-        method, 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(data) 
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Ocurrió un error al guardar.');
-      }
-      
-      toast({ title: isEditing ? '¡Zona Actualizada!' : '¡Zona Creada!', description: 'La zona de envío ha sido guardada.', variant: 'success'});
-      setIsFormOpen(false);
-      await fetchData();
-    } catch (error: any) {
-      toast({ title: 'Error al guardar', description: error.message, variant: 'destructive'});
-    } finally {
-      setIsSaving(false);
+    // Simular retraso de la API
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    if (id) {
+      // Editar zona existente
+      setShippingZones(prev => prev.map(z => z.id === id ? { ...data, id } : z));
+      toast({ title: '¡Zona Actualizada!', description: 'La zona de envío ha sido guardada.', variant: 'success'});
+    } else {
+      // Crear nueva zona
+      const newId = Math.max(...shippingZones.map(z => z.id), 0) + 1;
+      setShippingZones(prev => [{ ...data, id: newId }, ...prev]);
+      toast({ title: '¡Zona Creada!', description: 'La zona de envío ha sido guardada.', variant: 'success'});
     }
+    
+    setIsFormOpen(false);
+    setIsSaving(false);
   };
 
-  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, isDeletingId }), [handleEdit, handleDelete, isDeletingId]);
+  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, isDeletingId }), [isDeletingId]);
 
   const table = useReactTable({
     data: shippingZones,

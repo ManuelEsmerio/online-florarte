@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -11,12 +10,9 @@ import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleto
 import { columns } from './columns';
 import { CategoryForm } from './category-form';
 import type { ProductCategory } from '@/lib/definitions';
-import { useAuth } from '@/context/AuthContext';
-import { handleApiResponse } from '@/utils/handleApiResponse';
+import { allCategories as mockCategories } from '@/lib/data/category-data'; // Importación directa
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useProductContext } from '@/context/ProductContext';
-
 
 const CategoryToolbar = ({ table }: { table: any }) => {
   const parentCategories = useMemo(() => {
@@ -79,11 +75,10 @@ const CategoryToolbar = ({ table }: { table: any }) => {
   )
 }
 
-
 export default function CategoriesPage() {
   const { toast } = useToast();
-  const { apiFetch } = useAuth();
-  const { categories, isLoading, fetchAppData } = useProductContext();
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [updatingVisibilityId, setUpdatingVisibilityId] = useState<number | null>(null);
@@ -95,13 +90,18 @@ export default function CategoriesPage() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 
+  useEffect(() => {
+    setIsLoading(true);
+    setCategories(mockCategories);
+    setIsLoading(false);
+  }, []);
+
   const sortedCategories = useMemo(() => {
     if (!categories?.length) return [];
 
     const groups: Record<number, ProductCategory[]> = {};
     const roots: ProductCategory[] = [];
 
-    // 1) Agrupar por parent_id
     for (const cat of categories) {
       if (cat.parent_id) {
         if (!groups[cat.parent_id]) {
@@ -113,16 +113,13 @@ export default function CategoriesPage() {
       }
     }
 
-    // 2) Ordenar cada grupo por nombre (localeCompare con sensibilidad adecuada)
-    const sortByName = (a: ProductCategory, b: ProductCategory) =>
-      a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+    const sortByName = (a: ProductCategory, b: ProductCategory) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
 
     roots.sort(sortByName);
     for(const key in groups) {
       groups[key].sort(sortByName);
     }
     
-    // 3) Aplanar en el orden: padre -> hijas
     const out: ProductCategory[] = [];
     for (const rootCat of roots) {
       out.push(rootCat);
@@ -145,68 +142,45 @@ export default function CategoriesPage() {
 
   const handleDelete = async (id: number) => {
     setIsDeletingId(id);
-    try {
-      const res = await apiFetch(`/api/admin/categories/${id}`, { method: 'DELETE' });
-      await handleApiResponse(res);
-      toast({ title: '¡Categoría Eliminada!', description: 'La categoría se ha eliminado correctamente.', variant: 'success' });
-      await fetchAppData();
-    } catch (error: any) {
-      toast({ title: 'Error al eliminar', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsDeletingId(null);
-    }
+    await new Promise(r => setTimeout(r, 500)); // Simular delay
+    setCategories(prev => prev.filter(c => c.id !== id && c.parent_id !== id));
+    toast({ title: '¡Categoría Eliminada!', description: 'La categoría y sus subcategorías han sido eliminadas.', variant: 'success' });
+    setIsDeletingId(null);
   };
 
   const handleSave = async (data: any, imageFile: File | null, id?: number) => {
     setIsSaving(true);
-
-    const formData = new FormData();
-    formData.append('categoryData', JSON.stringify(data));
-    if (imageFile) {
-      formData.append('image', imageFile);
-    }
+    await new Promise(r => setTimeout(r, 1000)); // Simular delay
 
     const isEditing = !!id;
-    const url = isEditing ? `/api/admin/categories/${id}` : '/api/admin/categories';
-    const method = isEditing ? 'PUT' : 'POST';
-
-    try {
-      const res = await apiFetch(url, { method, body: formData });
-      await handleApiResponse(res);
-      toast({ title: isEditing ? '¡Categoría Actualizada!' : '¡Categoría Creada!', description: 'La categoría ha sido guardada.', variant: 'success' });
-      setIsFormOpen(false);
-      await fetchAppData();
-    } catch (error: any) {
-      toast({ title: 'Error al guardar', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsSaving(false);
+    
+    if (isEditing) {
+      setCategories(prev => prev.map(c => c.id === id ? { ...c, ...data, id } : c));
+    } else {
+      const newId = Math.max(...categories.map(c => c.id), 0) + 1;
+      const newCategory: ProductCategory = { ...data, id: newId, product_count: 0 };
+      setCategories(prev => [newCategory, ...prev]);
     }
+
+    toast({ title: isEditing ? '¡Categoría Actualizada!' : '¡Categoría Creada!', description: 'La categoría ha sido guardada.', variant: 'success' });
+    setIsFormOpen(false);
+    setIsSaving(false);
   };
   
   const handleToggleShowOnHome = useCallback(async (category: ProductCategory) => {
     setUpdatingVisibilityId(category.id);
+    await new Promise(r => setTimeout(r, 500)); // Simular delay
     const newShowOnHome = !category.show_on_home;
 
-    try {
-      // Usar el endpoint optimizado para el toggle
-      const res = await apiFetch(`/api/admin/categories/${category.id}/toggle-visibility`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ show_on_home: newShowOnHome }),
-      });
-      await handleApiResponse(res);
-      toast({
-        title: 'Visibilidad Actualizada',
-        description: `La categoría "${category.name}" ahora ${newShowOnHome ? 'se mostrará' : 'no se mostrará'} en la página de inicio.`,
-        variant: 'success'
-      });
-      await fetchAppData(); // Recargar datos para que la UI se actualice
-    } catch (error: any) {
-      toast({ title: 'Error al actualizar', description: error.message, variant: 'destructive' });
-    } finally {
-      setUpdatingVisibilityId(null);
-    }
-  }, [apiFetch, fetchAppData, toast]);
+    setCategories(prev => prev.map(c => c.id === category.id ? { ...c, show_on_home: newShowOnHome } : c));
+
+    toast({
+      title: 'Visibilidad Actualizada',
+      description: `La categoría "${category.name}" ahora ${newShowOnHome ? 'se mostrará' : 'no se mostrará'} en el inicio.`,
+      variant: 'success'
+    });
+    setUpdatingVisibilityId(null);
+  }, []);
 
   const tableColumns = useMemo(
     () => columns({ 
@@ -217,7 +191,7 @@ export default function CategoriesPage() {
         isDeletingId, 
         updatingVisibilityId 
     }), 
-    [handleDelete, categories, isDeletingId, handleToggleShowOnHome, updatingVisibilityId]
+    [categories, isDeletingId, updatingVisibilityId]
   );
 
   const table = useReactTable({

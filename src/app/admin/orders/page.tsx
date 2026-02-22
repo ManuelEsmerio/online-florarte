@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { columns } from './columns';
 import { Order, OrderStatus } from '@/lib/definitions';
+import { allOrders } from '@/lib/data/order-data'; // Importación directa de los datos de prueba
 import type { User as DeliveryUser } from '@/lib/definitions';
 import { 
   useReactTable, 
@@ -30,12 +31,10 @@ import { SlidersHorizontal } from 'lucide-react';
 import { DataTable } from '@/components/ui/data-table/data-table';
 import { useToast } from '@/hooks/use-toast';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
-import { useProductContext } from '@/context/ProductContext';
-import { useAuth } from '@/context/AuthContext';
 
 export default function OrdersPage() {
-  const { orders, isLoading, fetchAppData } = useProductContext();
-  const { allUsers } = useAuth(); // Repartidores se filtran de aquí en un caso real
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   
   const [sorting, setSorting] = useState<SortingState>([{ id: 'id', desc: true }]);
@@ -47,20 +46,25 @@ export default function OrdersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
-  // Simulación de repartidores (filtrados de la lista de usuarios con rol 'delivery')
+  useEffect(() => {
+    // Cargar los datos de prueba directamente
+    setOrders(allOrders);
+    setIsLoading(false);
+  }, []);
+
   const deliveryDrivers = useMemo(() => {
-      // En el prototipo, buscamos los usuarios que tengan rol de repartidor
-      return []; // Por ahora vacío si no hay datos de repartidores en AuthContext
+      return []; // Por ahora vacío si no hay datos de repartidores
   }, []);
 
   const handleUpdateStatus = useCallback(async (orderId: number, newStatus: OrderStatus, payload: any) => {
-    // Simulación de actualización local
+    setOrders(prevOrders => prevOrders.map(order => 
+        order.id === orderId ? { ...order, status: newStatus } : order
+    ));
     toast({
         title: '¡Estado Actualizado!',
         description: `El pedido ORD${String(orderId).padStart(4, '0')} ha cambiado a ${newStatus}.`,
         variant: 'success'
     });
-    // En un prototipo real, actualizaríamos el estado global o el archivo local
   }, [toast]);
 
   const handleCancelOrder = useCallback(async (orderId: number) => {
