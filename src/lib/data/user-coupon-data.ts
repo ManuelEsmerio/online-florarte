@@ -1,0 +1,93 @@
+// src/lib/data/user-coupon-data.ts
+
+import type { Coupon } from '@/lib/definitions';
+import { CouponScope, DiscountType } from '@/lib/definitions';
+
+// This is a dedicated data source for the user-facing coupon page.
+// It includes all global coupons and specific user coupons to show a full history.
+export const userCoupons: Coupon[] = [
+    {
+      id: 1,
+      code: 'VERANO2024',
+      description: '20% de descuento en toda la tienda para la temporada de verano.',
+      discount_type: DiscountType.PERCENTAGE,
+      discount_value: 20,
+      valid_from: '2024-06-01T00:00:00Z',
+      valid_until: '2025-08-31T23:59:59Z',
+      status: 'vigente', // This will be recalculated on the fly
+      scope: CouponScope.GLOBAL,
+      max_uses: 100,
+      uses_count: 25,
+    },
+    {
+      id: 2,
+      code: 'BIENVENIDA10',
+      description: '10% de descuento en tu primera compra.',
+      discount_type: DiscountType.PERCENTAGE,
+      discount_value: 10,
+      valid_from: '2024-01-01T00:00:00Z',
+      valid_until: '2025-12-31T23:59:59Z',
+      status: 'vigente',
+      scope: CouponScope.GLOBAL,
+      max_uses: null,
+      uses_count: 150,
+    },
+    {
+      id: 3,
+      code: 'REGALOJUAN',
+      description: 'Cupón especial de $150 para Juan Pérez.',
+      discount_type: DiscountType.FIXED,
+      discount_value: 150,
+      valid_from: '2024-07-01T00:00:00Z',
+      valid_until: '2024-07-31T23:59:59Z',
+      status: 'vigente',
+      scope: CouponScope.SPECIFIC,
+      max_uses: 1,
+      uses_count: 0,
+      user_id: 2,
+      customerName: 'Juan Pérez',
+    },
+    {
+        id: 4,
+        code: 'AMORFLORAL',
+        description: '15% de descuento en la categoría de Arreglos Florales.',
+        discount_type: DiscountType.PERCENTAGE,
+        discount_value: 15,
+        valid_from: '2024-02-01T00:00:00Z',
+        valid_until: '2024-02-14T23:59:59Z',
+        status: 'vencido',
+        scope: CouponScope.GLOBAL,
+        max_uses: 200,
+        uses_count: 180,
+    },
+    {
+        id: 5,
+        code: 'CLIENTEVIP',
+        description: '$200 de descuento para clientes VIP.',
+        discount_type: DiscountType.FIXED,
+        discount_value: 200,
+        valid_from: '2024-07-01T00:00:00Z',
+        valid_until: '2025-01-01T23:59:59Z',
+        status: 'utilizado',
+        scope: CouponScope.SPECIFIC,
+        max_uses: 1,
+        uses_count: 1,
+        user_id: 3, 
+        customerName: 'Maria Garcia',
+    },
+     {
+      id: 7,
+      code: 'JUANP35',
+      description: '35% de descuento especial para Juan Pérez.',
+      discount_type: DiscountType.PERCENTAGE,
+      discount_value: 35,
+      valid_from: '2024-07-01T00:00:00Z',
+      valid_until: '2024-12-31T23:59:59Z',
+      status: 'vigente',
+      scope: CouponScope.SPECIFIC,
+      max_uses: 1,
+      uses_count: 0,
+      user_id: 2,
+      customerName: 'Juan Pérez',
+    }
+];

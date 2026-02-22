@@ -1,0 +1,17 @@
+// src/app/api/coupons/remove/route.ts
+import { type NextRequest } from 'next/server';
+import { successResponse, errorHandler } from '@/utils/api-utils';
+import { getIdentity } from '@/utils/request-utils';
+
+/**
+ * POST /api/coupons/remove
+ * Elimina la aplicación de un cupón de la sesión o carrito de usuario actual.
+ */
+export async function POST(req: NextRequest) {
+  try {
+    // This is a mock endpoint. In a real application, you would update the database.
+    return successResponse({ message: 'Cupón eliminado del carrito (simulado).' });
+  } catch (error: any) {
+    return errorHandler(error);
+  }
+}

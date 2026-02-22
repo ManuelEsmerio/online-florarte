@@ -1,0 +1,186 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root, .theme-default {
+    --background: 0 0% 98%; /* #FAFAFA */
+    --foreground: 20 14.3% 4.1%;
+    --card: 0 0% 100%;
+    --card-foreground: 20 14.3% 4.1%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 14.3% 4.1%;
+    --primary: 339 100% 59%; /* #FF2D78 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 336 20% 96%;
+    --secondary-foreground: 24 9.8% 10%;
+    --muted: 336 15% 94%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 340 100% 63%; /* #FF4081 */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 142.1 76.2% 98%;
+    --border: 336 20% 90%;
+    --input: 336 20% 92%;
+    --ring: 339 100% 59%;
+    --radius: 1.5rem;
+    --chart-1: 339 100% 59%;
+    --chart-2: 322 70% 50%;
+    --chart-3: 336 70% 75%;
+    --chart-4: 322 60% 60%;
+    --chart-5: 336 60% 80%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 20 14.3% 20%;
+    --sidebar-primary: hsl(var(--primary));
+    --sidebar-primary-foreground: hsl(var(--primary-foreground));
+    --sidebar-accent: hsl(var(--primary) / 0.1);
+    --sidebar-accent-foreground: hsl(var(--primary));
+    --sidebar-border: 336 20% 90%;
+    --sidebar-ring: 339 100% 59%;
+  }
+
+  .theme-lavender {
+    --primary: 262 83% 58%;
+    --ring: 262 83% 58%;
+  }
+
+  .theme-mint {
+    --primary: 158 64% 52%;
+    --ring: 158 64% 52%;
+  }
+
+  .theme-peach {
+    --primary: 24 100% 67%;
+    --ring: 24 100% 67%;
+  }
+
+  .dark:root, .dark .theme-default {
+    --background: 240 5% 4%; /* #0A0A0B */
+    --foreground: 0 0% 98%;
+    --card: 0 0% 12%; /* #1E1E1E */
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 12%; /* #1E1E1E */
+    --popover-foreground: 0 0% 98%;
+    --primary: 339 100% 59%; /* #FF2D78 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5.9% 64.9%;
+    --accent: 340 100% 63%; /* #FF4081 */
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 142.1 70.2% 46.3%;
+    --success-foreground: 142.1 76.2% 98%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 339 100% 59%;
+
+    --sidebar-background: 240 5% 4%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: hsl(var(--primary));
+    --sidebar-primary-foreground: hsl(var(--primary-foreground));
+    --sidebar-accent: hsl(var(--primary) / 0.1);
+    --sidebar-accent-foreground: hsl(var(--primary));
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 339 100% 59%;
+  }
+
+  .dark .theme-lavender {
+    --primary: 262 83% 65%;
+    --ring: 262 83% 65%;
+  }
+
+  .dark .theme-mint {
+    --primary: 158 64% 60%;
+    --ring: 158 64% 60%;
+  }
+
+  .dark .theme-peach {
+    --primary: 24 100% 72%;
+    --ring: 24 100% 72%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans transition-colors duration-300 ease-in-out;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-headline;
+  }
+
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none;
+  }
+}
+
+@layer utilities {
+  .premium-glow {
+    box-shadow: 0 0 30px rgba(255, 45, 120, 0.15);
+  }
+  .btn-hover-glow:hover {
+    box-shadow: 0 0 20px rgba(255, 45, 120, 0.4);
+  }
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(255, 45, 120, 0.15);
+  }
+}
+
+@layer base {
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes shake {
+    0%, 100% { transform: translate(-50%, -50%) translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translate(-50%, -50%) translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translate(-50%, -50%) translateX(5px); }
+  }
+
+  @keyframes modal-pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.02); }
+  }
+
+  .animate-shake {
+    animation: shake 0.5s ease-in-out;
+  }
+
+  .animate-modal-pulse {
+    animation: modal-pulse 0.2s ease-in-out;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.4s ease-out forwards;
+  }
+}

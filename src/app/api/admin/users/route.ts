@@ -1,0 +1,113 @@
+// src/app/api/admin/users/route.ts
+import { NextRequest } from 'next/server';
+import { successResponse, errorHandler } from '@/utils/api-utils';
+import { getDecodedToken, UserSession } from '@/utils/auth';
+import { userService } from '@/services/userService';
+import { userRepository } from '@/repositories/userRepository';
+import { ZodError } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
+
+/**
+ * GET /api/admin/users
+ * Endpoint protegido para obtener la lista de usuarios.
+ * Acepta parámetros de búsqueda y estado.
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const session: UserSession | null = await getDecodedToken(req);
+    if (!session?.dbId) {
+      return errorHandler(new Error('Acceso prohibido. Sesión no válida.'), 403);
+    }
+    const user = await userRepository.findById(session.dbId);
+    if (user?.role !== 'admin') {
+      return errorHandler(new Error('Acceso prohibido. Permisos insuficientes.'), 403);
+    }
+
+    const { searchParams } = new URL(req.url);
+    const status = searchParams.get('status') || 'active';
+    const searchTerm = searchParams.get('search') || '';
+    const roles = searchParams.get('roles')?.split(',').filter(Boolean) || [];
+
+    const users = await userService.getAllUsersForAdmin({
+      status: status as 'active' | 'deleted' | 'all',
+      searchTerm,
+      roles,
+    });
+    
+    return successResponse(users);
+
+  } catch (error) {
+    console.error('[API_ADMIN_USERS_GET_ERROR]', error);
+    return errorHandler(error);
+  }
+}
+
+/**
+ * POST /api/admin/users
+ * Endpoint protegido para crear un nuevo usuario.
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const session: UserSession | null = await getDecodedToken(req);
+    if (!session || !session.dbId) {
+      return errorHandler(new Error('Acceso denegado.'), 401);
+    }
+    const adminUser = await userRepository.findById(session.dbId);
+    if (adminUser?.role !== 'admin') {
+      return errorHandler(new Error('Acceso prohibido.'), 403);
+    }
+
+    const body = await req.json();
+    
+    // En modo demo, simplemente generamos un UID local
+    const localUid = `user_${uuidv4()}`;
+
+    const newUser = await userService.createUserByAdmin({ ...body, uid: localUid }, session.dbId);
+    
+    return successResponse(newUser, 201);
+
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return errorHandler(error, 400);
+    }
+    console.error('[API_ADMIN_USERS_POST_ERROR]', error);
+    return errorHandler(error);
+  }
+}
+
+/**
+ * DELETE /api/admin/users
+ * Endpoint protegido para realizar un borrado lógico masivo de usuarios.
+ */
+export async function DELETE(req: NextRequest) {
+    try {
+        const session: UserSession | null = await getDecodedToken(req);
+        if (!session?.dbId) {
+            return errorHandler(new Error('Acceso denegado.'), 401);
+        }
+        const adminUser = await userRepository.findById(session.dbId);
+        if (adminUser?.role !== 'admin') {
+            return errorHandler(new Error('Acceso prohibido.'), 403);
+        }
+
+        const { userIds } = await req.json();
+
+        if (!Array.isArray(userIds) || userIds.length === 0) {
+            return errorHandler(new Error('Se requiere un array de IDs de usuario.'), 400);
+        }
+
+        // Evitar que el admin se elimine a sí mismo
+        const filteredUserIds = userIds.filter(id => id !== session.dbId);
+
+        const result = await userService.bulkDeleteUsers(filteredUserIds, session.dbId);
+
+        return successResponse({
+            message: `Se eliminaron ${result.deletedCount} de ${userIds.length} usuarios seleccionados.`,
+            details: result.errors
+        });
+
+    } catch (error) {
+        console.error('[API_ADMIN_USERS_BULK_DELETE_ERROR]', error);
+        return errorHandler(error);
+    }
+}
