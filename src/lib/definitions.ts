@@ -188,33 +188,31 @@ export interface CartItem extends Product {
 }
 
 // --- Tipos de Cupón ---
-export enum DiscountType {
-  PERCENTAGE = 'percentage',
-  FIXED = 'fixed',
-}
+export type DiscountType = 'percentage' | 'fixed';
 
 export enum CouponScope {
   GLOBAL = 'global',
-  USERS = 'users',
-  CATEGORIES = 'categories',
-  PRODUCTS = 'products',
+  USER = 'user',
+  CATEGORY = 'category',
+  PRODUCT = 'product',
 }
 
-export type CouponStatus = 'vigente' | 'vencido' | 'utilizado';
+export type CouponStatus = 'vigente' | 'vencido' | 'utilizado' | 'programado' | 'todos';
 
 export interface Coupon {
   id: number;
   code: string;
   description: string;
   discount_type: DiscountType;
-  discount_value: number;
+  value: number; 
   valid_from: string;
   valid_until: string | null;
   status: CouponStatus;
-  scope: CouponScope;
+  scope?: CouponScope;
   max_uses: number | null;
   uses_count: number;
-  customerName?: string | null;
+  min_purchase?: number;
+  applicable_ids?: number[];
   details?: {
     users?: { id: number; name: string; }[];
     products?: { id: number; name: string; }[];

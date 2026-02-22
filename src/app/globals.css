@@ -61,9 +61,9 @@
   .dark:root, .dark .theme-default {
     --background: 240 5% 4%; /* #0A0A0B */
     --foreground: 0 0% 98%;
-    --card: 0 0% 12%; /* #1E1E1E */
+    --card: 12 6% 10%; /* #1C1A19 */
     --card-foreground: 0 0% 98%;
-    --popover: 0 0% 12%; /* #1E1E1E */
+    --popover: 12 6% 10%;
     --popover-foreground: 0 0% 98%;
     --primary: 339 100% 59%; /* #FF2D78 */
     --primary-foreground: 0 0% 100%;
@@ -125,6 +125,42 @@
   input::-ms-clear {
     display: none;
   }
+}
+
+@layer components {
+    .ticket-cutout {
+        @apply relative;
+    }
+    .ticket-cutout::before, .ticket-cutout::after {
+        content: '';
+        @apply absolute w-5 h-5 rounded-full z-10;
+        left: 33.333%;
+        transform: translateX(-50%);
+        background-color: hsl(var(--background));
+    }
+     .light .ticket-cutout::before, .light .ticket-cutout::after {
+        background-color: #f8f5f6;
+    }
+    .dark .ticket-cutout::before, .dark .ticket-cutout::after {
+        background-color: #121212;
+    }
+
+    .ticket-cutout::before { @apply -top-2.5; }
+    .ticket-cutout::after { @apply -bottom-2.5; }
+
+    .glass-card {
+        background: hsl(var(--primary) / 0.03);
+        backdrop-filter: blur(12px);
+        border: 1px solid hsl(var(--primary) / 0.1);
+        transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .glass-card:hover {
+        border-color: hsl(var(--primary) / 0.4);
+        box-shadow: 0 0 20px hsl(var(--primary) / 0.1);
+    }
+    .dark .glass-card {
+      background: rgba(40, 20, 26, 0.4);
+    }
 }
 
 @layer utilities {

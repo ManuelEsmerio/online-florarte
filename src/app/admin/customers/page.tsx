@@ -269,7 +269,7 @@ export default function CustomersPage() {
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="gap-2">
-                      <AlertDialogCancel className="rounded-2xl h-12 border-none bg-muted font-bold text-foreground">Cancelar</AlertDialogCancel>
+                      <AlertDialogCancel className="rounded-2xl h-12 border-none bg-muted font-bold text-foreground hover:bg-primary">Cancelar</AlertDialogCancel>
                       <AlertDialogAction
                         className="bg-destructive hover:bg-destructive/90 rounded-2xl h-12 font-bold shadow-lg shadow-destructive/20 text-white"
                         onClick={handleBulkDelete}

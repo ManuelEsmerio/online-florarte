@@ -89,6 +89,7 @@ export const columns = ({
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+         className="hover:bg-primary/90 hover:text-white"
       >
         Código
         <ArrowUpDown className="ml-2 h-4 w-4" />

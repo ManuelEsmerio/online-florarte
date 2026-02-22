@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, FormProvider, useFormContext } from 'react-hook-form';
 import * as z from 'zod';
-import { format, differenceInYears } from 'date-fns';
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -14,30 +13,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, Check, ChevronsUpDown, Dices, Users, Package, LayoutList } from 'lucide-react';
+import { CalendarIcon, Dices, Users, Package, LayoutList, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Coupon, User, ProductCategory, Product } from '@/lib/definitions';
-import { CouponScope, DiscountType } from '@/lib/definitions';
+import type { Coupon, User, ProductCategory, Product, CouponScope, DiscountType } from '@/lib/definitions';
 import { Textarea } from '@/components/ui/textarea';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Stepper } from '@/components/ui/stepper';
-import { Badge } from '@/components/ui/badge';
 import MultiSelect from '@/components/MultiSelect';
-
 
 const couponSchema = z.object({
   id: z.number().optional(),
   code: z.string().min(3, 'El código debe tener al menos 3 caracteres.'),
   description: z.string().min(10, 'La descripción es muy corta.'),
-  discount_type: z.nativeEnum(DiscountType, { required_error: 'Debes seleccionar un tipo de descuento.'}),
-  discount_value: z.coerce.number().positive('El valor del descuento debe ser positivo.'),
+  discount_type: z.enum(['percentage', 'fixed'], { required_error: 'Debes seleccionar un tipo de descuento.'}),
+  value: z.coerce.number().positive('El valor del descuento debe ser positivo.'),
   
-  scope: z.nativeEnum(CouponScope, { required_error: 'Debes seleccionar un ámbito.'}),
-  user_ids: z.array(z.number()).optional(),
-  product_ids: z.array(z.number()).optional(),
-  category_ids: z.array(z.number()).optional(),
+  scope: z.enum(['global', 'user', 'product', 'category'], { required_error: 'Debes seleccionar un ámbito.'}),
+  applicable_ids: z.array(z.number()).optional(),
 
   validity: z.object({
     from: z.date({ required_error: 'Se requiere una fecha de inicio.' }),
@@ -45,18 +38,13 @@ const couponSchema = z.object({
   }).optional(),
   noExpiry: z.boolean().optional(),
   max_uses: z.union([z.coerce.number().int().min(0, 'El límite de usos no puede ser negativo.'), z.literal('')]).optional(),
+  min_purchase: z.union([z.coerce.number().min(0, 'La compra mínima no puede ser negativa.'), z.literal('')]).optional(),
 }).superRefine((data, ctx) => {
-    if (data.discount_type === 'percentage' && data.discount_value > 99) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'El descuento no puede ser mayor al 99%.', path: ['discount_value'] });
+    if (data.discount_type === 'percentage' && data.value > 99) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'El descuento no puede ser mayor al 99%.', path: ['value'] });
     }
-    if (data.scope === CouponScope.USERS && (!data.user_ids || data.user_ids.length === 0)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Debes seleccionar al menos un usuario.', path: ['user_ids'] });
-    }
-    if (data.scope === CouponScope.PRODUCTS && (!data.product_ids || data.product_ids.length === 0)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Debes seleccionar al menos un producto.', path: ['product_ids'] });
-    }
-    if (data.scope === CouponScope.CATEGORIES && (!data.category_ids || data.category_ids.length === 0)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Debes seleccionar al menos una categoría.', path: ['category_ids'] });
+    if (data.scope !== 'global' && (!data.applicable_ids || data.applicable_ids.length === 0)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Debes seleccionar al menos un ítem.', path: ['applicable_ids'] });
     }
     if (!data.noExpiry && !data.validity?.from) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Debes seleccionar un rango de fechas o marcar "Sin fecha de vencimiento".', path: ['validity'] });
@@ -111,21 +99,21 @@ const Step1 = () => {
             <FormField control={control} name="description" render={({ field }) => (<FormItem><FormLabel>Descripción</FormLabel><FormControl><Textarea placeholder="Ej: 25% de descuento en toda la tienda." {...field} /></FormControl><FormMessage /></FormItem>)} />
              <div className="grid grid-cols-2 gap-4">
                 <FormField control={control} name="discount_type" render={({ field }) => (<FormItem><FormLabel>Tipo de Descuento</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona un tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="percentage">Porcentaje (%)</SelectItem><SelectItem value="fixed">Fijo (MXN)</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-                <FormField control={control} name="discount_value" render={({ field }) => (<FormItem><FormLabel>Valor</FormLabel><FormControl><Input type="number" min="0" max={discountType === 'percentage' ? "99" : undefined} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor</FormLabel><FormControl><Input type="number" min="0" max={discountType === 'percentage' ? "99" : undefined} {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
         </div>
     )
 }
 
 const Step2 = ({ customers, products, categories }: Pick<CouponFormProps, 'customers'|'products'|'categories'>) => {
-    const { control, watch } = useFormContext<CouponFormValues>();
+    const { control, watch, setValue } = useFormContext<CouponFormValues>();
     const couponScope = watch('scope');
 
-    const scopeOptions = [
-        { value: CouponScope.GLOBAL, label: 'Global', description: 'Aplica a todos los productos y clientes.', icon: <Users className="h-5 w-5" /> },
-        { value: CouponScope.USERS, label: 'Usuarios Específicos', description: 'Solo para los clientes que selecciones.', icon: <Users className="h-5 w-5" /> },
-        { value: CouponScope.PRODUCTS, label: 'Productos Específicos', description: 'Solo para una selección de productos.', icon: <Package className="h-5 w-5" /> },
-        { value: CouponScope.CATEGORIES, label: 'Categorías Específicas', description: 'Para todos los productos de las categorías seleccionadas.', icon: <LayoutList className="h-5 w-5" /> },
+    const scopeOptions: { value: CouponScope, label: string; description: string; icon: JSX.Element }[] = [
+        { value: 'global', label: 'Global', description: 'Aplica a todos los productos y clientes.', icon: <Globe className="h-5 w-5" /> },
+        { value: 'user', label: 'Usuarios Específicos', description: 'Solo para los clientes que selecciones.', icon: <Users className="h-5 w-5" /> },
+        { value: 'product', label: 'Productos Específicos', description: 'Solo para una selección de productos.', icon: <Package className="h-5 w-5" /> },
+        { value: 'category', label: 'Categorías Específicas', description: 'Para todos los productos de las categorías seleccionadas.', icon: <LayoutList className="h-5 w-5" /> },
     ];
     
     return (
@@ -139,7 +127,7 @@ const Step2 = ({ customers, products, categories }: Pick<CouponFormProps, 'custo
                    <FormControl>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                        {scopeOptions.map(option => (
-                        <div key={option.value} onClick={() => field.onChange(option.value)}
+                        <div key={option.value} onClick={() => { field.onChange(option.value); setValue('applicable_ids', []); }}
                            className={cn("p-4 rounded-lg border-2 cursor-pointer transition-all", field.value === option.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/50")}>
                            <div className="flex items-center gap-3">
                              <div className="text-primary">{option.icon}</div>
@@ -154,14 +142,29 @@ const Step2 = ({ customers, products, categories }: Pick<CouponFormProps, 'custo
                 </FormItem>
               )}
             />
-            {couponScope === CouponScope.USERS && (
-                <FormField control={control} name="user_ids" render={({ field }) => (<FormItem><FormLabel>Clientes</FormLabel><FormControl><MultiSelect options={customers.map(c => ({ value: c.id, label: c.name }))} selected={field.value ?? []} onChange={field.onChange} placeholder="Selecciona clientes..." /></FormControl><FormMessage /></FormItem>)} />
-            )}
-             {couponScope === CouponScope.PRODUCTS && (
-                <FormField control={control} name="product_ids" render={({ field }) => (<FormItem><FormLabel>Productos</FormLabel><FormControl><MultiSelect options={products.map(p => ({ value: p.id, label: p.name }))} selected={field.value ?? []} onChange={field.onChange} placeholder="Selecciona productos..." /></FormControl><FormMessage /></FormItem>)} />
-            )}
-             {couponScope === CouponScope.CATEGORIES && (
-                <FormField control={control} name="category_ids" render={({ field }) => (<FormItem><FormLabel>Categorías</FormLabel><FormControl><MultiSelect options={categories.filter(c=>!c.parent_id).map(c => ({ value: c.id, label: c.name }))} selected={field.value ?? []} onChange={field.onChange} placeholder="Selecciona categorías..." /></FormControl><FormMessage /></FormItem>)} />
+            {couponScope !== 'global' && (
+                <FormField control={control} name="applicable_ids" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>
+                            {couponScope === 'user' && 'Clientes'}
+                            {couponScope === 'product' && 'Productos'}
+                            {couponScope === 'category' && 'Categorías'}
+                        </FormLabel>
+                        <FormControl>
+                            <MultiSelect 
+                                options={
+                                    couponScope === 'user' ? customers.map(c => ({ value: c.id, label: c.name })) :
+                                    couponScope === 'product' ? products.map(p => ({ value: p.id, label: p.name })) :
+                                    couponScope === 'category' ? categories.filter(c=>!c.parent_id).map(c => ({ value: c.id, label: c.name })) : []
+                                }
+                                selected={field.value ?? []} 
+                                onChange={field.onChange} 
+                                placeholder={`Selecciona ${couponScope}s...`}
+                            />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )} />
             )}
         </div>
     )
@@ -189,7 +192,10 @@ const Step3 = () => {
     
     return (
         <div className="space-y-4">
-             <FormField control={control} name="max_uses" render={({ field }) => (<FormItem><FormLabel>Límite de Usos Totales</FormLabel><FormControl><Input type="number" min="0" placeholder="Ilimitado" {...field} /></FormControl><FormDescription className="text-xs">Dejar en blanco para usos ilimitados en total.</FormDescription><FormMessage /></FormItem>)} />
+             <div className="grid grid-cols-2 gap-4">
+                <FormField control={control} name="max_uses" render={({ field }) => (<FormItem><FormLabel>Límite de Usos</FormLabel><FormControl><Input type="number" min="0" placeholder="Ilimitado" {...field} /></FormControl><FormDescription className="text-xs">Dejar en blanco para ilimitado.</FormDescription><FormMessage /></FormItem>)} />
+                <FormField control={control} name="min_purchase" render={({ field }) => (<FormItem><FormLabel>Compra Mínima (MXN)</FormLabel><FormControl><Input type="number" min="0" placeholder="Sin mínimo" {...field} /></FormControl><FormDescription className="text-xs">Dejar en blanco si no hay.</FormDescription><FormMessage /></FormItem>)} />
+            </div>
             <FormField control={control} name="validity" render={({ field }) => (
                 <FormItem className="flex flex-col"><FormLabel>Vigencia</FormLabel>
                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
@@ -201,7 +207,7 @@ const Step3 = () => {
                 </FormItem>
               )}
             />
-             <FormField control={control} name="noExpiry" render={({ field }) => (<FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>Sin fecha de vencimiento</FormLabel></div></FormItem>)} />
+             <FormField control={control} name="noExpiry" render={({ field }) => (<FormItem className="flex flex-row items-center space-x-2 pt-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>Sin fecha de vencimiento</FormLabel></div></FormItem>)} />
         </div>
     )
 }
@@ -211,9 +217,9 @@ export function CouponForm({ isOpen, onOpenChange, onSave, coupon, isSaving, cus
   const form = useForm<CouponFormValues>({
     resolver: zodResolver(couponSchema),
     defaultValues: {
-      code: '', description: '', discount_type: DiscountType.PERCENTAGE, discount_value: 10,
-      scope: CouponScope.GLOBAL, user_ids: [], product_ids: [], category_ids: [],
-      max_uses: '', noExpiry: false,
+      code: '', description: '', discount_type: 'percentage', value: 10,
+      scope: 'global', applicable_ids: [],
+      max_uses: '', min_purchase: '', noExpiry: false,
     }
   });
 
@@ -225,20 +231,19 @@ export function CouponForm({ isOpen, onOpenChange, onSave, coupon, isSaving, cus
                 code: coupon.code,
                 description: coupon.description,
                 discount_type: coupon.discount_type,
-                discount_value: coupon.discount_value,
-                scope: coupon.scope,
-                user_ids: coupon.details?.users?.map(u => u.id) || [],
-                product_ids: coupon.details?.products?.map(p => p.id) || [],
-                category_ids: coupon.details?.categories?.map(c => c.id) || [],
+                value: coupon.value,
+                scope: coupon.scope || 'global',
+                applicable_ids: coupon.applicable_ids || [],
                 validity: { from: new Date(coupon.valid_from), to: coupon.valid_until ? new Date(coupon.valid_until) : null },
                 noExpiry: !coupon.valid_until,
                 max_uses: coupon.max_uses ?? '',
+                min_purchase: coupon.min_purchase ?? '',
             });
         } else {
             form.reset({
-                code: '', description: '', discount_type: DiscountType.PERCENTAGE, discount_value: 10,
-                validity: undefined, noExpiry: false, scope: CouponScope.GLOBAL,
-                user_ids: [], product_ids: [], category_ids: [], max_uses: '',
+                code: '', description: '', discount_type: 'percentage', value: 10,
+                validity: undefined, noExpiry: false, scope: 'global',
+                applicable_ids: [], max_uses: '', min_purchase: '',
             });
         }
     }
@@ -246,11 +251,16 @@ export function CouponForm({ isOpen, onOpenChange, onSave, coupon, isSaving, cus
 
   const onSubmit = (data: CouponFormValues) => {
     const finalData = {
-      ...data,
-      id: data.id || undefined,
+      code: data.code.toUpperCase(),
+      description: data.description,
+      discount_type: data.discount_type,
+      value: data.value,
+      scope: data.scope,
+      applicable_ids: data.scope === 'global' ? [] : data.applicable_ids,
       max_uses: data.max_uses === '' ? null : Number(data.max_uses),
-      valid_from: data.validity?.from,
-      valid_until: data.noExpiry ? null : data.validity?.to,
+      min_purchase: data.min_purchase === '' ? null : Number(data.min_purchase),
+      valid_from: data.validity?.from.toISOString(),
+      valid_until: data.noExpiry ? null : data.validity?.to?.toISOString() ?? null,
     };
     onSave(finalData, data.id);
   };
@@ -280,9 +290,9 @@ export function CouponForm({ isOpen, onOpenChange, onSave, coupon, isSaving, cus
                               onClick={async () => {
                                   const isLast = stepperProps.isLastStep;
                                   const stepFields: (keyof CouponFormValues)[][] = [
-                                      ["code", "description", "discount_type", "discount_value"],
-                                      ["scope", "user_ids", "product_ids", "category_ids"],
-                                      ["max_uses", "validity", "noExpiry"]
+                                      ["code", "description", "discount_type", "value"],
+                                      ["scope", "applicable_ids"],
+                                      ["max_uses", "min_purchase", "validity", "noExpiry"]
                                   ];
                                   const isValid = await form.trigger(stepFields[stepperProps.activeStep]);
                                   if (isValid) {
