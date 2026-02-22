@@ -159,9 +159,9 @@ const Step1_Info = () => {
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent className="rounded-[1.5rem] border-none shadow-2xl p-2 bg-background">
-                                    <SelectItem value="admin" className="rounded-xl py-3 font-medium cursor-pointer">Administrador General</SelectItem>
-                                    <SelectItem value="delivery" className="rounded-xl py-3 font-medium cursor-pointer">Repartidor Especializado</SelectItem>
-                                    <SelectItem value="customer" className="rounded-xl py-3 font-medium cursor-pointer">Cliente Premium</SelectItem>
+                                    <SelectItem value="admin" className="rounded-xl py-3 font-medium cursor-pointer data-[highlighted]:bg-primary/90 data-[highlighted]:text-white">Administrador General</SelectItem>
+                                    <SelectItem value="delivery" className="rounded-xl py-3 font-medium cursor-pointer data-[highlighted]:bg-primary/90 data-[highlighted]:text-white">Repartidor Especializado</SelectItem>
+                                    <SelectItem value="customer" className="rounded-xl py-3 font-medium cursor-pointer data-[highlighted]:bg-primary/90 data-[highlighted]:text-white">Cliente</SelectItem>
                                 </SelectContent>
                             </Select>
                             <FormMessage className="ml-5" />
