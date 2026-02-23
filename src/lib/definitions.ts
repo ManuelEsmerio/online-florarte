@@ -223,9 +223,9 @@ export interface Coupon {
 // --- Tipos de Zona de Envío ---
 export interface ShippingZone {
   id: number;
-  postalCode: string;
+  postal_code: string;
   locality: string;
-  shippingCost: number;
+  shipping_cost: number;
 }
 
 export type DbShippingZone = {

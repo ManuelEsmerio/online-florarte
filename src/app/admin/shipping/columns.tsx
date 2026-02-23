@@ -19,24 +19,25 @@ const formatCurrency = (amount: number) => new Intl.NumberFormat('es-MX', { styl
 
 export const columns = ({ onEdit, onDelete, isDeletingId }: ColumnsProps): ColumnDef<ShippingZone>[] => [
   {
-    accessorKey: 'postalCode',
+    accessorKey: 'postal_code',
     header: ({ column }) => (
-      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+      className='hover:bg-primary/10 hover:text-primary-foreground focus:bg-primary/10 focus:text-primary-foreground'>
         Código Postal
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => <div className="font-mono">{row.getValue('postalCode')}</div>,
+    cell: ({ row }) => <div className="font-mono">{row.getValue('postal_code')}</div>,
   },
   {
     accessorKey: 'locality',
     header: 'Localidad',
   },
   {
-    accessorKey: 'shippingCost',
+    accessorKey: 'shipping_cost',
     header: () => <div className="text-right">Costo de Envío</div>,
     cell: ({ row }) => {
-      const amount = parseFloat(row.getValue('shippingCost'));
+      const amount = parseFloat(row.getValue('shipping_cost'));
       return <div className="text-right font-medium">{formatCurrency(amount)}</div>;
     },
   },
@@ -50,7 +51,7 @@ export const columns = ({ onEdit, onDelete, isDeletingId }: ColumnsProps): Colum
         <div className="text-right">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0" disabled={isDeleting}>
+              <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary-foreground focus:bg-primary/10 focus:text-primary-foreground" disabled={isDeleting}>
                 <span className="sr-only">Abrir menú</span>
                 {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
               </Button>
@@ -69,7 +70,7 @@ export const columns = ({ onEdit, onDelete, isDeletingId }: ColumnsProps): Colum
                   <AlertDialogHeader>
                     <AlertDialogTitle>¿Estás seguro de que quieres eliminar esta zona?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Esta acción no se puede deshacer. La zona para el código postal <span className="font-mono font-bold">{zone.postalCode}</span> será eliminada permanentemente.
+                      Esta acción no se puede deshacer. La zona para el código postal <span className="font-mono font-bold">{zone.postal_code}</span> será eliminada permanentemente.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>

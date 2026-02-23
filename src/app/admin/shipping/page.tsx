@@ -8,7 +8,7 @@ import { DataTable } from '@/components/ui/data-table/data-table';
 import { useReactTable, getCoreRowModel, getPaginationRowModel, getSortedRowModel, RowSelectionState, PaginationState, SortingState } from '@tanstack/react-table';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { ShippingZone } from '@/lib/definitions';
-import { allShippingZones } from '@/lib/data/shipping-zone-data'; // Importación directa
+import { allShippingZones } from '@/lib/data/shipping-zones'; // Importación directa
 import { columns } from './columns';
 import { ShippingZoneForm } from './shipping-zone-form';
 

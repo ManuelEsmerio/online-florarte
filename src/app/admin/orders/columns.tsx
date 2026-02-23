@@ -48,7 +48,8 @@ export const columns = ({ onUpdateStatus, onCancelOrder, deliveryDrivers, onSend
   {
     accessorKey: 'id',
     header: ({ column }) => (
-      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+      className='hover:bg-primary/10 hover:text-primary-foreground focus:bg-primary/10 focus:text-primary-foreground'>
         Pedido ID
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>

@@ -166,7 +166,7 @@ export default function ShippingPolicyPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-4 bg-muted/30 rounded-2xl border border-border/50 text-sm font-bold flex items-center gap-3">
                     <Zap className="w-4 h-4 text-primary" />
-                    Entrega Hoy (L-S antes 2:30 PM)
+                    Entrega Hoy (L-S 9:00 AM - 8:00 PM)
                   </div>
                   <div className="p-4 bg-muted/30 rounded-2xl border border-border/50 text-sm font-bold flex items-center gap-3">
                     <Calendar className="w-4 h-4 text-primary" />
