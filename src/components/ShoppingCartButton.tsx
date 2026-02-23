@@ -180,7 +180,7 @@ const ShoppingCartButton = () => {
                             disabled={cartItemCount === 0}
                         >
                             {cartItemCount > 0 ? (
-                                <Link href="/checkout" onClick={() => setCartOpen(false)}>Finalizar Compra</Link>
+                                <Link href="/cart" onClick={() => setCartOpen(false)}>Finalizar Compra</Link>
                             ) : (
                                 <span>Finalizar Compra</span>
                             )}

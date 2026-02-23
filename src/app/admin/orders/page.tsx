@@ -102,11 +102,11 @@ export default function OrdersPage() {
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const statusOptions: OrderStatus[] = ['pendiente', 'procesando', 'en_reparto', 'completado', 'cancelado'];
+  const statusOptions: OrderStatus[] = ['pendiente', 'procesando', 'enviado', 'completado', 'cancelado'];
   const statusTranslations: { [key in OrderStatus]: string } = {
     'pendiente': 'Pendiente',
     'procesando': 'En Proceso',
-    'en_reparto': 'En Camino',
+    'enviado': 'Enviado',
     'completado': 'Completado',
     'cancelado': 'Cancelado',
   }

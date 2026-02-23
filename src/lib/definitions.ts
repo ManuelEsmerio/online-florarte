@@ -286,7 +286,7 @@ export interface DashboardStats {
   recentActivity: Activity[];
 }
 
-export type OrderStatus = 'pendiente' | 'procesando' | 'en_reparto' | 'completado' | 'cancelado';
+export type OrderStatus = 'pendiente' | 'procesando' | 'enviado' | 'completado' | 'cancelado';
 
 export type OrderItem = {
     id?: number;

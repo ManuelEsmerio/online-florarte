@@ -23,6 +23,11 @@
     --destructive-foreground: 0 0% 98%;
     --success: 142.1 76.2% 36.3%;
     --success-foreground: 142.1 76.2% 98%;
+    --warning: 38 92% 50%;           /* amber-500 */
+    --warning-foreground: 0 0% 0%;
+    --info: 217 91% 60%;             /* blue-500 */
+    --info-foreground: 0 0% 100%;
+    --rating: 45 100% 51%;           /* yellow-400 — star/rating color */
     --border: 336 20% 90%;
     --input: 336 20% 92%;
     --ring: 339 100% 59%;
@@ -77,6 +82,11 @@
     --destructive-foreground: 0 0% 98%;
     --success: 142.1 70.2% 46.3%;
     --success-foreground: 142.1 76.2% 98%;
+    --warning: 38 85% 55%;           /* amber-400 for dark mode */
+    --warning-foreground: 0 0% 0%;
+    --info: 217 91% 65%;             /* blue-400 for dark mode */
+    --info-foreground: 0 0% 100%;
+    --rating: 45 100% 55%;           /* yellow-300 for dark mode */
     --border: 0 0% 18%;
     --input: 0 0% 18%;
     --ring: 339 100% 59%;

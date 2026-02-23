@@ -58,14 +58,14 @@ import type { OrderColumnsProps } from '@/app/admin/orders/columns';
 
 const availableTransitions: { [key in OrderStatus]?: OrderStatus[] } = {
   pendiente: ['procesando', 'cancelado'],
-  procesando: ['en_reparto', 'cancelado'],
-  en_reparto: ['completado'],
+  procesando: ['enviado', 'cancelado'],
+  enviado: ['completado'],
 };
 
 const statusTranslations: { [key in OrderStatus]: string } = {
   pendiente: 'Pendiente',
   procesando: 'En Proceso',
-  en_reparto: 'En Reparto',
+  enviado: 'Enviado',
   completado: 'Completado',
   cancelado: 'Cancelado',
 };
@@ -107,7 +107,7 @@ export const OrderActionsCell = ({
     setIsSaving(true);
     const payload: { deliveryDriverId?: number; deliveryNotes?: string } = {};
 
-    if (newStatus === 'en_reparto') {
+    if (newStatus === 'enviado') {
       if (deliveryDriverId) {
         payload.deliveryDriverId = Number(deliveryDriverId);
       }
@@ -138,7 +138,7 @@ export const OrderActionsCell = ({
             </AlertDescription>
           </Alert>
         );
-      case 'en_reparto':
+      case 'enviado':
         return (
           <Alert>
             <Truck className="h-4 w-4" />
@@ -165,14 +165,15 @@ export const OrderActionsCell = ({
 
   const isSaveDisabled =
     isSaving ||
-    (newStatus === 'en_reparto' && !deliveryDriverId) ||
+    (newStatus === 'enviado' && !deliveryDriverId) ||
     newStatus === order.status;
 
   return (
     <div className="text-right">
       <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="h-8 w-8 p-0">
+          <Button variant="ghost"
+            className='h-8 w-8 p-0 hover:bg-primary/10 data-[state=active]:bg-primary/10 hover:text-primary data-[state=active]:text-primary'>
             <span className="sr-only">Abrir menú</span>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
@@ -255,7 +256,7 @@ export const OrderActionsCell = ({
                     </SelectContent>
                   </Select>
                 </div>
-                {newStatus === 'en_reparto' && (
+                {newStatus === 'enviado' && (
                   <>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="driver" className="text-right">
