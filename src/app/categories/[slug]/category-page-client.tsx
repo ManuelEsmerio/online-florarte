@@ -22,7 +22,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { AdCard } from '@/components/AdCard';
 import { Search, Loader2, Filter, SlidersHorizontal, X, LayoutGrid } from 'lucide-react';
-import { handleApiResponse } from '@/utils/handleApiResponse';
 import {
   Select,
   SelectContent,
@@ -42,10 +41,12 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { useSearchParams } from 'next/navigation';
-
+import { allProducts } from '@/lib/data/product-data';
+import { productCategories } from '@/lib/data/categories-data';
+import { allOccasions as mockOccasions } from '@/lib/data/occasion-data';
+import { allTags as mockTags } from '@/lib/data/tag-data';
 
 type SortOption = 'recommended' | 'price-asc' | 'price-desc';
-const PRODUCT_LIMIT = 999; 
 const ITEMS_PER_PAGE = 16;
 
 interface CategoryPageClientProps {
@@ -60,12 +61,10 @@ export function CategoryPageClient({
     occasionSlug
 }: CategoryPageClientProps) {
   
-  const { apiFetch } = useAuth();
   const searchParams = useSearchParams();
   const initialOccasionSlug = searchParams.get('occasion');
 
-
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [allProductsData, setAllProductsData] = useState<Product[]>([]);
   const [allCategories, setAllCategories] = useState<ProductCategory[]>([]);
   const [allOccasions, setAllOccasions] = useState<Occasion[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
@@ -76,31 +75,19 @@ export function CategoryPageClient({
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true);
     try {
-        let productsUrl = `/api/products?limit=${PRODUCT_LIMIT}`;
-        if (pageType === 'category' && categorySlug) {
-            productsUrl += `&category=${categorySlug}`;
-        }
-        
-        const productsPromise = apiFetch(productsUrl);
-        const homeDataPromise = apiFetch('/api/home');
-
-        const [productsRes, homeDataRes] = await Promise.all([productsPromise, homeDataPromise]);
-        
-        const productsData = await handleApiResponse(productsRes);
-        const homeData = await handleApiResponse(homeDataRes);
-        
-        setAllProducts(productsData.products || []);
-        setAllCategories(homeData.categories || []);
-        setAllOccasions(homeData.occasions || []);
-        setAllTags(homeData.tags || []);
-        setAnnouncements(homeData.announcements || []);
+      // Use mock data
+      setAllProductsData(allProducts);
+      setAllCategories(productCategories);
+      setAllOccasions(mockOccasions);
+      setAllTags(mockTags);
+      setAnnouncements([]); // No mock announcements for now
 
     } catch (error) {
         console.error("Failed to fetch initial page data:", error);
     } finally {
         setIsLoading(false);
     }
-  }, [pageType, categorySlug, apiFetch]);
+  }, []);
   
   useEffect(() => {
     fetchInitialData();
@@ -137,12 +124,12 @@ export function CategoryPageClient({
   }, [pageType, occasionSlug, initialOccasionSlug, allOccasions]);
   
   const maxPrice = useMemo(() => {
-    if (allProducts.length === 0) return 5000;
-    const allPrices = allProducts.flatMap(p => 
+    if (allProductsData.length === 0) return 5000;
+    const allPrices = allProductsData.flatMap(p => 
       p.has_variants && p.variants ? p.variants.map(v => v.price) : [p.price]
     );
     return Math.ceil(Math.max(...allPrices, 0) / 100) * 100;
-  }, [allProducts]);
+  }, [allProductsData]);
 
   useEffect(() => {
     setPriceRange([maxPrice]);
@@ -153,7 +140,7 @@ export function CategoryPageClient({
   }, [maxPrice, currentCategory, subcategories, pageType, currentOccasion, initialOccasionSlug]);
   
   const filteredClientProducts = useMemo(() => {
-    let filtered = allProducts.filter(product => {
+    let filtered = allProductsData.filter(product => {
         const searchMatch =
             product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             product.code.toLowerCase().includes(searchTerm.toLowerCase());
@@ -210,7 +197,7 @@ export function CategoryPageClient({
     });
 
     return sorted;
-  }, [searchTerm, priceRange, selectedCategories, selectedOccasions, selectedTags, sortOption, allProducts, allCategories, pageType, currentCategory, currentOccasion]);
+  }, [searchTerm, priceRange, selectedCategories, selectedOccasions, selectedTags, sortOption, allProductsData, allCategories, pageType, currentCategory, currentOccasion]);
 
   // Reset count when filters change
   useEffect(() => {

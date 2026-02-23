@@ -8,31 +8,28 @@ import { Commitments } from '@/components/Commitments';
 import { Occasions } from '@/components/Occasions';
 import { Newsletter } from '@/components/Newsletter';
 import dynamic from 'next/dynamic';
-import { categoryService } from '@/services/categoryService';
 import { testimonialService } from '@/services/testimonialService';
-import { occasionService } from '@/services/occasionService';
+import { mockCategories, mockOccasions } from '@/lib/data/home-page-data';
 
 // Lazy load components that are not immediately visible on screen to improve initial page load performance.
 const Testimonials = dynamic(() => import('@/components/Testimonials').then(mod => mod.Testimonials));
 
 async function getHomePageData() {
     try {
-        const [categories, testimonials, occasions] = await Promise.all([
-            categoryService.getHomePageCategories(),
-            testimonialService.getApprovedTestimonials(),
-            occasionService.getAllOccasions(),
-        ]);
+        // Fetch testimonials, but use mock data for categories and occasions
+        const testimonials = await testimonialService.getApprovedTestimonials();
         
         return {
-            categories: categories || [],
-            occasions: occasions || [],
+            categories: mockCategories, // Using mock data
+            occasions: mockOccasions,   // Using mock data
             testimonials: testimonials || [],
         };
     } catch (error) {
         console.error("Failed to load home page data on server:", error);
+        // Fallback to mock data for all if testimonials fail
         return {
-            categories: [],
-            occasions: [],
+            categories: mockCategories,
+            occasions: mockOccasions,
             testimonials: [],
         };
     }
