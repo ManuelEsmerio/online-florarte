@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/table"
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -25,7 +24,7 @@ import { es } from 'date-fns/locale';
 import type { Activity, DashboardStats } from '@/lib/definitions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ResponsiveContainer, AreaChart, BarChart, XAxis, YAxis, CartesianGrid, Area, Tooltip, Bar, Legend } from 'recharts';
-import { handleApiResponse } from '@/utils/handleApiResponse';
+import { mockDashboardStats } from '@/lib/data/dashboard-data';
 
 const statusStyles: { [key in OrderStatus]: string } = {
   pendiente: 'bg-slate-100 text-slate-600 border-slate-200',
@@ -85,24 +84,16 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [categoryChartFilter, setCategoryChartFilter] = useState<'main' | 'sub'>('main');
-  const { apiFetch } = useAuth();
 
-  const fetchStats = useCallback(async () => {
+  const loadStats = useCallback(() => {
     setIsLoading(true);
-    try {
-        const response = await apiFetch('/api/admin/dashboard');
-        const data = await handleApiResponse(response);
-        setStats(data);
-    } catch (error) {
-        console.error("Failed to fetch dashboard stats:", error);
-    } finally {
-        setIsLoading(false);
-    }
-  }, [apiFetch]);
+    setStats(mockDashboardStats);
+    setIsLoading(false);
+  }, []);
 
   useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
+    loadStats();
+  }, [loadStats]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -117,33 +108,33 @@ export default function DashboardPage() {
     }
     return null;
   };
-  
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-MX', {
         style: 'currency',
         currency: 'MXN'
     }).format(value);
   }
-  
+
   const formatPercentage = (change: number | null | undefined) => {
     if (change === null || change === undefined) return "N/A";
     if (change === Infinity) return "+100%";
     const sign = change > 0 ? "+" : "";
     return `${sign}${change.toFixed(1)}%`;
   }
-  
+
   const getChangeIcon = (change: number) => {
     if (change === Infinity || change > 0) return <TrendingUp className="h-3.5 w-3.5" />;
     if (change < 0) return <TrendingDown className="h-3.5 w-3.5" />;
     return <Minus className="h-3.5 w-3.5" />;
   }
-  
+
   const getChangeColor = (change: number) => {
     if (change === Infinity || change > 0) return "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10";
     if (change < 0) return "text-red-600 bg-red-50 dark:bg-red-500/10";
     return "text-slate-500 bg-slate-50";
   }
-  
+
   const filteredCategoryData = useMemo(() => {
     if (!stats?.categoryProductCounts) return [];
     return stats.categoryProductCounts.filter(cat => {
@@ -152,34 +143,34 @@ export default function DashboardPage() {
   }, [stats?.categoryProductCounts, categoryChartFilter]);
 
   const statCards = [
-      { 
-        title: "Ventas Mensuales", 
+      {
+        title: "Ventas Mensuales",
         value: stats ? formatCurrency(stats.totalSales.current) : '',
         change: stats ? formatPercentage(stats.totalSales.change) : '',
         icon: DollarSign,
         changeValue: stats?.totalSales.change,
         accent: "bg-primary/10 text-primary"
       },
-      { 
-        title: "Nuevos Usuarios", 
+      {
+        title: "Nuevos Usuarios",
         value: stats ? stats.newCustomers.current.toString() : '',
         change: stats ? formatPercentage(stats.newCustomers.change) : '',
         icon: Users,
         changeValue: stats?.newCustomers.change,
         accent: "bg-blue-500/10 text-blue-500"
       },
-      { 
-        title: "Pedidos Recibidos", 
+      {
+        title: "Pedidos Recibidos",
         value: stats ? stats.orders.current.toString() : '',
         change: stats ? formatPercentage(stats.orders.change) : '',
         icon: ShoppingCart,
         changeValue: stats?.orders.change,
         accent: "bg-purple-500/10 text-purple-500"
       },
-      { 
-        title: "Ahorro en Cupones", 
-        value: stats ? formatCurrency(stats.usedCoupons.current) : '', 
-        change: stats ? formatPercentage(stats.usedCoupons.change) : '', 
+      {
+        title: "Ahorro en Cupones",
+        value: stats ? formatCurrency(stats.usedCoupons.current) : '',
+        change: stats ? formatPercentage(stats.usedCoupons.change) : '',
         icon: Ticket,
         changeValue: stats?.usedCoupons.change,
         accent: "bg-orange-500/10 text-orange-500"
@@ -194,7 +185,7 @@ export default function DashboardPage() {
                 <p className="text-muted-foreground mt-1 font-medium">Bienvenido de vuelta al taller de Florarte.</p>
             </div>
             <div className="flex items-center gap-3">
-                <Button variant="outline" className="rounded-2xl h-11 px-6 font-bold shadow-sm" onClick={() => fetchStats()}>
+                <Button variant="outline" className="rounded-2xl h-11 px-6 font-bold shadow-sm" onClick={() => loadStats()}>
                     <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} />
                     Sincronizar
                 </Button>
@@ -212,8 +203,8 @@ export default function DashboardPage() {
                 Array.from({length: 4}).map((_, index) => <StatCardSkeleton key={index}/>)
             ) : (
                 statCards.map((item, index) => (
-                    <Card 
-                        key={item.title} 
+                    <Card
+                        key={item.title}
                         className="border-none rounded-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-black/20 transition-all duration-500 hover:-translate-y-2 group animate-fade-in-up bg-white dark:bg-zinc-900"
                         style={{ animationDelay: `${index * 100}ms` }}
                     >
@@ -261,13 +252,13 @@ export default function DashboardPage() {
                                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} fontWeight={600} tickLine={false} axisLine={false} dy={10} />
                                 <YAxis stroke="#94a3b8" fontSize={11} fontWeight={600} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value/1000}k`} />
                                 <Tooltip content={<CustomTooltip />} />
-                                <Area 
-                                    type="monotone" 
-                                    dataKey="total" 
-                                    stroke="hsl(var(--primary))" 
+                                <Area
+                                    type="monotone"
+                                    dataKey="total"
+                                    stroke="hsl(var(--primary))"
                                     strokeWidth={4}
-                                    fillOpacity={1} 
-                                    fill="url(#colorRevenue)" 
+                                    fillOpacity={1}
+                                    fill="url(#colorRevenue)"
                                     animationDuration={2000}
                                 />
                             </AreaChart>
@@ -346,7 +337,7 @@ export default function DashboardPage() {
                     </ResponsiveContainer>
                 </CardContent>
             </Card>
-            
+
             <Card className="border-none rounded-[3rem] shadow-2xl bg-white dark:bg-zinc-900 animate-fade-in-up overflow-hidden" style={{ animationDelay: '700ms' }}>
                 <CardHeader className="p-10 pb-6">
                     <div className='flex justify-between items-center'>

@@ -1,147 +1,73 @@
 // src/repositories/dashboardRepository.ts
-import db from '@/lib/db';
-import type { RowDataPacket } from 'mysql2/promise';
+import type { RowDataPacket } from '@/lib/db';
 
 type MetricResult = { current_month: number; previous_month: number };
 
-const getMonthlyMetrics = async (query: string): Promise<MetricResult> => {
-    const [rows] = await db.query<RowDataPacket[]>(query);
-    const data = rows[0];
-    return {
-        current_month: Number(data.current_month_total) || 0,
-        previous_month: Number(data.previous_month_total) || 0,
-    };
-};
-
 export const dashboardRepository = {
     async getSalesMetrics(): Promise<MetricResult> {
-        const query = `
-            SELECT
-                SUM(CASE WHEN DATE_FORMAT(o.created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') THEN o.total ELSE 0 END) as current_month_total,
-                SUM(CASE WHEN DATE_FORMAT(o.created_at, '%Y-%m') = DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m') THEN o.total ELSE 0 END) as previous_month_total
-            FROM orders o
-            JOIN order_statuses os ON o.order_status_id = os.id
-            WHERE o.is_deleted = 0 AND os.code = 'completado';
-        `;
-        return getMonthlyMetrics(query);
+        // Mock data
+        return Promise.resolve({
+            current_month: 25400,
+            previous_month: 21000,
+        });
     },
 
     async getNewCustomersMetrics(): Promise<MetricResult> {
-        const query = `
-            SELECT
-                COUNT(CASE WHEN DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') THEN id ELSE NULL END) as current_month_total,
-                COUNT(CASE WHEN DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m') THEN id ELSE NULL END) as previous_month_total
-            FROM users
-            WHERE is_deleted = 0;
-        `;
-        return getMonthlyMetrics(query);
+        return Promise.resolve({
+            current_month: 45,
+            previous_month: 38,
+        });
     },
 
     async getOrdersMetrics(): Promise<MetricResult> {
-        const query = `
-            SELECT
-                COUNT(CASE WHEN DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') THEN id ELSE NULL END) as current_month_total,
-                COUNT(CASE WHEN DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m') THEN id ELSE NULL END) as previous_month_total
-            FROM orders
-            WHERE is_deleted = 0;
-        `;
-        return getMonthlyMetrics(query);
+        return Promise.resolve({
+            current_month: 120,
+            previous_month: 95,
+        });
     },
 
     async getCouponUsageMetrics(): Promise<MetricResult> {
-        const query = `
-            SELECT
-                SUM(CASE WHEN DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') THEN coupon_discount ELSE 0 END) as current_month_total,
-                SUM(CASE WHEN DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m') THEN coupon_discount ELSE 0 END) as previous_month_total
-            FROM orders
-            WHERE is_deleted = 0 AND coupon_id IS NOT NULL AND coupon_discount > 0;
-        `;
-        return getMonthlyMetrics(query);
+        return Promise.resolve({
+            current_month: 3200,
+            previous_month: 2800,
+        });
     },
 
     async getSalesForLastSixMonths(): Promise<{ name: string; total: number }[]> {
-        const query = `
-            SELECT
-            DATE_FORMAT(o.created_at, '%b') as name,
-                SUM(o.total) as total
-            FROM orders o
-            JOIN order_statuses os ON o.order_status_id = os.id
-            WHERE o.created_at >= DATE_SUB(CURDATE(), INTERVAL 5 MONTH) 
-            AND o.is_deleted = 0 
-            AND os.code = 'completado'
-            GROUP BY YEAR(o.created_at), MONTH(o.created_at), DATE_FORMAT(o.created_at, '%b')
-            ORDER BY YEAR(o.created_at), MONTH(o.created_at);
-        `;
-        const [rows] = await db.query<RowDataPacket[]>(query);
-        return rows.map(row => ({ name: row.name, total: Number(row.total) }));
+        return Promise.resolve([
+            { name: 'Ene', total: 18000 },
+            { name: 'Feb', total: 22000 },
+            { name: 'Mar', total: 20000 },
+            { name: 'Abr', total: 24000 },
+            { name: 'May', total: 28000 },
+            { name: 'Jun', total: 25400 },
+        ]);
     },
     
     async getRecentOrders(limit: number = 5): Promise<any[]> {
-        const query = `
-            SELECT o.id, u.name as customer_name, o.total, os.code as status
-            FROM orders o
-            JOIN users u ON o.user_id = u.id
-            JOIN order_statuses os ON o.order_status_id = os.id
-            WHERE o.is_deleted = 0
-            ORDER BY o.created_at DESC
-            LIMIT ?;
-        `;
-        const [rows] = await db.query<RowDataPacket[]>(query, [limit]);
-        return rows;
+        return Promise.resolve([
+            { id: 105, customer_name: 'Ana García', total: 1200, status: 'completado' },
+            { id: 104, customer_name: 'Carlos Ruiz', total: 850, status: 'procesando' },
+            { id: 103, customer_name: 'María López', total: 1500, status: 'en_reparto' },
+            { id: 102, customer_name: 'Juan Pérez', total: 450, status: 'pendiente' },
+            { id: 101, customer_name: 'Lucía Méndez', total: 2100, status: 'completado' },
+        ].slice(0, limit));
     },
 
     async getRecentActivities(limit: number = 5): Promise<any[]> {
-        const query = `
-           SELECT * FROM (
-                (
-                    SELECT 
-                        'new_order' as type, 
-                        o.id as entity_id, 
-                        o.created_at as timestamp, 
-                        JSON_OBJECT('customer_name', u.name) as details
-                    FROM orders o
-                    JOIN users u ON o.user_id = u.id
-                    WHERE o.id IS NOT NULL
-                    ORDER BY o.created_at DESC
-                    LIMIT ?
-                )
-                UNION ALL
-                (
-                    SELECT 
-                        'new_user' as type, 
-                        u.id as entity_id, 
-                        u.created_at as timestamp, 
-                        JSON_OBJECT('user_name', u.name) as details
-                    FROM users u
-                    WHERE u.role = 'customer' AND u.id IS NOT NULL
-                    ORDER BY u.created_at DESC
-                    LIMIT ?
-                )
-            ) as activities
-            ORDER BY timestamp DESC
-            LIMIT ?;
-        `;
-        const [rows] = await db.query<RowDataPacket[]>(query, [limit, limit, limit]);
-        return rows;
+        return Promise.resolve([
+            { type: 'new_order', entity_id: 105, timestamp: new Date().toISOString(), details: { customer_name: 'Ana García' } },
+            { type: 'new_user', entity_id: 45, timestamp: new Date(Date.now() - 3600000).toISOString(), details: { user_name: 'Pedro Sánchez' } },
+            { type: 'new_order', entity_id: 104, timestamp: new Date(Date.now() - 7200000).toISOString(), details: { customer_name: 'Carlos Ruiz' } },
+        ].slice(0, limit));
     },
     
     async getProductCountByCategory(): Promise<{ name: string; productCount: number, isSubcategory: boolean }[]> {
-        const query = `
-            SELECT 
-                c.name,
-                COUNT(p.id) as productCount,
-                (c.parent_id IS NOT NULL) as isSubcategory
-            FROM categories c
-            LEFT JOIN products p ON c.id = p.category_id AND p.is_deleted = 0
-            WHERE c.is_deleted = 0
-            GROUP BY c.id
-            ORDER BY isSubcategory, c.name;
-        `;
-        const [rows] = await db.query<RowDataPacket[]>(query);
-        return rows.map(row => ({
-            name: row.name,
-            productCount: Number(row.productCount),
-            isSubcategory: !!row.isSubcategory,
-        }));
+        return Promise.resolve([
+            { name: 'Ramos', productCount: 15, isSubcategory: false },
+            { name: 'Arreglos', productCount: 12, isSubcategory: false },
+            { name: 'Cajas', productCount: 8, isSubcategory: true },
+            { name: 'Eventos', productCount: 5, isSubcategory: true },
+        ]);
     }
 };

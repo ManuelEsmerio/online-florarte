@@ -11,21 +11,19 @@ import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleto
 import { Tag } from '@/lib/definitions';
 import { columns } from './columns';
 import { TagForm } from './tag-form';
-import { useAuth } from '@/context/AuthContext';
-import { handleApiResponse } from '@/utils/handleApiResponse';
 import { useProductContext } from '@/context/ProductContext';
+import { allTags } from '@/lib/data/tag-data';
 
 
 export default function TagsPage() {
   const { toast } = useToast();
-  const { apiFetch } = useAuth();
   const { tags, fetchAppData, isLoading: isContextLoading } = useProductContext();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTag, setSelectedTag] = useState<Tag | null>(null);
-  
+
   useEffect(() => {
     setIsLoading(isContextLoading);
   }, [isContextLoading]);
@@ -43,39 +41,29 @@ export default function TagsPage() {
 
   const handleDelete = async (id: number) => {
     setIsDeletingId(id);
-     try {
-      const res = await apiFetch(`/api/admin/tags/${id}`, { method: 'DELETE' });
-      await handleApiResponse(res);
-      toast({ title: '¡Etiqueta Eliminada!', description: 'La etiqueta se ha eliminado correctamente.', variant: 'success' });
-      await fetchAppData();
-    } catch (error: any) {
-      toast({ title: 'Error al eliminar', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsDeletingId(null);
-    }
+    const idx = allTags.findIndex(t => t.id === id);
+    if (idx > -1) allTags.splice(idx, 1);
+    toast({ title: '¡Etiqueta Eliminada!', description: 'La etiqueta se ha eliminado correctamente.', variant: 'success' });
+    await fetchAppData();
+    setIsDeletingId(null);
   };
-  
+
   const handleSave = async (data: Omit<Tag, 'id'>, id?: number) => {
     setIsSaving(true);
     const isEditing = !!id;
-    const url = isEditing ? `/api/admin/tags/${id}` : '/api/admin/tags';
-    const method = isEditing ? 'PUT' : 'POST';
-    
-    try {
-        const res = await apiFetch(url, { 
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data) 
-        });
-        await handleApiResponse(res);
-        toast({ title: isEditing ? '¡Etiqueta Actualizada!' : '¡Etiqueta Creada!', description: 'La etiqueta ha sido guardada.', variant: 'success'});
-        setIsFormOpen(false);
-        await fetchAppData();
-    } catch (error: any) {
-        toast({ title: 'Error al guardar', description: error.message, variant: 'destructive' });
-    } finally {
-        setIsSaving(false);
+
+    if (isEditing) {
+      const idx = allTags.findIndex(t => t.id === id);
+      if (idx > -1) allTags[idx] = { ...allTags[idx], name: data.name };
+    } else {
+      const newId = Math.max(...allTags.map(t => t.id), 0) + 1;
+      allTags.push({ id: newId, name: data.name });
     }
+
+    toast({ title: isEditing ? '¡Etiqueta Actualizada!' : '¡Etiqueta Creada!', description: 'La etiqueta ha sido guardada.', variant: 'success' });
+    setIsFormOpen(false);
+    await fetchAppData();
+    setIsSaving(false);
   };
 
   const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, isDeletingId }), [handleEdit, handleDelete, isDeletingId]);

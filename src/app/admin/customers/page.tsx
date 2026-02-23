@@ -1,20 +1,20 @@
 
 'use client';
 
-import { User, columns } from './columns';
+import { columns } from './columns';
+import type { User } from '@/lib/definitions';
 import { DataTable } from '@/components/ui/data-table/data-table';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { CustomerForm } from './customer-form';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/context/AuthContext';
-import { 
-  useReactTable, 
-  getCoreRowModel, 
-  getFilteredRowModel, 
-  getPaginationRowModel, 
-  getSortedRowModel, 
+import {
+  useReactTable,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
   ColumnFiltersState,
   SortingState,
   VisibilityState,
@@ -24,12 +24,12 @@ import { DataTableToolbar } from './customer-table-toolbar';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { CustomerDetailModal } from './customer-detail-modal';
-import { userService } from '@/services/userService';
+import { allUsers } from '@/lib/data/user-data';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function CustomersPage() {
   const { toast } = useToast();
-  const { allUsers } = useAuth();
-  
+
   const [users, setUsers] = useState<User[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -39,7 +39,7 @@ export default function CustomersPage() {
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [isSendingCredentialsFor, setIsSendingCredentialsFor] = useState<number | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  
+
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -48,83 +48,57 @@ export default function CustomersPage() {
   ]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const loadUsers = useCallback(async () => {
-      setIsLoading(true);
-      try {
-          const data = await userService.getAllUsersForAdmin({
-              status: 'all',
-              searchTerm: '',
-              roles: []
-          });
-          setUsers(data);
-      } catch (error) {
-          console.error("Error loading users:", error);
-      } finally {
-          setIsLoading(false);
-      }
+  const loadUsers = useCallback(() => {
+    setIsLoading(true);
+    const data = allUsers.filter(u => !(u as any).is_deleted) as User[];
+    setUsers(data);
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
     loadUsers();
-  }, [loadUsers, allUsers]);
-
+  }, [loadUsers]);
 
   const handleAddUser = () => {
     setSelectedUser(null);
-     setTimeout(() => {
+    setTimeout(() => {
       setIsFormOpen(true);
     }, 100);
   };
 
-  const handleEditUser = async (user: User) => {
-    setIsLoading(true);
-    try {
-        const fullUser = await userService.getUserById(user.id);
-        setSelectedUser(fullUser);
-        setIsFormOpen(true);
-    } catch (e) {
-        toast({ title: "Error", description: "No se pudieron obtener los datos del usuario.", variant: "destructive" });
-    } finally {
-        setIsLoading(false);
-    }
+  const handleEditUser = (user: User) => {
+    const fullUser = allUsers.find(u => u.id === user.id) || user;
+    setSelectedUser(fullUser as User);
+    setIsFormOpen(true);
   };
 
-  const handleViewDetails = async (user: User) => {
-    setIsLoading(true);
-    try {
-        const fullUser = await userService.getUserById(user.id);
-        setSelectedUser(fullUser);
-        setIsDetailModalOpen(true);
-    } catch (e) {
-        toast({ title: "Error", description: "No se pudieron obtener los detalles.", variant: "destructive" });
-    } finally {
-        setIsLoading(false);
-    }
+  const handleViewDetails = (user: User) => {
+    const fullUser = allUsers.find(u => u.id === user.id) || user;
+    setSelectedUser(fullUser as User);
+    setIsDetailModalOpen(true);
   };
 
-  const handleDeleteUser = async (id: number) => {
+  const handleDeleteUser = (id: number) => {
     setIsDeletingId(id);
-    try {
-        await userService.deleteUser(id);
-        toast({ title: '¡Usuario Eliminado!', description: 'El usuario ha sido desactivado del sistema.', variant: 'success' });
-        await loadUsers();
-    } catch (error: any) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } finally {
-        setIsDeletingId(null);
+    const idx = allUsers.findIndex(u => u.id === id);
+    if (idx > -1) {
+      (allUsers[idx] as any).is_deleted = true;
     }
+    toast({ title: '¡Usuario Eliminado!', description: 'El usuario ha sido desactivado del sistema.', variant: 'success' });
+    loadUsers();
+    setIsDeletingId(null);
   };
-  
+
   const handleSendCredentials = async (user: User) => {
     setIsSendingCredentialsFor(user.id);
     await new Promise(resolve => setTimeout(resolve, 1000));
     toast({
-        title: '¡Enlace Enviado!',
-        description: `Se ha enviado un correo para restablecer la contraseña a ${user.email}.`,
-        variant: 'success'
+      title: '¡Enlace Enviado!',
+      description: `Se ha enviado un correo para restablecer la contraseña a ${user.email}.`,
+      variant: 'success'
     });
     setIsSendingCredentialsFor(null);
-  }
+  };
 
   const tableColumns = useMemo(() => columns({
     onEdit: handleEditUser,
@@ -146,7 +120,7 @@ export default function CustomersPage() {
     onColumnFiltersChange: setColumnFilters,
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
-    enableRowSelection: (row) => !row.original.is_deleted,
+    enableRowSelection: (row) => !(row.original as any).is_deleted,
     state: {
       sorting,
       rowSelection,
@@ -157,50 +131,66 @@ export default function CustomersPage() {
     onGlobalFilterChange: setSearchTerm,
   });
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     setIsDeleting(true);
     const selectedRows = table.getFilteredSelectedRowModel().rows;
     const selectedIds = selectedRows.map(row => row.original.id);
-    
-    try {
-        await userService.bulkDeleteUsers(selectedIds, 1); // Mock creator ID
-        toast({ title: '¡Usuarios Eliminados!', description: 'Los usuarios seleccionados han sido desactivados.', variant: 'success' });
-        table.resetRowSelection();
-        await loadUsers();
-    } catch (e) {
-        toast({ title: "Error", description: "Ocurrió un error en la eliminación masiva.", variant: "destructive" });
-    } finally {
-        setIsDeleting(false);
-    }
-  };
 
+    selectedIds.forEach(id => {
+      const idx = allUsers.findIndex(u => u.id === id);
+      if (idx > -1) (allUsers[idx] as any).is_deleted = true;
+    });
+
+    toast({ title: '¡Usuarios Eliminados!', description: 'Los usuarios seleccionados han sido desactivados.', variant: 'success' });
+    table.resetRowSelection();
+    loadUsers();
+    setIsDeleting(false);
+  };
 
   const handleSaveUser = async (userData: any) => {
     setIsSaving(true);
     try {
-        const isEditing = !!selectedUser;
-        if (isEditing) {
-            await userService.updateUserByAdmin(selectedUser.id, userData, 1); // Mock editor ID
-        } else {
-            await userService.createUserByAdmin(userData, 1); // Mock creator ID
+      const isEditing = !!selectedUser;
+      if (isEditing) {
+        const idx = allUsers.findIndex(u => u.id === selectedUser!.id);
+        if (idx > -1) {
+          allUsers[idx] = { ...allUsers[idx], ...userData, updated_at: new Date().toISOString() } as any;
         }
+      } else {
+        const newId = Math.max(...allUsers.map(u => u.id), 0) + 1;
+        const newUser: any = {
+          id: newId,
+          dbId: newId,
+          uid: uuidv4(),
+          name: userData.name,
+          email: userData.email,
+          phone: userData.phone || null,
+          role: userData.role || 'customer',
+          password: userData.password || 'password123',
+          profilePic: userData.profilePic || null,
+          loyalty_points: 0,
+          is_deleted: false,
+          created_at: new Date().toISOString(),
+        };
+        allUsers.push(newUser);
+      }
 
-        toast({
-          title: isEditing ? '¡Usuario Actualizado!' : '¡Usuario Creado!',
-          description: `El usuario ${userData.name} ha sido guardado exitosamente.`,
-          variant: 'success'
-        });
-        
-        setIsFormOpen(false);
-        setSelectedUser(null);
-        await loadUsers();
+      toast({
+        title: isEditing ? '¡Usuario Actualizado!' : '¡Usuario Creado!',
+        description: `El usuario ${userData.name} ha sido guardado exitosamente.`,
+        variant: 'success'
+      });
+
+      setIsFormOpen(false);
+      setSelectedUser(null);
+      loadUsers();
     } catch (error: any) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
-        setIsSaving(false);
+      setIsSaving(false);
     }
   };
-  
+
   if (isLoading && users.length === 0) {
     return (
       <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
@@ -240,15 +230,15 @@ export default function CustomersPage() {
             user={selectedUser}
         />
       )}
-      
-      <DataTable 
-        table={table} 
-        columns={tableColumns} 
-        data={users} 
-        isLoading={isLoading} 
+
+      <DataTable
+        table={table}
+        columns={tableColumns}
+        data={users}
+        isLoading={isLoading}
         toolbar={
           <div className="flex items-center justify-between">
-            <DataTableToolbar 
+            <DataTableToolbar
                 table={table}
                 searchTerm={searchTerm}
                 setSearchTerm={setSearchTerm}

@@ -2,7 +2,7 @@
 import { allOccasions } from '@/lib/data/occasion-data';
 import type { Occasion } from '@/lib/definitions';
 import slugify from 'slugify';
-import type { PoolConnection } from 'mysql2/promise';
+import type { PoolConnection } from '@/lib/db';
 
 // Repositorio Mock para gestionar ocasiones en memoria
 export const occasionRepository = {

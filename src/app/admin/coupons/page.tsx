@@ -5,7 +5,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { columns } from './columns';
-import type { Coupon, User, ProductCategory, Product } from '@/lib/definitions';
+import type { Coupon, User } from '@/lib/definitions';
+import { CouponScope, DiscountType } from '@/lib/definitions';
 import { CouponForm } from './coupon-form';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -22,27 +23,25 @@ import { DataTable } from '@/components/ui/data-table/data-table';
 import {
   useReactTable,
   getCoreRowModel,
-  getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
-  ColumnFiltersState,
   SortingState,
   VisibilityState,
   RowSelectionState,
   PaginationState,
 } from '@tanstack/react-table';
-import { useAuth } from '@/context/AuthContext';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import type { CouponStatus } from '@/lib/definitions';
-import { handleApiResponse } from '@/utils/handleApiResponse';
 import { useProductContext } from '@/context/ProductContext';
+import { allCoupons } from '@/lib/data/coupon-data';
+import { allUsers } from '@/lib/data/user-data';
+import { getCouponStatus } from '@/lib/business-logic/coupon-logic';
 
 
 export default function CouponsPage() {
   const { toast } = useToast();
-  const { apiFetch } = useAuth();
-  const { products, categories, fetchAppData } = useProductContext();
+  const { products, categories } = useProductContext();
 
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [customers, setCustomers] = useState<User[]>([]);
@@ -56,12 +55,9 @@ export default function CouponsPage() {
 
   const [sorting, setSorting] = useState<SortingState>([{ id: 'id', desc: true }]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
-
   const [totalRows, setTotalRows] = useState(0);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-
   const [filters, setFilters] = useState<{ search: string; status: string[] }>({ search: '', status: [] });
 
   const handleSendCoupon = useCallback(async (coupon: Coupon) => {
@@ -70,74 +66,58 @@ export default function CouponsPage() {
     toast({ title: '¡Éxito! (Simulación)', description: `Correo de cupón enviado.`, variant: 'success' });
     setIsSendingCouponId(null);
   }, [toast]);
-  
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-        const params = new URLSearchParams();
-        params.append('search', filters.search);
-        params.append('status', filters.status.join(','));
-        params.append('page', (pagination.pageIndex + 1).toString());
-        params.append('limit', pagination.pageSize.toString());
-        params.append('withDetails', 'true');
-        
-        const res = await apiFetch(`/api/admin/coupons?${params.toString()}`);
-        const data = await handleApiResponse(res, { coupons: [], total: 0 });
-        
-        setCoupons(data.coupons);
-        setTotalRows(data.total);
 
-    } catch (error: any) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } finally {
-        setIsLoading(false);
+  const fetchData = useCallback(() => {
+    setIsLoading(true);
+    let filtered = [...allCoupons];
+
+    if (filters.search) {
+      const term = filters.search.toLowerCase();
+      filtered = filtered.filter(c =>
+        c.code.toLowerCase().includes(term) ||
+        c.description.toLowerCase().includes(term)
+      );
     }
-  }, [apiFetch, toast, filters, pagination]);
-  
+    if (filters.status.length > 0) {
+      filtered = filtered.filter(c => filters.status.includes(c.status));
+    }
+
+    const total = filtered.length;
+    const paginated = filtered.slice(
+      pagination.pageIndex * pagination.pageSize,
+      (pagination.pageIndex + 1) * pagination.pageSize
+    );
+
+    setCoupons(paginated);
+    setTotalRows(total);
+    setIsLoading(false);
+  }, [filters, pagination]);
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-  
-  const fetchCustomers = useCallback(async () => {
-     try {
-        const res = await apiFetch('/api/admin/users?status=active');
-        const data = await handleApiResponse(res, []);
-        setCustomers(data);
-     } catch (error: any) {
-        toast({ title: 'Error', description: 'No se pudieron cargar los clientes.', variant: 'destructive' });
-     }
-  }, [apiFetch, toast]);
 
   useEffect(() => {
     if (isFormOpen) {
-        fetchCustomers();
+      const activeCustomers = allUsers.filter(u => !(u as any).is_deleted) as User[];
+      setCustomers(activeCustomers);
     }
-  }, [isFormOpen, fetchCustomers]);
+  }, [isFormOpen]);
 
-  const handleDeleteCoupon = useCallback(async (id: number) => {
+  const handleDeleteCoupon = useCallback((id: number) => {
     setIsDeletingId(id);
-    try {
-        const res = await apiFetch(`/api/admin/coupons/${id}`, { method: 'DELETE' });
-        await handleApiResponse(res);
-        toast({ title: '¡Cupón Eliminado!', description: 'El cupón ha sido eliminado correctamente.', variant: 'success' });
-        await fetchData(); 
-    } catch (error: any) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive'});
-    } finally {
-        setIsDeletingId(null);
-    }
-  }, [apiFetch, toast, fetchData]);
+    const idx = allCoupons.findIndex(c => c.id === id);
+    if (idx > -1) allCoupons.splice(idx, 1);
+    toast({ title: '¡Cupón Eliminado!', description: 'El cupón ha sido eliminado correctamente.', variant: 'success' });
+    fetchData();
+    setIsDeletingId(null);
+  }, [toast, fetchData]);
 
-  const handleEditCoupon = useCallback(async (coupon: Coupon) => {
-    try {
-      const res = await apiFetch(`/api/admin/coupons/${coupon.id}`);
-      const fullCoupon = await handleApiResponse(res);
-      setSelectedCoupon(fullCoupon);
-      setTimeout(() => setIsFormOpen(true), 100);
-    } catch (error: any) {
-      toast({ title: 'Error', description: 'No se pudieron cargar los detalles del cupón.', variant: 'destructive' });
-    }
-  }, [apiFetch, toast]);
+  const handleEditCoupon = useCallback((coupon: Coupon) => {
+    const fullCoupon = allCoupons.find(c => c.id === coupon.id) || coupon;
+    setSelectedCoupon(fullCoupon);
+    setTimeout(() => setIsFormOpen(true), 100);
+  }, []);
 
   const tableColumns = useMemo(() => columns({
     onEdit: handleEditCoupon,
@@ -159,12 +139,7 @@ export default function CouponsPage() {
     manualPagination: true,
     manualFiltering: true,
     manualSorting: true,
-    state: {
-      pagination,
-      sorting,
-      rowSelection,
-      columnVisibility,
-    },
+    state: { pagination, sorting, rowSelection, columnVisibility },
   });
 
   const handleAddCoupon = () => {
@@ -172,59 +147,64 @@ export default function CouponsPage() {
     setTimeout(() => setIsFormOpen(true), 100);
   };
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     setIsDeleting(true);
-    const selectedRows = table.getFilteredSelectedRowModel().rows;
-    const selectedIds = selectedRows.map(row => row.original.id);
-    
-    if (selectedIds.length === 0) {
-      setIsDeleting(false);
-      return;
-    }
-    
-    try {
-        const res = await apiFetch('/api/admin/coupons', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids: selectedIds }),
-        });
-        const data = await handleApiResponse(res);
-        toast({ title: '¡Cupones Eliminados!', description: data.message, variant: 'success' });
-        table.resetRowSelection();
-        await fetchData();
-    } catch (error: any) {
-         toast({ title: 'Error en la eliminación masiva', description: error.message, variant: 'destructive' });
-    } finally {
-        setIsDeleting(false);
-    }
+    const selectedIds = table.getFilteredSelectedRowModel().rows.map(row => row.original.id);
+    if (selectedIds.length === 0) { setIsDeleting(false); return; }
+
+    selectedIds.forEach(id => {
+      const idx = allCoupons.findIndex(c => c.id === id);
+      if (idx > -1) allCoupons.splice(idx, 1);
+    });
+
+    toast({ title: '¡Cupones Eliminados!', description: `${selectedIds.length} cupones eliminados.`, variant: 'success' });
+    table.resetRowSelection();
+    fetchData();
+    setIsDeleting(false);
   };
 
   const handleSaveCoupon = async (couponData: any, id?: number) => {
     setIsSaving(true);
     const isEditing = !!id;
-    const url = isEditing ? `/api/admin/coupons/${id}` : '/api/admin/coupons';
-    const method = isEditing ? 'PUT' : 'POST';
 
-    try {
-        const res = await apiFetch(url, {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(couponData),
-        });
-        await handleApiResponse(res);
-        toast({
-          title: isEditing ? '¡Cupón Actualizado!' : '¡Cupón Creado!',
-          description: `El cupón ${couponData.code} ha sido guardado.`,
-          variant: 'success'
-        });
-        setIsFormOpen(false);
-        setSelectedCoupon(null);
-        await fetchData();
-    } catch (error: any) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive'});
-    } finally {
-        setIsSaving(false);
+    if (isEditing) {
+      const idx = allCoupons.findIndex(c => c.id === id);
+      if (idx > -1) {
+        allCoupons[idx] = {
+          ...allCoupons[idx],
+          ...couponData,
+          status: getCouponStatus({ ...allCoupons[idx], ...couponData }),
+        };
+      }
+    } else {
+      const newId = Math.max(...allCoupons.map(c => c.id), 0) + 1;
+      const newCoupon: Coupon = {
+        id: newId,
+        code: couponData.code,
+        description: couponData.description || '',
+        discount_type: couponData.discount_type || DiscountType.PERCENTAGE,
+        discount_value: couponData.discount_value || 0,
+        valid_from: couponData.valid_from || new Date().toISOString(),
+        valid_until: couponData.valid_until || null,
+        scope: couponData.scope || CouponScope.GLOBAL,
+        max_uses: couponData.max_uses || null,
+        uses_count: 0,
+        status: 'vigente',
+        customerName: couponData.customerName || null,
+      };
+      newCoupon.status = getCouponStatus(newCoupon);
+      allCoupons.push(newCoupon);
     }
+
+    toast({
+      title: isEditing ? '¡Cupón Actualizado!' : '¡Cupón Creado!',
+      description: `El cupón ${couponData.code} ha sido guardado.`,
+      variant: 'success'
+    });
+    setIsFormOpen(false);
+    setSelectedCoupon(null);
+    fetchData();
+    setIsSaving(false);
   };
 
   const statusOptions: CouponStatus[] = ['vigente', 'vencido', 'utilizado'];
@@ -232,9 +212,9 @@ export default function CouponsPage() {
     'vigente': 'Vigente',
     'vencido': 'Vencido',
     'utilizado': 'Utilizado',
-  }
+  };
 
-  if(isLoading && coupons.length === 0) {
+  if (isLoading && coupons.length === 0) {
     return (
        <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
@@ -269,21 +249,19 @@ export default function CouponsPage() {
         products={products}
         categories={categories}
       />
-      
-      <DataTable 
-        table={table} 
-        columns={tableColumns} 
-        data={coupons} 
-        isLoading={isLoading} 
+
+      <DataTable
+        table={table}
+        columns={tableColumns}
+        data={coupons}
+        isLoading={isLoading}
         toolbar={
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex flex-col md:flex-row flex-1 items-center space-y-2 md:space-y-0 md:space-x-2 w-full">
                 <Input
                     placeholder="Filtrar por código, descripción..."
                     value={filters.search}
-                    onChange={(event) =>
-                        setFilters(prev => ({...prev, search: event.target.value }))
-                    }
+                    onChange={(event) => setFilters(prev => ({...prev, search: event.target.value }))}
                     className="h-10 rounded-xl w-full md:w-[300px] border-none bg-background shadow-sm"
                 />
                  <DropdownMenu>
@@ -312,7 +290,7 @@ export default function CouponsPage() {
                           onCheckedChange={(checked) => {
                               setFilters(prev => ({
                                   ...prev,
-                                  status: checked 
+                                  status: checked
                                     ? [...prev.status, status]
                                     : prev.status.filter(s => s !== status)
                               }))

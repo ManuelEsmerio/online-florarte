@@ -1,49 +1,85 @@
 // src/repositories/addressRepository.ts
+import { allUsers } from '@/lib/data/user-data';
 import type { Address } from '@/lib/definitions';
-import type { RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
-import db from '@/lib/db';
+import type { PoolConnection } from '@/lib/db';
+
+// Helper to generate IDs
+const generateId = () => {
+    let maxId = 0;
+    allUsers.forEach(u => {
+        if (u.addresses) {
+            u.addresses.forEach(a => {
+                if (a.id > maxId) maxId = a.id;
+            });
+        }
+    });
+    return maxId + 1;
+};
 
 export const addressRepository = {
   /**
-   * Crea o actualiza una dirección usando el Stored Procedure.
-   * @param connection La conexión a la base de datos.
-   * @param address Los datos de la dirección. Si address.id es 0 o no está definido, se creará una nueva.
-   * @returns El ID de la dirección creada o actualizada.
+   * Crea o actualiza una dirección.
    */
   async upsert(connection: PoolConnection, address: Partial<Address> & { user_id: number }): Promise<number> {
-    const sql = 'CALL sp_Address_Upsert(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @new_id)';
-    await connection.query(sql, [
-      address.id || 0,
-      address.user_id,
-      address.alias, 
-      address.recipientName,
-      address.phone,
-      address.streetName,
-      address.streetNumber,
-      address.interiorNumber || null,
-      address.neighborhood,
-      address.city,
-      address.state,
-      null, // country
-      address.postalCode,
-      null, // latitude
-      null, // longitude
-      address.addressType,
-      address.reference_notes || null
-    ]);
-    const [[{ new_id }]] = await connection.query('SELECT @new_id as new_id');
-    return new_id as number;
+    const user = allUsers.find(u => u.id === address.user_id);
+    if (!user) throw new Error('User not found');
+
+    if (!user.addresses) {
+        user.addresses = [];
+    }
+
+    if (address.id && address.id > 0) {
+        const index = user.addresses.findIndex(a => a.id === address.id);
+        if (index !== -1) {
+            user.addresses[index] = { ...user.addresses[index], ...address } as Address;
+            return Promise.resolve(address.id);
+        }
+    }
+
+    // Create
+    const newId = generateId();
+    const newAddress = {
+        ...address,
+        id: newId,
+        user_id: address.user_id,
+        // Fill defaults if missing
+        recipientName: address.recipientName || '',
+        phone: address.phone || '',
+        streetName: address.streetName || '',
+        streetNumber: address.streetNumber || '',
+        neighborhood: address.neighborhood || '',
+        city: address.city || '',
+        state: address.state || '',
+        postalCode: address.postalCode || '',
+        addressType: address.addressType || 'casa',
+    } as Address;
+
+    user.addresses.push(newAddress);
+    return Promise.resolve(newId);
   },
 
   /**
    * Realiza un borrado lógico de una dirección.
-   * @param connection La conexión a la base de datos.
-   * @param addressId El ID de la dirección a eliminar.
-   * @returns `true` si la eliminación fue exitosa, `false` en caso contrario.
    */
   async softDelete(connection: PoolConnection, addressId: number): Promise<boolean> {
-    const sql = 'UPDATE addresses SET is_deleted = 1, deleted_at = NOW() WHERE id = ?';
-    const [result] = await connection.query<ResultSetHeader>(sql, [addressId]);
-    return result.affectedRows > 0;
+    for (const user of allUsers) {
+        if (user.addresses) {
+            const index = user.addresses.findIndex(a => a.id === addressId);
+            if (index !== -1) {
+                // In a real soft delete we mark it. 
+                // Since our User type's Address array might not have is_deleted, we can either splice it or add the flag if supported.
+                // Looking at definitions, Address usually doesn't have is_deleted on the frontend type, but DB has it.
+                // I'll just remove it from the array for "mock" deletion to keep it simple, 
+                // OR check if I can add the property.
+                // user.addresses.splice(index, 1);
+                // Better:
+                const addr = user.addresses[index] as any;
+                addr.is_deleted = true;
+                addr.deleted_at = new Date().toISOString();
+                return Promise.resolve(true);
+            }
+        }
+    }
+    return Promise.resolve(false);
   }
 };

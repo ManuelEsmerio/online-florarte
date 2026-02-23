@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Product, ProductCategory, ProductStatus, Tag, ProductVariant } from '@/lib/definitions';
+import { Product, ProductStatus } from '@/lib/definitions';
 import { useToast } from '@/hooks/use-toast';
 import { PlusCircle } from 'lucide-react';
 import { columns, type ProductRow } from './columns';
@@ -13,22 +13,23 @@ import { ProductTableToolbar } from './product-table-toolbar';
 import { useReactTable, getCoreRowModel, getPaginationRowModel, getSortedRowModel, getFilteredRowModel, SortingState, ColumnFiltersState, VisibilityState, RowSelectionState, PaginationState } from '@tanstack/react-table';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { ProductDetailModal } from './product-detail-modal';
-import type { Occasion } from '@/lib/definitions';
 import { ProductForm } from './product-form';
-import { useAuth } from '@/context/AuthContext';
 import { useProductContext } from '@/context/ProductContext';
-import { handleApiResponse } from '@/utils/handleApiResponse';
+
+import { allProducts } from '@/lib/data/product-data';
+import { productCategories } from '@/lib/data/categories-data';
+import { allOccasions } from '@/lib/data/occasion-data';
+import { allTags } from '@/lib/data/tag-data';
 
 export default function ProductsPage() {
-  const { apiFetch } = useAuth();
   const { toast } = useToast();
-  const { 
+  const {
     products,
-    categories, 
+    categories,
     occasions,
     tags,
-    isLoading: isContextLoading, 
-    fetchAppData 
+    isLoading: isContextLoading,
+    fetchAppData
   } = useProductContext();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -44,9 +45,9 @@ export default function ProductsPage() {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [sorting, setSorting] = useState<SortingState>([])
   const [isDeleting, setIsDeleting] = useState(false);
-  
+
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
-  
+
   useEffect(() => {
     setIsLoading(isContextLoading);
   }, [isContextLoading]);
@@ -57,9 +58,9 @@ export default function ProductsPage() {
       if (!p.has_variants || !p.variants || p.variants.length === 0) {
         return [parentRow];
       }
-      
+
       const variantRows: ProductRow[] = p.variants.map(v => ({
-        ...p, // Inherit parent data
+        ...p,
         price: v.price,
         sale_price: v.sale_price,
         stock: v.stock,
@@ -72,7 +73,7 @@ export default function ProductsPage() {
       return [parentRow, ...variantRows];
     });
   }, [products]);
-  
+
   const handleAddProduct = () => {
     setSelectedProduct(null);
     setIsCopyMode(false);
@@ -85,7 +86,7 @@ export default function ProductsPage() {
     setIsCopyMode(false);
     setIsFormOpen(true);
   };
-  
+
   const handleCopyProduct = (productRow: ProductRow) => {
     const productToCopy = products.find(p => p.id === productRow.id) || null;
     setSelectedProduct(productToCopy);
@@ -99,66 +100,127 @@ export default function ProductsPage() {
   };
 
   const handleDeleteProduct = useCallback(async (slug: string) => {
-    try {
-        const productToDelete = products.find(p => p.slug === slug);
-        if (!productToDelete) throw new Error("Producto no encontrado");
-
-        await apiFetch(`/api/admin/products/${productToDelete.slug}`, { 
-            method: 'DELETE'
-        });
-        toast({ title: '¡Producto Eliminado!', description: 'El producto ha sido eliminado correctamente.', variant: 'success' });
-        await fetchAppData();
-    } catch (error: any) {
-        toast({ title: 'Error', description: error.message || 'No se pudo eliminar el producto.', variant: 'destructive'});
+    const idx = allProducts.findIndex(p => p.slug === slug);
+    if (idx === -1) {
+      toast({ title: 'Error', description: 'Producto no encontrado.', variant: 'destructive' });
+      return;
     }
-  }, [apiFetch, fetchAppData, toast, products]);
+    allProducts.splice(idx, 1);
+    toast({ title: '¡Producto Eliminado!', description: 'El producto ha sido eliminado correctamente.', variant: 'success' });
+    await fetchAppData();
+  }, [fetchAppData, toast]);
 
   const handleToggleStatus = useCallback(async (product: Product) => {
-    const newStatus = product.status === 'publicado' ? 'oculto' : 'publicado';
+    const newStatus: ProductStatus = product.status === 'publicado' ? 'oculto' : 'publicado';
     setUpdatingStatusId(product.slug);
-    try {
-        const response = await apiFetch(`/api/admin/products/${product.slug}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ isStatusUpdate: true, productData: { status: newStatus } }),
-        });
-        
-        await handleApiResponse(response);
-        await fetchAppData();
-        toast({ title: '¡Estado Actualizado!', description: `El estado del producto ha sido cambiado a ${newStatus}.`, variant: 'success' });
-    } catch (error: any) {
-        toast({ title: 'Error', description: error.message || 'No se pudo actualizar el estado.', variant: 'destructive' });
-    } finally {
-        setUpdatingStatusId(null);
+    const idx = allProducts.findIndex(p => p.slug === product.slug);
+    if (idx > -1) {
+      allProducts[idx] = { ...allProducts[idx], status: newStatus };
     }
-  }, [apiFetch, toast, fetchAppData]);
+    await fetchAppData();
+    toast({ title: '¡Estado Actualizado!', description: `El estado del producto ha sido cambiado a ${newStatus}.`, variant: 'success' });
+    setUpdatingStatusId(null);
+  }, [toast, fetchAppData]);
 
   const handleSaveProduct = useCallback(async (productData: any, imageFiles: { main: File[], variants: { index: number, files: File[] }[] }, originalProduct?: Product | null) => {
     setIsSaving(true);
-    
-    const formData = new FormData();
-    formData.append('productData', JSON.stringify(productData));
-    imageFiles.main.forEach(file => formData.append('images', file));
-    imageFiles.variants.forEach(variantImages => {
-        variantImages.files.forEach(file => formData.append(`variant_${variantImages.index}_images`, file));
-    });
 
     const isEditing = !!originalProduct && !isCopyMode;
-    const url = isEditing ? `/api/admin/products/${originalProduct.slug}` : '/api/admin/products';
-    const method = 'POST'; // Usar POST para simplificar el manejo de FormData con PUT/POST en Next.js
 
-    try {
-        const response = await apiFetch(url, { method, body: formData });
-        const result = await handleApiResponse(response);
-        toast({ title: isEditing ? '¡Producto Actualizado!' : '¡Producto Creado!', description: result.message || `El producto se ha guardado exitosamente.`, variant: 'success' });
-        setIsFormOpen(false);
-        await fetchAppData();
-    } catch (error: any) {
-        toast({ title: 'Error al Guardar', description: error.message, variant: 'destructive' });
-    } finally {
-        setIsSaving(false);
+    // Resolve related entities from source arrays
+    const category = productCategories.find(c => c.id === productData.category_id) ?? null;
+    const resolvedOccasions = (productData.occasion_ids ?? []).map((id: number) => allOccasions.find(o => o.id === id)).filter(Boolean);
+    const resolvedTags = (productData.tag_ids ?? []).map((id: number) => allTags.find(t => t.id === id)).filter(Boolean);
+
+    // For new image files, generate object URLs as temporary preview
+    const mainImageUrl = imageFiles.main.length > 0
+      ? URL.createObjectURL(imageFiles.main[0])
+      : (originalProduct?.image ?? 'https://picsum.photos/seed/new-product/600/600');
+
+    const resolvedImages = (productData.images ?? []).map((img: any, i: number) => {
+      if (img.isNew && img.file) {
+        return { src: URL.createObjectURL(img.file), alt: img.alt || productData.name, is_primary: i === 0 };
+      }
+      return { src: img.src, alt: img.alt, is_primary: i === 0 };
+    });
+
+    const resolvedVariants = (productData.variants ?? [])
+      .filter((v: any) => !v.is_deleted)
+      .map((v: any, vIdx: number) => {
+        const variantImages = (v.images ?? []).map((img: any, i: number) => {
+          const newFiles = imageFiles.variants.find(vi => vi.index === vIdx)?.files ?? [];
+          if (img.isNew && newFiles.length > 0) {
+            return { src: URL.createObjectURL(newFiles[0]), alt: img.alt || v.name, is_primary: i === 0 };
+          }
+          return { src: img.src, alt: img.alt, is_primary: i === 0 };
+        });
+        return {
+          id: v.id ?? (Date.now() + vIdx),
+          name: v.name,
+          price: v.price,
+          sale_price: v.sale_price ?? null,
+          stock: v.stock,
+          code: v.code ?? '',
+          images: variantImages,
+        };
+      });
+
+    const slug = isEditing
+      ? (originalProduct!.slug)
+      : (productData.name as string).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+    if (isEditing) {
+      const idx = allProducts.findIndex(p => p.slug === originalProduct!.slug);
+      if (idx > -1) {
+        allProducts[idx] = {
+          ...allProducts[idx],
+          ...productData,
+          slug,
+          category,
+          occasions: resolvedOccasions,
+          tags: resolvedTags,
+          image: mainImageUrl,
+          images: resolvedImages.length > 0 ? resolvedImages : allProducts[idx].images,
+          variants: productData.has_variants ? resolvedVariants : [],
+          updated_at: new Date().toISOString(),
+        };
+      }
+      toast({ title: '¡Producto Actualizado!', description: 'El producto se ha guardado exitosamente.', variant: 'success' });
+    } else {
+      const newId = Math.max(...allProducts.map(p => p.id), 0) + 1;
+      const newProduct: Product = {
+        id: newId,
+        name: productData.name,
+        slug,
+        code: productData.code ?? '',
+        description: productData.description ?? '',
+        short_description: productData.short_description ?? '',
+        price: productData.price,
+        sale_price: productData.sale_price ?? null,
+        stock: productData.stock,
+        has_variants: productData.has_variants ?? false,
+        status: productData.status ?? 'publicado',
+        category,
+        occasions: resolvedOccasions,
+        tags: resolvedTags,
+        image: mainImageUrl,
+        images: resolvedImages,
+        variants: productData.has_variants ? resolvedVariants : [],
+        specifications: productData.specifications ?? [],
+        care: productData.care ?? '',
+        allow_photo: productData.allow_photo ?? false,
+        photo_price: productData.photo_price ?? 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as Product;
+      allProducts.push(newProduct);
+      toast({ title: '¡Producto Creado!', description: 'El producto se ha guardado exitosamente.', variant: 'success' });
     }
-  }, [apiFetch, toast, fetchAppData, isCopyMode]);
+
+    setIsFormOpen(false);
+    await fetchAppData();
+    setIsSaving(false);
+  }, [fetchAppData, isCopyMode]);
 
 
   const tableColumns = useMemo(() => columns({
@@ -177,7 +239,7 @@ export default function ProductsPage() {
     return flattenedProducts.filter(product => {
       return filters.every(filter => {
         const { id: columnId, value: filterValue } = filter;
-        
+
         if (columnId === 'name') {
           const searchTerm = String(filterValue).toLowerCase();
           const nameMatch = product.name?.toLowerCase().includes(searchTerm);
@@ -215,39 +277,29 @@ export default function ProductsPage() {
     getRowId: (row) => (row.isVariant ? `product-${row.id}-variant-${row.variantId}` : `product-${String(row.id)}`),
     enableRowSelection: (row) => !row.original.isVariant,
   });
-  
+
   const handleBulkAction = useCallback(async (action: 'publish' | 'hide' | 'delete') => {
     const selectedSlugs = table.getFilteredSelectedRowModel().rows.map(row => row.original.slug);
     if (selectedSlugs.length === 0) return;
-    
+
     setIsDeleting(action === 'delete');
 
-    try {
-        let response;
-        if (action === 'delete') {
-            response = await apiFetch(`/api/admin/products`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ slugs: selectedSlugs }),
-            });
-        } else {
-            const newStatus = action === 'publish' ? 'publicado' : 'oculto';
-            response = await apiFetch(`/api/admin/products`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ slugs: selectedSlugs, status: newStatus }),
-            });
-        }
-       await handleApiResponse(response);
-       toast({ title: '¡Acción en lote exitosa!', description: `${selectedSlugs.length} productos se han actualizado.`, variant: 'success' });
-      table.resetRowSelection();
-      await fetchAppData();
-    } catch (error: any) {
-       toast({ title: 'Error', description: error.message || 'No se pudo realizar la acción en lote.', variant: 'destructive' });
-    } finally {
-       setIsDeleting(false);
+    for (const slug of selectedSlugs) {
+      if (action === 'delete') {
+        const idx = allProducts.findIndex(p => p.slug === slug);
+        if (idx > -1) allProducts.splice(idx, 1);
+      } else {
+        const newStatus: ProductStatus = action === 'publish' ? 'publicado' : 'oculto';
+        const idx = allProducts.findIndex(p => p.slug === slug);
+        if (idx > -1) allProducts[idx] = { ...allProducts[idx], status: newStatus };
+      }
     }
-  }, [apiFetch, fetchAppData, toast, table]);
+
+    toast({ title: '¡Acción en lote exitosa!', description: `${selectedSlugs.length} productos se han actualizado.`, variant: 'success' });
+    table.resetRowSelection();
+    await fetchAppData();
+    setIsDeleting(false);
+  }, [fetchAppData, toast, table]);
 
   if (isLoading || isContextLoading) {
     return (
@@ -272,7 +324,7 @@ export default function ProductsPage() {
           </Button>
         </div>
       </div>
-      
+
       <ProductForm isOpen={isFormOpen} onOpenChange={setIsFormOpen} onSave={handleSaveProduct} product={selectedProduct} isCopyMode={isCopyMode} categories={categories} occasions={occasions} tags={tags} isSaving={isSaving} />
       {selectedProduct && <ProductDetailModal isOpen={isDetailModalOpen} onOpenChange={setIsDetailModalOpen} product={selectedProduct} />}
       <DataTable table={table} columns={tableColumns} data={filteredProducts} toolbar={<ProductTableToolbar table={table} categories={categories} onBulkAction={handleBulkAction} isDeleting={isDeleting}/>} isLoading={isLoading} />

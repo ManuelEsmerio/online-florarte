@@ -106,6 +106,13 @@ export const cartRepository = {
       // Mock validation logic
   },
 
+  async removeCartCoupon({ userId, sessionId }: { userId: number | null, sessionId: string | null }) {
+    const key = userId ? `u_${userId}` : `s_${sessionId}`;
+    if (!key || key === 's_null') return false;
+    mockCoupons.delete(key);
+    return true;
+  },
+
   async assignToUser(sessionId: string, userId: number) {
     const guestKey = `s_${sessionId}`;
     const userKey = `u_${userId}`;

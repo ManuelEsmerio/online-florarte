@@ -2,7 +2,7 @@
 // src/repositories/categoryRepository.ts
 import { productCategories } from '@/lib/data/categories-data';
 import type { ProductCategory as DbCategory } from '@/lib/definitions';
-import type { PoolConnection } from 'mysql2/promise';
+import type { PoolConnection } from '@/lib/db';
 
 // Usamos el estado global para persistencia en desarrollo si es necesario
 const globalForCats = global as unknown as { categories: DbCategory[] };

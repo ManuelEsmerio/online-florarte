@@ -1,7 +1,7 @@
 // src/repositories/tagRepository.ts
 import { allTags } from '@/lib/data/tag-data';
 import type { Tag } from '@/lib/definitions';
-import type { PoolConnection } from 'mysql2/promise';
+import type { PoolConnection } from '@/lib/db';
 
 // Repositorio Mock para gestionar etiquetas en memoria
 export const tagRepository = {

@@ -1,6 +1,5 @@
 // src/repositories/recommendationRepository.ts
-import db from '@/lib/db';
-import type { RowDataPacket } from 'mysql2/promise';
+import { initialProducts } from '@/lib/data/product-data';
 
 /**
  * Encapsula las consultas SQL para el motor de recomendaciones.
@@ -11,43 +10,43 @@ export const recommendationRepository = {
    * Busca los IDs de productos más populares en los últimos 30 días.
    */
   async findTrendingProductIds(limit: number): Promise<number[]> {
-    const sql = `
-      SELECT product_id, popularity_score, v_orders
-      FROM v_product_popularity_30d
-      ORDER BY popularity_score DESC, v_orders DESC
-      LIMIT ?;
-    `;
-    const [rows] = await db.query<RowDataPacket[]>(sql, [limit]);
-    return rows.map(row => row.product_id);
+    // Mock: just return first N products
+    return Promise.resolve(initialProducts.slice(0, limit).map(p => p.id));
   },
 
   /**
    * Busca IDs de productos similares basados en tags y ocasiones compartidas.
    */
   async findSimilarProductIdsByContent(productId: number, categoryId: number, limit: number): Promise<number[]> {
-    const sql = `
-      SELECT
-        p2.id AS recommended_product_id,
-        (
-          -- Puntuación por tags compartidos
-          (SELECT COUNT(*) FROM product_tags pt1 JOIN product_tags pt2 ON pt1.tag_id = pt2.tag_id WHERE pt1.product_id = p1.id AND pt2.product_id = p2.id) * 2 +
-          -- Puntuación por ocasiones compartidas
-          (SELECT COUNT(*) FROM product_occasions po1 JOIN product_occasions po2 ON po1.occasion_id = po2.occasion_id WHERE po1.product_id = p1.id AND po2.product_id = p2.id)
-        ) AS similarity_score
-      FROM products p1
-      JOIN products p2 ON p1.category_id = p2.category_id AND p1.id != p2.id
-      WHERE p1.id = ? AND p2.is_deleted = 0 AND p2.status = 'publicado' AND p2.stock > 0
-      ORDER BY similarity_score DESC
-      LIMIT ?;
-    `;
-    const [rows] = await db.query<RowDataPacket[]>(sql, [productId, limit]);
-    return rows.map(row => row.recommended_product_id);
+    // Mock: return products from same category excluding itself
+    const similar = initialProducts
+      .filter(p => p.category?.id === categoryId && p.id !== productId)
+      .slice(0, limit)
+      .map(p => p.id);
+      
+    if (similar.length < limit) {
+      // Fill with others if not enough
+      const others = initialProducts
+        .filter(p => p.id !== productId && !similar.includes(p.id))
+        .slice(0, limit - similar.length)
+        .map(p => p.id);
+      return Promise.resolve([...similar, ...others]);
+    }
+    
+    return Promise.resolve(similar);
   },
 
   /**
    * Busca IDs de productos que se compran frecuentemente junto con un conjunto de productos.
    */
   async findFrequentlyBoughtTogetherIds(productIds: number[], limit: number): Promise<number[]> {
+    // Mock: return random products not in the input list
+    const others = initialProducts
+        .filter(p => !productIds.includes(p.id))
+        .slice(0, limit)
+        .map(p => p.id);
+    return Promise.resolve(others);
+  },
     if (productIds.length === 0) return [];
     
     const placeholders = productIds.map(() => '?').join(',');

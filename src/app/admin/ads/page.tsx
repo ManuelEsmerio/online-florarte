@@ -2,7 +2,7 @@
 // src/app/admin/ads/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -17,19 +17,15 @@ import {
   SortingState,
   ColumnFiltersState,
 } from '@tanstack/react-table';
-import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { columns } from './columns';
 import { AdForm } from './ad-form';
 import type { Announcement } from '@/lib/definitions';
-import { useAuth } from '@/context/AuthContext';
-import { handleApiResponse } from '@/utils/handleApiResponse';
 import { Input } from '@/components/ui/input';
+import { announcementsData } from '@/lib/data/announcement-data';
 
 export default function AdsPage() {
   const { toast } = useToast();
-  const { apiFetch } = useAuth();
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [announcements, setAnnouncements] = useState<Announcement[]>(() => [...announcementsData]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
@@ -39,23 +35,6 @@ export default function AdsPage() {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'sort_order', desc: false }]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-
-  const fetchAnnouncements = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await apiFetch('/api/admin/announcements');
-      const data = await handleApiResponse(res, []);
-      setAnnouncements(data);
-    } catch (error: any) {
-      toast({ title: 'Error al cargar anuncios', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [apiFetch, toast]);
-
-  useEffect(() => {
-    fetchAnnouncements();
-  }, [fetchAnnouncements]);
 
   const handleAdd = () => {
     setSelectedAd(null);
@@ -67,63 +46,71 @@ export default function AdsPage() {
     setIsFormOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = (id: number) => {
     setIsDeletingId(id);
-    try {
-      await handleApiResponse(await apiFetch(`/api/admin/announcements/${id}`, { method: 'DELETE' }));
-      toast({ title: '¡Anuncio Eliminado!', description: 'El anuncio se ha eliminado correctamente.', variant: 'success' });
-      await fetchAnnouncements();
-    } catch (error: any) {
-      toast({ title: 'Error al eliminar', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsDeletingId(null);
-    }
+    setAnnouncements(prev => prev.filter(a => a.id !== id));
+    const idx = announcementsData.findIndex(a => a.id === id);
+    if (idx > -1) announcementsData.splice(idx, 1);
+    toast({ title: '¡Anuncio Eliminado!', description: 'El anuncio se ha eliminado correctamente.', variant: 'success' });
+    setIsDeletingId(null);
   };
-  
-  const handleToggleActive = async (ad: Announcement) => {
-    setUpdatingStatusId(ad.id);
-    const updatedAdData = { ...ad, is_active: !ad.is_active };
-    try {
-      const formData = new FormData();
-      formData.append('announcementData', JSON.stringify(updatedAdData));
-      
-      const res = await apiFetch(`/api/admin/announcements/${ad.id}`, {
-        method: 'POST', // Usar POST para FormData con PUT
-        body: formData,
-      });
 
-      await handleApiResponse(res);
-      toast({ title: 'Estado actualizado', description: `El anuncio "${ad.title}" ahora está ${updatedAdData.is_active ? 'activo' : 'inactivo'}.` });
-      await fetchAnnouncements();
-    } catch (error: any) {
-      toast({ title: 'Error al actualizar', description: error.message, variant: 'destructive' });
-    } finally {
-      setUpdatingStatusId(null);
-    }
+  const handleToggleActive = (ad: Announcement) => {
+    setUpdatingStatusId(ad.id);
+    const updated = { ...ad, is_active: !ad.is_active };
+    setAnnouncements(prev => prev.map(a => a.id === ad.id ? updated : a));
+    const idx = announcementsData.findIndex(a => a.id === ad.id);
+    if (idx > -1) announcementsData[idx] = updated;
+    toast({ title: 'Estado actualizado', description: `El anuncio "${ad.title}" ahora está ${updated.is_active ? 'activo' : 'inactivo'}.` });
+    setUpdatingStatusId(null);
   };
 
   const handleSave = async (data: any, images: { desktop?: File, mobile?: File }) => {
     setIsSaving(true);
-    const formData = new FormData();
-    formData.append('announcementData', JSON.stringify(data));
-    if (images.desktop) formData.append('image_desktop', images.desktop);
-    if (images.mobile) formData.append('image_mobile', images.mobile);
-    
     const isEditing = !!data.id;
-    const url = isEditing ? `/api/admin/announcements/${data.id}` : '/api/admin/announcements';
-    const method = 'POST';
 
-    try {
-      const res = await apiFetch(url, { method, body: formData });
-      await handleApiResponse(res);
-      toast({ title: isEditing ? '¡Anuncio Actualizado!' : '¡Anuncio Creado!', variant: 'success' });
-      setIsFormOpen(false);
-      await fetchAnnouncements();
-    } catch (error: any) {
-      toast({ title: 'Error al guardar', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsSaving(false);
+    // Para imágenes, generar URL de objeto temporal si hay archivos
+    const imageUrl = images.desktop
+      ? URL.createObjectURL(images.desktop)
+      : data.image_url || '';
+    const imageMobileUrl = images.mobile
+      ? URL.createObjectURL(images.mobile)
+      : data.image_mobile_url || null;
+
+    if (isEditing) {
+      const updated: Announcement = {
+        ...data,
+        image_url: imageUrl,
+        image_mobile_url: imageMobileUrl,
+        updated_at: new Date().toISOString(),
+      };
+      setAnnouncements(prev => prev.map(a => a.id === data.id ? updated : a));
+      const idx = announcementsData.findIndex(a => a.id === data.id);
+      if (idx > -1) announcementsData[idx] = updated;
+    } else {
+      const newId = Math.max(...announcements.map(a => a.id), 0) + 1;
+      const newAd: Announcement = {
+        id: newId,
+        title: data.title,
+        description: data.description || null,
+        button_text: data.button_text || null,
+        button_link: data.button_link || null,
+        image_url: imageUrl,
+        image_mobile_url: imageMobileUrl,
+        is_active: data.is_active ?? true,
+        start_at: data.start_at || null,
+        end_at: data.end_at || null,
+        sort_order: data.sort_order ?? (announcements.length + 1),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      setAnnouncements(prev => [...prev, newAd]);
+      announcementsData.push(newAd);
     }
+
+    toast({ title: isEditing ? '¡Anuncio Actualizado!' : '¡Anuncio Creado!', variant: 'success' });
+    setIsFormOpen(false);
+    setIsSaving(false);
   };
 
   const tableColumns = useMemo(
@@ -144,18 +131,6 @@ export default function AdsPage() {
     state: { pagination, sorting, columnFilters },
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-4xl font-bold font-headline tracking-tight text-slate-900 dark:text-white">Anuncios</h2>
-          <Button disabled className="rounded-2xl h-11 px-6 font-bold shadow-lg shadow-primary/20"><PlusCircle className="mr-2 h-4 w-4" />Crear Anuncio</Button>
-        </div>
-        <DataTableSkeleton columnCount={7} />
-      </div>
-    );
-  }
-
   return (
     <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
@@ -166,11 +141,11 @@ export default function AdsPage() {
         </Button>
       </div>
       <AdForm isOpen={isFormOpen} onOpenChange={setIsFormOpen} onSave={handleSave} ad={selectedAd} isSaving={isSaving} />
-      <DataTable 
-        table={table} 
-        columns={tableColumns} 
-        data={announcements} 
-        isLoading={isLoading} 
+      <DataTable
+        table={table}
+        columns={tableColumns}
+        data={announcements}
+        isLoading={false}
         toolbar={
              <Input
                 placeholder="Filtrar por título..."

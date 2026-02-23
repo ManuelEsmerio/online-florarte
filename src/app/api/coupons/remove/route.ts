@@ -2,7 +2,7 @@
 import { type NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getIdentity } from '@/utils/request-utils';
-import db from '@/lib/db';
+import { cartRepository } from '@/repositories/cartRepository';
 
 /**
  * POST /api/coupons/remove
@@ -17,10 +17,7 @@ export async function POST(req: NextRequest) {
       return successResponse({ message: 'No hay sesión activa.' });
     }
 
-    const whereClause = userId ? 'user_id = ?' : 'session_id = ?';
-    const whereParam = userId || sessionId;
-
-    await db.query(`DELETE FROM cart_coupons_applied WHERE ${whereClause}`, [whereParam]);
+    await cartRepository.removeCartCoupon({ userId, sessionId });
 
     return successResponse({ message: 'Cupón eliminado del carrito.' });
 
