@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -65,8 +65,18 @@ export function SearchDialog() {
   
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
+  useEffect(() => {
+    if (isOpen) {
+      // Focus input without scrolling
+      setTimeout(() => {
+        inputRef.current?.focus({ preventScroll: true });
+      }, 100);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -168,19 +178,24 @@ export function SearchDialog() {
             <Search className="h-5 w-5 md:h-6 md:w-6" />
           </Button>
         </DialogTrigger>
-        <DialogContent className="w-[95vw] sm:max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-3xl md:rounded-[2.5rem] bg-background dark:bg-[#0A0A0A] relative transition-all duration-300 max-h-[90vh]">
-          <DialogHeader className="p-6 md:p-12 pb-0 md:pb-0">
+        <DialogContent 
+            className="w-[95vw] sm:max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-3xl md:rounded-[2.5rem] bg-background dark:bg-[#0A0A0A] transition-all duration-300 max-h-[85dvh]"
+            hideCloseButton={false}
+        >
+          <DialogHeader className="p-6 md:p-12 pb-0 md:pb-0 relative">
             <DialogTitle className="sr-only">Buscar Productos</DialogTitle>
+            {/* Custom close button removed in favor of DialogContent's built-in one */}
             <div className="relative mt-2 md:mt-4 group">
                 <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
                     <Search className="h-5 w-5 md:h-6 md:w-6 text-primary group-focus-within:scale-110 transition-transform" />
                 </div>
                 <Input
+                    ref={inputRef}
                     placeholder="¿Qué flores estás buscando?"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full h-14 md:h-20 pl-12 md:pl-14 pr-10 md:pr-12 bg-stone-100 dark:bg-[#161616] border-none rounded-xl md:rounded-2xl text-stone-800 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 text-base md:text-lg focus-visible:ring-1 focus-visible:ring-primary/30 transition-all outline-none shadow-inner"
-                    autoFocus
+                    // autoFocus removed to prevent scrolling issues on mobile
                 />
                 {searchTerm && (
                     <Button 
