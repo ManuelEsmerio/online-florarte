@@ -6,10 +6,6 @@ import { createContext, useContext, useState, ReactNode, useEffect, useCallback 
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Order, Product, Address, ShippingZone, Coupon, User } from '@/lib/definitions';
-import { ToastAction } from '@/components/ui/toast';
-import Link from 'next/link';
-import { handleApiResponse } from '@/utils/handleApiResponse';
-import * as authService from '@/services/auth.service';
 import type { LoginCredentials, RegisterData } from '@/lib/definitions';
 import { apiFetch as baseApiFetch } from '@/lib/apiFetch';
 import { mapDbShippingZoneToShippingZone } from '@/mappers/shippingZoneMapper';
@@ -63,17 +59,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const router = useRouter();
 
-  const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
-    const headers = { ...options.headers };
-    const currentUser = authService.getCurrentUser();
-    if (currentUser) {
-      (headers as Record<string, string>)['X-Demo-User-Id'] = String(currentUser.id);
-    }
-    return baseApiFetch(url, { ...options, headers });
-  }, []);
+  const apiFetch = useCallback(
+    async (url: string, options: RequestInit = {}) => {
+      const headers = { ...options.headers };
+
+      const stored = localStorage.getItem('florarte_user_session');
+
+      if (stored) {
+        const currentUser = JSON.parse(stored);
+
+        // Temporalmente seguimos enviando el ID
+        (headers as Record<string, string>)['X-User-Id'] =
+          String(currentUser.id);
+      }
+
+      return baseApiFetch(url, { ...options, headers });
+    },
+    []
+  );
 
   const fetchUserData = useCallback(async (): Promise<void> => {
-    const loggedInUser = authService.getCurrentUser();
+    const stored = localStorage.getItem('florarte_user_session');
+
+    const loggedInUser = stored
+      ? JSON.parse(stored)
+      : null;
     
     // Sincronizar con allUsers para tener los datos más recientes si hay cambios en memoria
     const freshUser = loggedInUser ? allUsers.find(u => u.id === loggedInUser.id) || loggedInUser : null;
@@ -97,34 +107,98 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initializeSession();
   }, [fetchUserData]);
 
+  // Login User DB
   const login = async (credentials: LoginCredentials): Promise<AuthResult> => {
     setLoading(true);
+
     try {
-      const loggedInUser = authService.login(credentials);
-      await fetchUserData();
-      return { success: true, message: 'Inicio de sesión exitoso.' };
-    } catch (error: any) {
-      return { success: false, message: error.message };
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(credentials),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        return {
+          success: false,
+          message: result.error || 'Login inválido',
+        };
+      }
+
+      // Guardar sesión temporal
+      localStorage.setItem(
+        'florarte_user_session',
+        JSON.stringify(result)
+      );
+
+      setUser(result);
+
+      return {
+        success: true,
+        message: 'Login exitoso',
+        data: result,
+      };
+
+    } catch (err) {
+      console.error(err);
+
+      return {
+        success: false,
+        message: 'Error de conexión',
+      };
+
     } finally {
       setLoading(false);
     }
   };
 
+  // Register User DB
   const register = async (data: RegisterData): Promise<AuthResult> => {
     setLoading(true);
+
     try {
-      const newUser = authService.register(data);
-      await fetchUserData();
-      return { success: true, message: 'Registro exitoso.' };
-    } catch (error: any) {
-      return { success: false, message: error.message };
+      const res = await fetch('/api/users/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        return {
+          success: false,
+          message: result.error || 'Error al registrarse',
+        };
+      }
+
+      return {
+        success: true,
+        message: 'Registro exitoso',
+        data: result,
+      };
+
+    } catch (error) {
+      console.error(error);
+
+      return {
+        success: false,
+        message: 'Error de conexión',
+      };
+
     } finally {
       setLoading(false);
     }
   };
 
   const logout = () => {
-    authService.logout();
+    localStorage.removeItem('florarte_user_session');
     setUser(null);
     setWishlist([]);
     router.push('/login');

@@ -57,3 +57,4 @@ firestore-debug.log
 *.gif
 public/assets/
 public/images/
+/generated/prisma

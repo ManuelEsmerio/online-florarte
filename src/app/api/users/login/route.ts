@@ -1,39 +1,49 @@
+import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
+import { NextResponse } from 'next/server';
 
-// src/app/api/users/login/route.ts
-import { NextRequest } from 'next/server';
-import { successResponse, errorHandler } from '@/utils/api-utils';
-import { allUsers } from '@/lib/data/user-data';
-
-/**
- * POST /api/users/login
- * Endpoint de login simulado que valida contra user-data.ts.
- */
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
-    
+
     if (!email || !password) {
-      return errorHandler(new Error('Email y contraseña son requeridos.'), 400);
+      return NextResponse.json(
+        { error: 'Datos incompletos' },
+        { status: 400 }
+      );
     }
 
-    // Buscar en la "base de datos" simulada
-    const user = allUsers.find(u => 
-      u.email.toLowerCase() === email.toLowerCase() && 
-      u.password === password && 
-      !u.is_deleted
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user || !user.password) {
+      return NextResponse.json(
+        { error: 'Credenciales inválidas' },
+        { status: 401 }
+      );
+    }
+
+    const valid = await bcrypt.compare(password, user.password);
+
+    if (!valid) {
+      return NextResponse.json(
+        { error: 'Credenciales inválidas' },
+        { status: 401 }
+      );
+    }
+
+    // Quitamos password
+    const { password: _, ...safeUser } = user;
+
+    return NextResponse.json(safeUser);
+
+  } catch (err) {
+    console.error(err);
+
+    return NextResponse.json(
+      { error: 'Error interno' },
+      { status: 500 }
     );
-    
-    if (!user) {
-        return errorHandler(new Error('Credenciales inválidas.'), 401);
-    }
-    
-    // Para propósitos de seguridad en la respuesta, removemos la contraseña
-    const { password: _, ...userSafe } = user;
-    
-    return successResponse(userSafe);
-
-  } catch (error) {
-    console.error('[API_LOGIN_ERROR]', error);
-    return errorHandler(error, 500);
   }
 }

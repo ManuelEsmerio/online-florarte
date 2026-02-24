@@ -208,7 +208,6 @@ const Header = () => {
           })}
         </nav>
         <div className="hidden items-center space-x-2 md:flex">
-          {isClient && (
             <>
               <SearchDialog />
               <ThemeToggle />
@@ -229,7 +228,6 @@ const Header = () => {
               </Button>
               {renderUserAuth()}
             </>
-          )}
           <ShoppingCartButton />
         </div>
         <div className="md:hidden flex items-center gap-2">

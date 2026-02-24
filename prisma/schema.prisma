@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               Int      @id @default(autoincrement())
+  name             String
+  email            String   @unique
+  password         String?
+  phone            String?
+
+  birthdate        DateTime?
+
+  role             Role     @default(CUSTOMER)
+
+  profilePicUrl    String?
+
+  loyaltyPoints    Int      @default(0)
+
+  emailVerifiedAt  DateTime?
+  acceptsMarketing Boolean  @default(false)
+
+  firebaseUid      String?  @unique
+
+  isDeleted        Boolean  @default(false)
+  deletedAt        DateTime?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  addresses        Address[]
+}
+
+model Address {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  addressName     String
+  recipientName   String
+  recipientPhone  String?
+
+  streetName      String
+  streetNumber    String
+  interiorNumber  String?
+
+  neighborhood    String
+  city            String
+  state           String
+  country         String   @default("México")
+  postalCode      String
+
+  latitude        Decimal? @db.Decimal(10,8)
+  longitude       Decimal? @db.Decimal(11,8)
+
+  googlePlaceId   String?
+
+  isDefault       Boolean  @default(false)
+
+  addressType     AddressType @default(HOME)
+
+  referenceNotes  String?
+
+  isDeleted        Boolean  @default(false)
+  deletedAt        DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  DELIVERY
+}
+
+enum AddressType {
+  HOME
+  OFFICE
+  BUSINESS
+  OTHER
+}
