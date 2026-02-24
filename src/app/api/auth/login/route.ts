@@ -1,27 +1,59 @@
-// src/app/api/auth/login/route.ts
 import { NextRequest } from 'next/server';
-import { successResponse, errorHandler } from '@/lib/http';
-import * as authService from '@/features/auth/auth.service';
-import { loginSchema } from '@/features/auth/auth.schema';
-import { ZodError } from 'zod';
+import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
+import { successResponse, errorHandler } from '@/utils/api-utils';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const credentials = loginSchema.parse(body);
-    
-    const user = authService.login(credentials);
+    // Manejar caso donde el cuerpo puede estar vacío o mal formado
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      return errorHandler(new Error('Formato de solicitud inválido.'), 400);
+    }
 
-    // No hay cookies que establecer en modo demo
-    return successResponse(user);
+    const { email, password } = body;
 
-  } catch (error) {
-    if (error instanceof ZodError) {
+    if (!email || !password) {
       return errorHandler(new Error('Email y contraseña son requeridos.'), 400);
     }
-    if (error instanceof Error) {
-        return errorHandler(error, 401);
+
+    const emailLower = email.toLowerCase();
+
+    const user = await prisma.user.findUnique({
+      where: { email: emailLower },
+       include: {
+        addresses: {
+          where: {
+            isDeleted: false,
+          },
+          orderBy: {
+            isDefault: "desc",
+          },
+        },
+      },
+    });
+
+    if (!user || !user.passwordHash) {
+      // Usar mensaje genérico por seguridad
+      return errorHandler(new Error('Credenciales inválidas.'), 401);
     }
-    return errorHandler(error);
+
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+
+    if (!isMatch) {
+      return errorHandler(new Error('Credenciales inválidas.'), 401);
+    }
+
+    // Eliminar password de la respuesta
+    // Usamos una variable intermedia para estructurar mejor el retorno si es necesario
+    const { passwordHash: _, ...userSafe } = user;
+
+    return successResponse(userSafe);
+
+  } catch (error) {
+    console.error('Login error:', error);
+    return errorHandler(error, 500);
   }
 }

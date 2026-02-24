@@ -17,7 +17,7 @@ export interface UserSession {
  * @returns Un objeto UserSession o null si no se proporciona el encabezado.
  */
 export async function getDecodedToken(req: NextRequest): Promise<UserSession | null> {
-  const userIdHeader = req.headers.get("X-Demo-User-Id");
+  const userIdHeader = req.headers.get("X-User-Id");
   if (!userIdHeader) {
     return null;
   }

@@ -46,7 +46,7 @@ interface AuthContextType {
   getOrders: () => Promise<Order[]>;
   getCoupons: () => Promise<Coupon[]>;
   toggleWishlist: (productId: number, product: Product) => Promise<ToggleWishlistResult>;
-  changePassword: (newPassword: string) => Promise<AuthResult>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<AuthResult>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -61,42 +61,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const apiFetch = useCallback(
     async (url: string, options: RequestInit = {}) => {
-      const headers = { ...options.headers };
 
-      const stored = localStorage.getItem('florarte_user_session');
+      const headers: Record<string, string> = {
+        ...(options.headers as Record<string, string>),
+      };
 
-      if (stored) {
-        const currentUser = JSON.parse(stored);
+      try {
+        const stored = localStorage.getItem('florarte_user_session');
 
-        // Temporalmente seguimos enviando el ID
-        (headers as Record<string, string>)['X-User-Id'] =
-          String(currentUser.id);
+        if (stored) {
+          const currentUser = JSON.parse(stored);
+
+          if (currentUser?.id) {
+            headers['X-User-Id'] = String(currentUser.id);
+          }
+        }
+
+      } catch (e) {
+        console.warn('Error leyendo sesión', e);
       }
 
-      return baseApiFetch(url, { ...options, headers });
+      return baseApiFetch(url, {
+        ...options,
+        headers,
+      });
     },
     []
   );
 
   const fetchUserData = useCallback(async (): Promise<void> => {
-    const stored = localStorage.getItem('florarte_user_session');
+    try {
+      const res = await apiFetch('/api/users/profile');
 
-    const loggedInUser = stored
-      ? JSON.parse(stored)
-      : null;
-    
-    // Sincronizar con allUsers para tener los datos más recientes si hay cambios en memoria
-    const freshUser = loggedInUser ? allUsers.find(u => u.id === loggedInUser.id) || loggedInUser : null;
-    setUser(freshUser as any);
-    
-    // Mapear shipping zones para asegurar camelCase
-    setShippingZones(allShippingZones.map(mapDbShippingZoneToShippingZone));
+      if (!res.ok) {
+        console.warn('Sesión inválida en backend');
 
-    if (freshUser) {
-        // En una app real, aquí cargaríamos la wishlist del usuario
-        // Por ahora, simulamos una vacía o la mantenemos en el estado
+        setUser(null);
+        localStorage.removeItem('florarte_user_session');
+
+        return; // 👈 NO tirar error
+      }
+
+      const result = await res.json();
+
+      const userData = result.data;
+
+      setUser(userData);
+
+      localStorage.setItem(
+        'florarte_user_session',
+        JSON.stringify(userData)
+      );
+
+    } catch (error) {
+      console.error(error);
+
+      setUser(null);
+      localStorage.removeItem('florarte_user_session');
     }
-  }, []);
+  }, [apiFetch]);
 
   useEffect(() => {
     const initializeSession = async () => {
@@ -130,17 +153,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Guardar sesión temporal
+      const userData = result.data || result;
       localStorage.setItem(
         'florarte_user_session',
-        JSON.stringify(result)
+        JSON.stringify(userData)
       );
 
-      setUser(result);
+      setUser(userData);
 
       return {
         success: true,
         message: 'Login exitoso',
-        data: result,
+        data: userData,
       };
 
     } catch (err) {
@@ -161,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/users/register', {
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -205,86 +229,175 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     toast({ title: 'Has cerrado sesión' });
   };
 
+  // Actualizar datos del usuario autenticado
   const updateUser = async (data: Partial<User>): Promise<AuthResult> => {
-    if (!user) return { success: false, message: 'No hay sesión' };
-    const index = allUsers.findIndex(u => u.id === user.id);
-    if (index > -1) {
-        allUsers[index] = { ...allUsers[index], ...data as any, updated_at: new Date().toISOString() };
-        localStorage.setItem('florarte_user_session', JSON.stringify(allUsers[index]));
-        await fetchUserData();
-        return { success: true, message: 'Perfil actualizado' };
+    if (!user) {
+      return { success: false, message: 'No hay sesión' };
     }
-    return { success: false, message: 'Usuario no encontrado' };
+
+    try {
+      const res = await apiFetch('/api/users/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        return {
+          success: false,
+          message: result.message || 'Error al actualizar perfil',
+        };
+      }
+
+      /* Guardar usuario actualizado */
+      const updatedUser = result.data;
+
+      localStorage.setItem(
+        'florarte_user_session',
+        JSON.stringify(updatedUser)
+      );
+
+      setUser(updatedUser);
+
+      return {
+        success: true,
+        message: 'Perfil actualizado',
+        data: updatedUser,
+      };
+
+    } catch (error) {
+      console.error(error);
+
+      return {
+        success: false,
+        message: 'Error de conexión',
+      };
+    }
   };
 
-  const addAddress = async (address: Omit<Address, 'id'>): Promise<AuthResult> => {
+  // Agregar direccion del usuario autenticado
+  const addAddress = async (address: Omit<Address, 'id'>) => {
     if (!user) return { success: false, message: 'No hay sesión' };
-    const index = allUsers.findIndex(u => u.id === user.id);
-    if (index > -1) {
-        const currentUser = allUsers[index];
-        const newAddress = { 
-            ...address, 
-            id: Date.now(), 
-            user_id: user.id,
-            isDefault: (currentUser.addresses?.length || 0) === 0 
-        } as Address;
-        
-        if (!currentUser.addresses) currentUser.addresses = [];
-        currentUser.addresses.push(newAddress);
-        
-        localStorage.setItem('florarte_user_session', JSON.stringify(currentUser));
-        await fetchUserData();
-        return { success: true, message: 'Dirección agregada', data: currentUser };
-    }
-    return { success: false, message: 'Error al agregar dirección' };
+
+    return updateUser({
+      addresses: [...(user.addresses || []), address],
+    } as any);
   };
 
-  const updateAddress = async (address: Address): Promise<AuthResult> => {
+  // Actualizar direccion del usuario autenticado
+  const updateAddress = async (address: Address) => {
     if (!user) return { success: false, message: 'No hay sesión' };
-    const index = allUsers.findIndex(u => u.id === user.id);
-    if (index > -1) {
-        const currentUser = allUsers[index];
-        if (currentUser.addresses) {
-            currentUser.addresses = currentUser.addresses.map(a => a.id === address.id ? { ...a, ...address } : a);
-            localStorage.setItem('florarte_user_session', JSON.stringify(currentUser));
-            await fetchUserData();
-            return { success: true, message: 'Dirección actualizada', data: currentUser };
-        }
-    }
-    return { success: false, message: 'Error al actualizar dirección' };
+
+    const updated = user.addresses?.map(a =>
+      a.id === address.id ? address : a
+    );
+
+    return updateUser({
+      addresses: updated,
+    } as any);
   };
 
-  const deleteAddress = async (addressId: number): Promise<AuthResult> => {
+  // Eliminar direccion del usuario autenticado
+  const deleteAddress = async (addressId: number) => {
     if (!user) return { success: false, message: 'No hay sesión' };
-    const index = allUsers.findIndex(u => u.id === user.id);
-    if (index > -1) {
-        const currentUser = allUsers[index];
-        if (currentUser.addresses) {
-            currentUser.addresses = currentUser.addresses.filter(a => a.id !== addressId);
-            localStorage.setItem('florarte_user_session', JSON.stringify(currentUser));
-            await fetchUserData();
-            return { success: true, message: 'Dirección eliminada' };
-        }
-    }
-    return { success: false, message: 'Error al eliminar dirección' };
+
+    const filtered = user.addresses?.filter(a => a.id !== addressId);
+
+    return updateUser({
+      addresses: filtered,
+    } as any);
   };
 
-  const setDefaultAddress = async (addressId: number): Promise<AuthResult> => {
+  // Establecer direccion por defecto del usuario autenticado
+  const setDefaultAddress = async (addressId: number) => {
     if (!user) return { success: false, message: 'No hay sesión' };
-    const index = allUsers.findIndex(u => u.id === user.id);
-    if (index > -1) {
-        const currentUser = allUsers[index];
-        if (currentUser.addresses) {
-            currentUser.addresses = currentUser.addresses.map(a => ({
-                ...a,
-                isDefault: a.id === addressId
-            }));
-            localStorage.setItem('florarte_user_session', JSON.stringify(currentUser));
-            await fetchUserData();
-            return { success: true, message: 'Dirección principal actualizada' };
-        }
+
+    const updated = user.addresses?.map(a => ({
+      ...a,
+      isDefault: a.id === addressId,
+    }));
+
+    return updateUser({
+      addresses: updated,
+    } as any);
+  };
+
+  // Eliminar cuenta del usuario autenticado
+  const deleteAccount = async (): Promise<AuthResult> => {
+    if (!user) return { success: false, message: 'No hay sesión' };
+
+    try {
+      const res = await apiFetch('/api/users/profile', {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const r = await res.json();
+        return {
+          success: false,
+          message: r.message || 'Error al eliminar cuenta',
+        };
+      }
+
+      logout();
+
+      return {
+        success: true,
+        message: 'Cuenta eliminada',
+      };
+
+    } catch (e) {
+      console.error(e);
+
+      return {
+        success: false,
+        message: 'Error de conexión',
+      };
     }
-    return { success: false, message: 'Error' };
+  };
+
+  // Cambiar contraseña del usuario autenticado
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string
+  ): Promise<AuthResult> => {
+
+    try {
+      const res = await apiFetch('/api/users/change-password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        return {
+          success: false,
+          message: result.message,
+        };
+      }
+
+      return {
+        success: true,
+        message: 'Contraseña actualizada',
+      };
+
+    } catch {
+      return {
+        success: false,
+        message: 'Error de conexión',
+      };
+    }
   };
   
   const getOrders = async () => {
@@ -309,16 +422,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
   };
 
-  const changePassword = async (newPassword: string) => {
-      if (!user) return { success: false, message: 'No hay sesión' };
-      const index = allUsers.findIndex(u => u.id === user.id);
-      if (index > -1) {
-          (allUsers[index] as any).password = newPassword;
-          return { success: true, message: 'Contraseña actualizada' };
-      }
-      return { success: false, message: 'Error' };
-  };
-
   const contextValue: AuthContextType = {
     user,
     loading,
@@ -332,19 +435,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register,
     changePassword,
     updateUser,
-    deleteAccount: async () => {
-        if (!user) return { success: false, message: 'No hay sesión' };
-        const index = allUsers.findIndex(u => u.id === user.id);
-        if (index > -1) {
-            (allUsers[index] as any).is_deleted = true;
-            return { success: true, message: 'Cuenta eliminada' };
-        }
-        return { success: false, message: 'Error' };
-    },
     addAddress,
     updateAddress,
     deleteAddress,
     setDefaultAddress,
+    deleteAccount,
     getOrders,
     getCoupons,
     toggleWishlist,

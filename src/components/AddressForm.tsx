@@ -11,12 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from './ui/textarea';
 import type { Address } from '@/lib/definitions';
 import { CheckCircle, AlertCircle } from 'lucide-react';
+import { ADDRESS_TYPE_OPTIONS } from '@/utils/constants';
 
 const addressFormSchema = z.object({
   id: z.number().optional(),
   alias: z.string().min(3, 'El alias de la dirección es requerido.'),
   recipientName: z.string().min(3, 'El nombre del destinatario es requerido.'),
-  recipient_phone: z.string().min(10, 'El teléfono debe tener 10 dígitos.').max(10, 'El teléfono debe tener 10 dígitos.'),
+  recipientPhone: z.string().min(10, 'El teléfono debe tener 10 dígitos.').max(10, 'El teléfono debe tener 10 dígitos.'),
   streetName: z.string().min(3, 'El nombre de la calle es requerido.'),
   streetNumber: z.string().min(1, 'El número exterior es requerido.'),
   interiorNumber: z.string().optional(),
@@ -24,10 +25,8 @@ const addressFormSchema = z.object({
   city: z.string().min(3, 'La ciudad es requerida.'),
   state: z.string().min(3, 'El estado es requerido.'),
   postalCode: z.string().min(5, 'El código postal es requerido.'),
-  addressType: z.enum([
-      'casa', 'hotel', 'restaurante', 'oficina', 'hospital', 'capilla-funeral', 'escuela-universidad', 'banco', 'departamento', 'otro'
-    ], { required_error: 'Debes seleccionar un tipo de domicilio.' }),
-  reference_notes: z.string().optional(),
+  addressType: z.enum(ADDRESS_TYPE_OPTIONS.map(option => option.value) as [string, ...string[]], { required_error: 'Debes seleccionar un tipo de domicilio.' }),
+  referenceNotes: z.string().optional(),
 });
 
 type AddressFormValues = z.infer<typeof addressFormSchema>;
@@ -45,7 +44,7 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
     defaultValues: {
         alias: '',
         recipientName: '',
-        recipient_phone: '',
+        recipientPhone: '',
         streetName: '',
         streetNumber: '',
         interiorNumber: '',
@@ -53,8 +52,8 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
         city: 'Tequila',
         state: 'Jalisco',
         postalCode: '',
-        addressType: 'casa',
-        reference_notes: '',
+        addressType: 'HOME',
+        referenceNotes: '',
     }
   });
 
@@ -62,15 +61,15 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
     if (addressToEdit) {
       form.reset({
         ...addressToEdit,
-        recipient_phone: addressToEdit.phone,
+        recipientPhone: addressToEdit.recipientPhone || '',
         interiorNumber: addressToEdit.interiorNumber || '',
-        reference_notes: addressToEdit.reference_notes || '',
+        referenceNotes: addressToEdit.referenceNotes || '',
       });
     }
   }, [addressToEdit, form]);
 
   const onSubmit = async (data: AddressFormValues) => {
-    const finalData = { ...data, id: addressToEdit?.id ?? 0, phone: data.recipient_phone };
+    const finalData = { ...data, id: addressToEdit?.id ?? 0, recipientPhone: data.recipientPhone, referenceNotes: data.referenceNotes };
     await onSave(finalData as Address);
   };
 
@@ -108,7 +107,7 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
                 />
                 <FormField
                     control={form.control}
-                    name="recipient_phone"
+                    name="recipientPhone"
                     render={({ field }) => (
                         <FormItem className="space-y-2">
                             <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Teléfono de contacto *</FormLabel>
@@ -233,17 +232,13 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
                                     <SelectValue placeholder="Selecciona el tipo" />
                                 </SelectTrigger>
                             </FormControl>
-                            <SelectContent className="rounded-2xl">
-                                <SelectItem value="casa">Casa</SelectItem>
-                                <SelectItem value="hotel">Hotel</SelectItem>
-                                <SelectItem value="restaurante">Restaurante</SelectItem>
-                                <SelectItem value="oficina">Oficina</SelectItem>
-                                <SelectItem value="hospital">Hospital</SelectItem>
-                                <SelectItem value="capilla-funeral">Capilla Funeral</SelectItem>
-                                <SelectItem value="escuela-universidad">Escuela o Universidad</SelectItem>
-                                <SelectItem value="banco">Banco</SelectItem>
-                                <SelectItem value="departamento">Departamento</SelectItem>
-                                <SelectItem value="otro">Otro</SelectItem>
+                            {/* AGREGADO: z-[9999] o z-50 para asegurar que flote encima del modal */}
+                            <SelectContent className="z-[9999] max-h-[200px]"> 
+                                {ADDRESS_TYPE_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                         <FormMessage />
@@ -253,7 +248,7 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
 
             <FormField
                 control={form.control}
-                name="reference_notes"
+                name="referenceNotes"
                 render={({ field }) => (
                     <FormItem className="space-y-2">
                         <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Referencias y notas</FormLabel>

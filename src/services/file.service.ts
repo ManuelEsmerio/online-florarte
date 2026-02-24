@@ -54,8 +54,33 @@ async function saveImageLocally(file: File, entityType: 'products' | 'categories
 /**
  * Guarda la imagen de perfil de un usuario.
  */
-export async function saveProfilePicture(file: File, userId: number): Promise<string> {
-  return saveImageLocally(file, 'profiles', userId);
+export async function saveProfilePicture(
+  userId: number,
+  base64: string
+) {
+  const matches = base64.match(/^data:(.+);base64,(.+)$/);
+
+  if (!matches) throw new Error("Formato inválido");
+
+  const ext = matches[1].split("/")[1];
+  const buffer = Buffer.from(matches[2], "base64");
+
+  const dir = path.join(
+    process.cwd(),
+    "public",
+    "uploads",
+    "profiles",
+    String(userId)
+  );
+
+  await fs.mkdir(dir, { recursive: true });
+
+  const filename = `avatar.${ext}`;
+  const filepath = path.join(dir, filename);
+
+  await fs.writeFile(filepath, buffer);
+
+  return `/uploads/profiles/${userId}/${filename}`;
 }
 
 /**

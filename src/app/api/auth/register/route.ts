@@ -33,12 +33,12 @@ export async function POST(req: NextRequest) {
       data: {
         name,
         email: emailLower,
-        password: hashedPassword,
+        passwordHash: hashedPassword,
       },
     });
 
     // Quitar password de la respuesta
-    const { password: _, ...userSafe } = newUser;
+    const { passwordHash: _, ...userSafe } = newUser;
 
     return successResponse(userSafe, 201);
 

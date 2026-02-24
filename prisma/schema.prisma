@@ -7,71 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id               Int      @id @default(autoincrement())
-  name             String
-  email            String   @unique
-  password         String?
-  phone            String?
-
-  birthdate        DateTime?
-
-  role             Role     @default(CUSTOMER)
-
-  profilePicUrl    String?
-
-  loyaltyPoints    Int      @default(0)
-
-  emailVerifiedAt  DateTime?
-  acceptsMarketing Boolean  @default(false)
-
-  firebaseUid      String?  @unique
-
-  isDeleted        Boolean  @default(false)
-  deletedAt        DateTime?
-
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  addresses        Address[]
-}
-
-model Address {
-  id              Int      @id @default(autoincrement())
-  userId          Int
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  addressName     String
-  recipientName   String
-  recipientPhone  String?
-
-  streetName      String
-  streetNumber    String
-  interiorNumber  String?
-
-  neighborhood    String
-  city            String
-  state           String
-  country         String   @default("México")
-  postalCode      String
-
-  latitude        Decimal? @db.Decimal(10,8)
-  longitude       Decimal? @db.Decimal(11,8)
-
-  googlePlaceId   String?
-
-  isDefault       Boolean  @default(false)
-
-  addressType     AddressType @default(HOME)
-
-  referenceNotes  String?
-
-  isDeleted        Boolean  @default(false)
-  deletedAt        DateTime?
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-}
+// ============================================================
+// ENUMS
+// ============================================================
 
 enum Role {
   CUSTOMER
@@ -80,8 +18,517 @@ enum Role {
 }
 
 enum AddressType {
-  HOME
-  OFFICE
-  BUSINESS
+  HOME          // casa
+  HOTEL
+  RESTAURANT    // restaurante
+  OFFICE        // oficina
+  HOSPITAL
+  FUNERAL_CHAPEL // capilla-funeral
+  SCHOOL        // escuela-universidad
+  BANK          // banco
+  APARTMENT     // departamento
   OTHER
+}
+
+enum ProductStatus {
+  PUBLISHED // publicado
+  HIDDEN    // oculto
+  DRAFT     // borrador
+}
+
+enum OrderStatus {
+  PENDING    // pendiente
+  PROCESSING // procesando
+  SHIPPED    // enviado
+  DELIVERED  // completado (en reparto → delivered)
+  CANCELLED  // cancelado
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+/// SPECIFIC = coupon assigned to a single user (USERS scope with maxUses = 1)
+enum CouponScope {
+  GLOBAL
+  USERS
+  CATEGORIES
+  PRODUCTS
+  SPECIFIC
+}
+
+enum CouponStatus {
+  ACTIVE  // vigente
+  EXPIRED // vencido
+  USED    // utilizado
+  PAUSED
+}
+
+enum LoyaltyTransactionType {
+  EARNED   // ganado
+  REDEEMED // redimido
+  ADJUSTED // ajuste manual por admin
+  EXPIRED
+}
+
+enum TestimonialStatus {
+  PENDING  // pendiente
+  APPROVED // aprobado
+  REJECTED // rechazado
+}
+
+// ============================================================
+// USER & AUTH
+// ============================================================
+
+model User {
+  id               Int       @id @default(autoincrement())
+  /// Firebase Auth UID
+  firebaseUid      String?   @unique @db.VarChar(128)
+  name             String    @db.VarChar(150)
+  email            String    @unique @db.VarChar(255)
+  passwordHash     String?   @db.VarChar(255)
+  phone            String?   @db.VarChar(20)
+  birthdate        DateTime?
+  role             Role      @default(CUSTOMER)
+  profilePicUrl    String?   @db.VarChar(500)
+  loyaltyPoints    Int       @default(0)
+  acceptsMarketing Boolean   @default(false)
+  emailVerifiedAt  DateTime?
+  isDeleted        Boolean   @default(false)
+  deletedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  addresses      Address[]
+  /// Orders placed by this user as a customer
+  orders         Order[]          @relation("CustomerOrders")
+  /// Orders assigned to this user as a delivery driver
+  deliveries     Order[]          @relation("DeliveryDriverOrders")
+  loyaltyHistory LoyaltyHistory[]
+  testimonials   Testimonial[]
+  couponUsers    CouponUser[]
+
+  @@map("users")
+}
+
+model Address {
+  id             Int         @id @default(autoincrement())
+  userId         Int
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alias          String      @db.VarChar(100)
+  recipientName  String      @db.VarChar(150)
+  recipientPhone String?     @db.VarChar(20)
+  streetName     String      @db.VarChar(255)
+  streetNumber   String      @db.VarChar(20)
+  interiorNumber String?     @db.VarChar(20)
+  neighborhood   String      @db.VarChar(150)
+  city           String      @db.VarChar(100)
+  state          String      @db.VarChar(100)
+  country        String      @default("México") @db.VarChar(60)
+  postalCode     String      @db.VarChar(10)
+  addressType    AddressType @default(HOME)
+  referenceNotes String?     @db.Text
+  isDefault      Boolean     @default(false)
+  latitude       Decimal?    @db.Decimal(10, 8)
+  longitude      Decimal?    @db.Decimal(11, 8)
+  googlePlaceId  String?     @db.VarChar(255)
+  isDeleted      Boolean     @default(false)
+  deletedAt      DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  orders Order[]
+
+  @@map("addresses")
+}
+
+// ============================================================
+// CATALOG — CATEGORIES, TAGS, OCCASIONS
+// ============================================================
+
+model ProductCategory {
+  id          Int              @id @default(autoincrement())
+  name        String           @db.VarChar(100)
+  slug        String           @unique @db.VarChar(120)
+  /// Short prefix used for product codes (e.g. "ARR", "RAM")
+  prefix      String           @db.VarChar(10)
+  description String?          @db.Text
+  imageUrl    String?          @db.VarChar(500)
+  parentId    Int?
+  parent      ProductCategory? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    ProductCategory[] @relation("CategoryHierarchy")
+  showOnHome  Boolean          @default(false)
+  isDeleted   Boolean          @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  products         Product[]
+  couponCategories CouponCategory[]
+
+  @@map("product_categories")
+}
+
+model Tag {
+  id       Int          @id @default(autoincrement())
+  name     String       @unique @db.VarChar(60)
+
+  products ProductTag[]
+
+  @@map("tags")
+}
+
+model Occasion {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(100)
+  slug        String   @unique @db.VarChar(120)
+  description String?  @db.Text
+  imageUrl    String?  @db.VarChar(500)
+  showOnHome  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products ProductOccasion[]
+
+  @@map("occasions")
+}
+
+// ============================================================
+// CATALOG — PRODUCTS & VARIANTS
+// ============================================================
+
+model Product {
+  id               Int           @id @default(autoincrement())
+  name             String        @db.VarChar(255)
+  slug             String        @unique @db.VarChar(280)
+  code             String        @unique @db.VarChar(50)
+  description      String?       @db.Text
+  shortDescription String?       @db.VarChar(500)
+  price            Decimal       @db.Decimal(10, 2)
+  salePrice        Decimal?      @db.Decimal(10, 2)
+  stock            Int           @default(0)
+  hasVariants      Boolean       @default(false)
+  status           ProductStatus @default(DRAFT)
+  care             String?       @db.Text
+  /// URL of the main/cover image (quick access, no join needed)
+  mainImage        String?       @db.VarChar(500)
+  /// Promotional badge label shown on card: "NUEVO", "OFERTA", "MÁS VENDIDO"
+  badgeText        String?       @db.VarChar(40)
+  allowPhoto       Boolean       @default(false)
+  photoPrice       Decimal?      @db.Decimal(10, 2)
+  categoryId       Int
+  category         ProductCategory @relation(fields: [categoryId], references: [id])
+  isDeleted        Boolean       @default(false)
+  deletedAt        DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  variants       ProductVariant[]
+  images         ProductImage[]
+  specifications ProductSpecification[]
+  tags           ProductTag[]
+  occasions      ProductOccasion[]
+  orderItems     OrderItem[]
+  couponProducts CouponProduct[]
+
+  @@map("products")
+}
+
+model ProductVariant {
+  id               Int      @id @default(autoincrement())
+  productId        Int
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name             String   @db.VarChar(100)
+  code             String?  @unique @db.VarChar(50)
+  price            Decimal  @db.Decimal(10, 2)
+  salePrice        Decimal? @db.Decimal(10, 2)
+  stock            Int      @default(0)
+  shortDescription String?  @db.VarChar(500)
+  description      String?  @db.Text
+  isDeleted        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  images         ProductImage[]
+  specifications ProductSpecification[]
+  orderItems     OrderItem[]
+
+  @@map("product_variants")
+}
+
+/// Shared image table for both products and variants.
+/// Exactly one of (productId, variantId) must be non-null.
+model ProductImage {
+  id        Int             @id @default(autoincrement())
+  productId Int?
+  product   Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId Int?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  src       String          @db.VarChar(500)
+  alt       String          @db.VarChar(200)
+  isPrimary Boolean         @default(false)
+  sortOrder Int             @default(0)
+  createdAt DateTime        @default(now())
+
+  @@map("product_images")
+}
+
+/// Key-value specifications for products or variants.
+/// Exactly one of (productId, variantId) must be non-null.
+model ProductSpecification {
+  id        Int             @id @default(autoincrement())
+  productId Int?
+  product   Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId Int?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  key       String          @db.VarChar(100)
+  value     String          @db.VarChar(500)
+  sortOrder Int             @default(0)
+
+  @@map("product_specifications")
+}
+
+// N-N junction: Product ↔ Tag
+model ProductTag {
+  productId Int
+  tagId     Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([productId, tagId])
+  @@map("product_tags")
+}
+
+// N-N junction: Product ↔ Occasion
+model ProductOccasion {
+  productId  Int
+  occasionId Int
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  occasion   Occasion @relation(fields: [occasionId], references: [id], onDelete: Cascade)
+
+  @@id([productId, occasionId])
+  @@map("product_occasions")
+}
+
+// ============================================================
+// ORDERS
+// ============================================================
+
+model Order {
+  id                      Int         @id @default(autoincrement())
+  userId                  Int
+  user                    User        @relation("CustomerOrders", fields: [userId], references: [id])
+  /// Saved address selected at checkout. Nullable to support guest orders.
+  addressId               Int?
+  address                 Address?    @relation(fields: [addressId], references: [id])
+  /// Denormalized shipping address text — required when addressId is null (guests)
+  /// or as an immutable snapshot so historical orders are not affected by address edits.
+  shippingAddressSnapshot String?     @db.Text
+  /// Name of the person who will receive the order (may differ from buyer)
+  recipientName           String?     @db.VarChar(150)
+  recipientPhone          String?     @db.VarChar(20)
+  deliveryDriverId        Int?
+  deliveryDriver          User?       @relation("DeliveryDriverOrders", fields: [deliveryDriverId], references: [id])
+  couponId                Int?
+  coupon                  Coupon?     @relation(fields: [couponId], references: [id])
+  /// Snapshot of the coupon code used, for historical purposes
+  couponCodeSnap          String?     @db.VarChar(50)
+  status                  OrderStatus @default(PENDING)
+  subtotal                Decimal     @db.Decimal(10, 2)
+  couponDiscount          Decimal     @default(0) @db.Decimal(10, 2)
+  shippingCost            Decimal     @default(0) @db.Decimal(10, 2)
+  total                   Decimal     @db.Decimal(10, 2)
+  deliveryDate            DateTime    @db.Date
+  deliveryTimeSlot        String      @db.VarChar(50)
+  dedication              String?     @db.Text
+  deliveryNotes           String?     @db.Text
+  isAnonymous             Boolean     @default(false)
+  /// URL of delivery confirmation photo/signature
+  signature               String?     @db.VarChar(500)
+  deliveredAt             DateTime?
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+
+  items          OrderItem[]
+  loyaltyHistory LoyaltyHistory[]
+  testimonial    Testimonial?
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id              Int             @id @default(autoincrement())
+  orderId         Int
+  order           Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId       Int
+  product         Product         @relation(fields: [productId], references: [id])
+  variantId       Int?
+  variant         ProductVariant? @relation(fields: [variantId], references: [id])
+  /// Immutable snapshot of product name at time of purchase
+  productNameSnap String          @db.VarChar(255)
+  /// Immutable snapshot of variant name at time of purchase
+  variantNameSnap String?         @db.VarChar(100)
+  /// Immutable snapshot of image URL at time of purchase
+  imageSnap       String?         @db.VarChar(500)
+  quantity        Int
+  /// Unit price at time of purchase (not affected by future price changes)
+  unitPrice       Decimal         @db.Decimal(10, 2)
+  /// URL of the custom photo uploaded by the customer (allow_photo feature)
+  customPhotoUrl  String?         @db.VarChar(500)
+  createdAt       DateTime        @default(now())
+
+  @@map("order_items")
+}
+
+// ============================================================
+// COUPONS
+// ============================================================
+
+model Coupon {
+  id            Int          @id @default(autoincrement())
+  code          String       @unique @db.VarChar(50)
+  description   String       @db.Text
+  discountType  DiscountType
+  discountValue Decimal      @db.Decimal(10, 2)
+  validFrom     DateTime
+  validUntil    DateTime?
+  status        CouponStatus @default(ACTIVE)
+  scope         CouponScope  @default(GLOBAL)
+  maxUses       Int?
+  usesCount     Int          @default(0)
+  isDeleted     Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  orders           Order[]
+  couponUsers      CouponUser[]
+  couponCategories CouponCategory[]
+  couponProducts   CouponProduct[]
+
+  @@map("coupons")
+}
+
+/// Links a USERS/SPECIFIC scoped coupon to one or more users
+model CouponUser {
+  couponId Int
+  userId   Int
+  coupon   Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([couponId, userId])
+  @@map("coupon_users")
+}
+
+/// Links a CATEGORIES scoped coupon to one or more categories
+model CouponCategory {
+  couponId   Int
+  categoryId Int
+  coupon     Coupon          @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  category   ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([couponId, categoryId])
+  @@map("coupon_categories")
+}
+
+/// Links a PRODUCTS scoped coupon to one or more products
+model CouponProduct {
+  couponId  Int
+  productId Int
+  coupon    Coupon  @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([couponId, productId])
+  @@map("coupon_products")
+}
+
+// ============================================================
+// LOYALTY PROGRAM
+// ============================================================
+
+model LoyaltyHistory {
+  id              Int                    @id @default(autoincrement())
+  userId          Int
+  user            User                   @relation(fields: [userId], references: [id])
+  /// Optional: the order that triggered this transaction
+  orderId         Int?
+  order           Order?                 @relation(fields: [orderId], references: [id])
+  /// Positive = earned, Negative = redeemed/expired
+  points          Int
+  transactionType LoyaltyTransactionType
+  notes           String?                @db.Text
+  createdAt       DateTime               @default(now())
+
+  @@map("loyalty_history")
+}
+
+// ============================================================
+// TESTIMONIALS / REVIEWS
+// ============================================================
+
+model Testimonial {
+  id        Int               @id @default(autoincrement())
+  userId    Int
+  user      User              @relation(fields: [userId], references: [id])
+  /// One review per order — enforced by @unique
+  orderId   Int               @unique
+  order     Order             @relation(fields: [orderId], references: [id])
+  rating    Int               // 1–5
+  comment   String            @db.Text
+  status    TestimonialStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@map("testimonials")
+}
+
+// ============================================================
+// SHIPPING
+// ============================================================
+
+model ShippingZone {
+  id           Int      @id @default(autoincrement())
+  postalCode   String   @unique @db.VarChar(10)
+  locality     String   @db.VarChar(150)
+  shippingCost Decimal  @db.Decimal(10, 2)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("shipping_zones")
+}
+
+// ============================================================
+// MARKETING
+// ============================================================
+
+model Announcement {
+  id             Int       @id @default(autoincrement())
+  title          String    @db.VarChar(255)
+  description    String?   @db.Text
+  buttonText     String?   @db.VarChar(100)
+  buttonLink     String?   @db.VarChar(500)
+  imageUrl       String    @db.VarChar(500)
+  imageMobileUrl String?   @db.VarChar(500)
+  isActive       Boolean   @default(false)
+  startAt        DateTime?
+  endAt          DateTime?
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("announcements")
+}
+
+/// High-demand dates that may restrict coupon usage or require stock warnings
+model PeakDate {
+  id                 Int      @id @default(autoincrement())
+  name               String   @db.VarChar(100)
+  peakDate           DateTime @db.Date
+  isCouponRestricted Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("peak_dates")
 }

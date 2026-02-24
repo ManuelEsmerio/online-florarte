@@ -63,7 +63,8 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 const passwordSchema = z.object({
-  newPassword: z.string().min(6, 'La nueva contraseña debe tener al menos 6 caracteres.'),
+  currentPassword: z.string().min(1, 'Ingresa tu contraseña actual'),
+  newPassword: z.string().min(6, 'La nueva contraseña debe tener al menos 6 caracteres'),
   confirmPassword: z.string(),
 }).refine((data) => data.newPassword === data.confirmPassword, {
   message: "Las contraseñas no coinciden",
@@ -134,6 +135,7 @@ function ProfilePageContent() {
   const router = useRouter();
 
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -152,8 +154,12 @@ function ProfilePageContent() {
   
   const passwordForm = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordSchema),
-    defaultValues: { newPassword: '', confirmPassword: '' },
-  });
+    defaultValues: {
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+    },
+    });
 
   useEffect(() => {
     if (user) {
@@ -161,7 +167,7 @@ function ProfilePageContent() {
             name: user.name,
             email: user.email,
             phone: user.phone || '',
-            profilePic: user.profilePic || '',
+            profilePic: user.profilePicUrl || '',
         });
     }
   }, [user, form]);
@@ -181,22 +187,41 @@ function ProfilePageContent() {
     } else {
         toast({ title: 'Error al actualizar', description: result.message, variant: 'destructive' });
     }
+
+    if (result.success && result.data?.profilePicUrl) {
+        form.setValue("profilePic", result.data.profilePicUrl);
+    }
     setIsSavingProfile(false);
   };
 
   const handleChangePassword = async (data: PasswordFormValues) => {
-    if (changePassword) {
-      setIsChangingPassword(true);
-      const { success, message } = await changePassword(data.newPassword);
-      if (success) {
-        toast({ title: '¡Contraseña Cambiada!', description: 'Tu contraseña ha sido actualizada.', variant: 'success' });
+    if (!changePassword) return;
+
+    setIsChangingPassword(true);
+
+    const { success, message } = await changePassword(
+        data.currentPassword,
+        data.newPassword
+    );
+
+    if (success) {
+        toast({
+        title: '¡Contraseña Cambiada!',
+        description: 'Tu contraseña ha sido actualizada.',
+        variant: 'success',
+        });
+
         passwordForm.reset();
-      } else {
-        toast({ title: 'Error', description: message || 'Ocurrió un error al cambiar la contraseña.', variant: 'destructive' });
-      }
-      setIsChangingPassword(false);
+    } else {
+        toast({
+        title: 'Error',
+        description: message,
+        variant: 'destructive',
+        });
     }
-  };
+
+    setIsChangingPassword(false);
+    };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -210,7 +235,13 @@ function ProfilePageContent() {
     }
   };
   
-  const profilePic = form.watch('profilePic');
+  const profilePic = useMemo(() => {
+    return (
+        form.watch("profilePic") ||
+        user?.profilePicUrl ||
+        ""
+    );
+    }, [form, user]);
 
   const handleDeleteAccount = async () => {
     if(deleteAccount) {
@@ -328,7 +359,7 @@ function ProfilePageContent() {
                             <div className="relative group">
                                 <div className="w-32 h-32 bg-muted rounded-full flex items-center justify-center border-4 border-background shadow-sm overflow-hidden relative ring-4 ring-primary/10">
                                     {profilePic ? (
-                                        <Image src={profilePic} alt={user.name} fill className="object-cover" />
+                                        <img src={profilePic} alt={user.name} className="object-cover w-full h-full" />
                                     ) : (
                                         <UserIcon className="w-16 h-16 text-muted-foreground" />
                                     )}
@@ -391,6 +422,26 @@ function ProfilePageContent() {
                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-6">Cambiar Contraseña</p>
                             <Form {...passwordForm}>
                                 <form onSubmit={passwordForm.handleSubmit(handleChangePassword)} className="space-y-4">
+                                    <FormField control={passwordForm.control} name="currentPassword" render={({ field }) => (
+                                        <FormItem className="relative">
+                                            <FormControl>
+                                                <div className="relative">
+                                                    <Input 
+                                                        placeholder="Contraseña Actual"
+                                                        type={showCurrentPassword ? 'text' : 'password'} 
+                                                        {...field} 
+                                                        disabled={isChangingPassword}
+                                                        className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium pr-12"
+                                                    />
+                                                    <Button type="button" variant="ghost" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 text-muted-foreground hover:bg-primary/10 hover:text-primary" onClick={() => setShowCurrentPassword(!showCurrentPassword)}>
+                                                        {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                    </Button>
+                                                </div>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+
                                     <FormField control={passwordForm.control} name="newPassword" render={({ field }) => (
                                         <FormItem className="relative">
                                             <FormControl>
@@ -508,9 +559,9 @@ function ProfilePageContent() {
                                                 </TableCell>
                                                 <TableCell className="py-6">
                                                     {addr.isDefault ? (
-                                                        <Badge className="bg-primary/10 text-primary border-none text-[9px] font-bold tracking-widest">PRINCIPAL</Badge>
+                                                        <Badge className="bg-primary/10 text-primary border-none text-[9px] font-bold tracking-widest hover:text-white cursor-default">PRINCIPAL</Badge>
                                                     ) : (
-                                                        <span className="text-[10px] text-muted-foreground font-medium">Secundaria</span>
+                                                        <Badge className="bg-muted/10 text-muted-foreground border-none text-[9px] font-bold tracking-widest hover:bg-muted/20 cursor-default">Secundaria</Badge>
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="py-6 px-8 text-right">
@@ -519,7 +570,7 @@ function ProfilePageContent() {
                                                             <Button 
                                                                 variant="ghost" 
                                                                 size="icon" 
-                                                                className="h-9 w-9 rounded-full text-muted-foreground hover:text-white transition-all"
+                                                                className="h-9 w-9 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary dark:hover:text-white rounded-xl transition-all"
                                                                 onClick={() => handleSetDefault(addr.id)}
                                                                 title="Marcar como predeterminada"
                                                             >
@@ -529,7 +580,7 @@ function ProfilePageContent() {
                                                         <Button 
                                                             variant="ghost" 
                                                             size="icon" 
-                                                            className="h-9 w-9 rounded-full text-muted-foreground hover:text-white transition-all"
+                                                            className="h-9 w-9 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary dark:hover:text-white rounded-xl transition-all"
                                                             onClick={() => handleEditAddress(addr)}
                                                         >
                                                             <Edit className="w-4 h-4" />
@@ -537,7 +588,7 @@ function ProfilePageContent() {
                                                         <Button 
                                                             variant="ghost" 
                                                             size="icon" 
-                                                            className="h-9 w-9 rounded-full text-muted-foreground hover:bg-primary/10 hover:text-destructive transition-all"
+                                                            className="h-9 w-9 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary dark:hover:text-white rounded-xl transition-all"
                                                             onClick={() => setAddressToDelete(addr.id)}
                                                         >
                                                             <Trash2 className="w-4 h-4" />

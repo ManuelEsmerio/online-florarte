@@ -30,7 +30,7 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const { user, register, loading: authLoading } = useAuth();
+  const { user, register, login, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   
@@ -56,9 +56,23 @@ export default function RegisterPage() {
     if (result.success) {
       toast({
         title: '¡Cuenta creada con éxito!',
-        description: 'Bienvenido a la familia Florarte.',
+        description: 'Bienvenido a la familia Florarte. Iniciando sesión...',
         variant: 'success'
       });
+      
+      const loginResult = await login({ 
+        email: data.email, 
+        password: data.password 
+      });
+
+      if (!loginResult.success) {
+         toast({
+          title: 'Error al iniciar sesión automática',
+          description: loginResult.message,
+          variant: 'destructive',
+        });
+      }
+      // El useEffect se encargará de redirigir al home cuando user cambie
     } else {
       toast({
         title: 'Error al registrarse',
