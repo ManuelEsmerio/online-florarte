@@ -60,31 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   const apiFetch = useCallback(
-    async (url: string, options: RequestInit = {}) => {
-
-      const headers: Record<string, string> = {
-        ...(options.headers as Record<string, string>),
-      };
-
-      try {
-        const stored = localStorage.getItem('florarte_user_session');
-
-        if (stored) {
-          const currentUser = JSON.parse(stored);
-
-          if (currentUser?.id) {
-            headers['X-User-Id'] = String(currentUser.id);
-          }
-        }
-
-      } catch (e) {
-        console.warn('Error leyendo sesión', e);
-      }
-
-      return baseApiFetch(url, {
-        ...options,
-        headers,
-      });
+    (url: string, options: RequestInit = {}) => {
+      return baseApiFetch(url, options);
     },
     []
   );
@@ -221,7 +198,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
     localStorage.removeItem('florarte_user_session');
     setUser(null);
     setWishlist([]);

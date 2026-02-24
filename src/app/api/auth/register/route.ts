@@ -1,7 +1,8 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { successResponse, errorHandler } from '@/utils/api-utils';
+import { errorHandler } from '@/utils/api-utils';
+import { signToken, COOKIE_NAME, COOKIE_MAX_AGE } from '@/lib/jwt';
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +14,6 @@ export async function POST(req: NextRequest) {
 
     const emailLower = email.toLowerCase();
 
-    // Verificar duplicado real en BD
     const existingUser = await prisma.user.findUnique({
       where: { email: emailLower },
     });
@@ -25,10 +25,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Hash seguro
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Crear usuario real en MySQL
     const newUser = await prisma.user.create({
       data: {
         name,
@@ -37,10 +35,24 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Quitar password de la respuesta
     const { passwordHash: _, ...userSafe } = newUser;
 
-    return successResponse(userSafe, 201);
+    const token = await signToken({
+      sub: String(newUser.id),
+      role: newUser.role,
+    });
+
+    const res = NextResponse.json({ success: true, data: userSafe }, { status: 201 });
+
+    res.cookies.set(COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: COOKIE_MAX_AGE,
+      path: '/',
+    });
+
+    return res;
 
   } catch (error) {
     return errorHandler(error, 500);

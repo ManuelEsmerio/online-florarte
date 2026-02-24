@@ -1,15 +1,15 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { successResponse, errorHandler } from '@/utils/api-utils';
+import { errorHandler } from '@/utils/api-utils';
+import { signToken, COOKIE_NAME, COOKIE_MAX_AGE } from '@/lib/jwt';
 
 export async function POST(req: NextRequest) {
   try {
-    // Manejar caso donde el cuerpo puede estar vacío o mal formado
     let body;
     try {
       body = await req.json();
-    } catch (e) {
+    } catch {
       return errorHandler(new Error('Formato de solicitud inválido.'), 400);
     }
 
@@ -23,20 +23,15 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { email: emailLower },
-       include: {
+      include: {
         addresses: {
-          where: {
-            isDeleted: false,
-          },
-          orderBy: {
-            isDefault: "desc",
-          },
+          where: { isDeleted: false },
+          orderBy: { isDefault: 'desc' },
         },
       },
     });
 
     if (!user || !user.passwordHash) {
-      // Usar mensaje genérico por seguridad
       return errorHandler(new Error('Credenciales inválidas.'), 401);
     }
 
@@ -46,11 +41,24 @@ export async function POST(req: NextRequest) {
       return errorHandler(new Error('Credenciales inválidas.'), 401);
     }
 
-    // Eliminar password de la respuesta
-    // Usamos una variable intermedia para estructurar mejor el retorno si es necesario
     const { passwordHash: _, ...userSafe } = user;
 
-    return successResponse(userSafe);
+    const token = await signToken({
+      sub: String(user.id),
+      role: user.role,
+    });
+
+    const res = NextResponse.json({ success: true, data: userSafe });
+
+    res.cookies.set(COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: COOKIE_MAX_AGE,
+      path: '/',
+    });
+
+    return res;
 
   } catch (error) {
     console.error('Login error:', error);
