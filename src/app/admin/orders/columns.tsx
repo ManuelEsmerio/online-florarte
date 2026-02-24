@@ -47,13 +47,19 @@ export type OrderColumnsProps = {
 export const columns = ({ onUpdateStatus, onCancelOrder, deliveryDrivers, onSendUpdate, isSendingUpdateFor }: OrderColumnsProps): ColumnDef<Order>[] => [
   {
     accessorKey: 'id',
-    header: ({ column }) => (
-      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-      className='hover:bg-primary/10 data-[state=active]:bg-primary/10 hover:text-primary data-[state=active]:text-primary'>
-        Pedido ID
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
-    ),
+    header: ({ column }) => {
+        return (
+          <Button 
+            variant="ghost" 
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className='hover:bg-primary/10 data-[state=active]:bg-primary/10 hover:text-primary data-[state=active]:text-primary'
+          >
+            Pedido ID
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        )
+    },
+    sortingFn: "basic",
     cell: ({ row }) => <div className="font-medium">ORD${String(row.getValue('id')).padStart(4, '0')}</div>,
   },
   {

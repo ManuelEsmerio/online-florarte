@@ -1,419 +1,324 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
-  DialogFooter,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/context/AuthContext';
-import { handleApiResponse } from '@/utils/handleApiResponse';
+import { allOrders } from '@/lib/data/order-data';
 import type { Order, OrderStatus } from '@/lib/definitions';
-import {
-  Download,
-  Truck,
-  Calendar as CalendarIcon,
-  MessageSquare,
-  ImageIcon,
-} from 'lucide-react';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-import Image from 'next/image';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { formatTimeSlotForUI } from '@/lib/utils';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-  }
-}
-
-const statusStyles: { [key in OrderStatus]: string } = {
-  pendiente: 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800/50 dark:text-gray-300 dark:border-gray-700',
-  completado: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800',
-  en_reparto: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-800',
-  procesando: 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-300 dark:border-yellow-800',
-  cancelado: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/50 dark:text-red-300 dark:border-red-800',
-};
-
-const statusTranslations: { [key in OrderStatus]: string } = {
-  pendiente: 'Pendiente',
-  procesando: 'En Proceso',
-  en_reparto: 'En Reparto',
-  completado: 'Completado',
-  cancelado: 'Cancelado',
-};
+import Image from 'next/image';
+import { cn } from '@/lib/utils';
+import { 
+    User, 
+    Truck, 
+    Flower2, 
+    History, 
+    MapPin, 
+    X, 
+    Printer, 
+    Mail, 
+    RefreshCcw, 
+    Ban, 
+    Check, 
+    Package 
+} from 'lucide-react';
 
 const formatCurrency = (amount: number | null | undefined) => {
     if (amount === null || amount === undefined) return 'N/A';
     return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount);
 }
 
+const statusColors: Record<OrderStatus, string> = {
+    pendiente: 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+    procesando: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800',
+    enviado: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800',
+    completado: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800',
+    cancelado: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/40 dark:text-rose-300 dark:border-rose-800',
+};
+
 export const OrderDetailsDialog = ({ orderId, trigger }: { orderId: number, trigger: React.ReactNode }) => {
-    const { apiFetch } = useAuth();
     const { toast } = useToast();
     const [order, setOrder] = useState<Order | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
 
-    const fetchOrderDetails = async () => {
-        setIsLoading(true);
-        try {
-            const res = await apiFetch(`/api/admin/orders/${orderId}`);
-            const data = await handleApiResponse(res);
-            setOrder(data);
-        } catch (error: any) {
-            toast({ title: "Error", description: `No se pudieron cargar los detalles: ${error.message}`, variant: "destructive" });
-        } finally {
-            setIsLoading(false);
-        }
-    }
-    
-    // --- PDF Helper Functions ---
-    const STATUS_STYLES: Record<string, {bg:[number,number,number]; fg:[number,number,number]}> = {
-      'pendiente':        { bg:[107, 114, 128],  fg:[255,255,255] }, // gray-500
-      'procesando':      { bg:[251,191,36],  fg:[48,48,48]   },  // amber
-      'en_reparto':{ bg:[59,130,246],  fg:[255,255,255] }, // blue
-      'completado':      { bg:[16,185,129], fg:[255,255,255] }, // green
-      'cancelado':       { bg:[239,68,68],   fg:[255,255,255] }, // red
-    };
-    const getStatusStyle = (code: string) => STATUS_STYLES[code] ?? { bg:[107,114,128], fg:[255,255,255] };
-
-    function drawStatusBadge(doc: jsPDF, text: string, xRight: number, y: number, bg: [number,number,number], fg: [number,number,number]) {
-      doc.setFontSize(11).setFont('helvetica','bold');
-      const padX = 4, padY = 2;
-      const w = doc.getTextWidth(text) + padX*2;
-      const h = 8;
-      const x = xRight - w;
-      const r = 3;
-      doc.setFillColor(...bg);
-      (doc as any).roundedRect(x, y - h + 2, w, h, r, r, 'F');
-      doc.setTextColor(...fg);
-      doc.text(text, x + padX, y, { baseline: 'bottom' });
-      doc.setTextColor(0,0,0);
-    }
-    
-    const imgCache = new Map<string, string>();
-
-    function blobToDataURL(blob: Blob): Promise<string> {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
-      });
-    }
-
-    async function fetchToDataURL(url: string): Promise<string> {
-      const res = await fetch(url, { mode: 'cors' });
-      if (!res.ok) throw new Error('fetch failed');
-      const blob = await res.blob();
-      return blobToDataURL(blob);
-    }
-
-    async function htmlImageToDataURL(url: string): Promise<string> {
-      const img = new (window as any).Image();
-      img.crossOrigin = 'anonymous';
-      img.decoding = 'async';
-      img.referrerPolicy = 'no-referrer';
-      img.src = url;
-
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error('img onerror'));
-      });
-
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0);
-
-      const isWebp = /\.webp($|\?)/i.test(url);
-      const mime = isWebp ? 'image/png' : 'image/png';
-      return canvas.toDataURL(mime, 0.92);
-    }
-    
-    async function loadDataURLForPDF(url?: string): Promise<string | null> {
-      if (!url) return null;
-      if (imgCache.has(url)) return imgCache.get(url)!;
-      if (url.startsWith('data:image/')) {
-        imgCache.set(url, url);
-        return url;
-      }
-      const attempts: Array<() => Promise<string>> = [
-        () => fetchToDataURL(url),
-        () => htmlImageToDataURL(url),
-      ];
-      for (const attempt of attempts) {
-        try {
-          const dataURL = await attempt();
-          imgCache.set(url, dataURL);
-          return dataURL;
-        } catch { /* next attempt */ }
-      }
-      return null;
-    }
-
-    const handleDownloadPdf = async () => {
-        if (!order) return;
-        setIsDownloadingPdf(true);
-        try {
-            const doc = new jsPDF();
-            
-            // --- Title ---
-            doc.setFontSize(22).setFont('helvetica','bold');
-            doc.text('Detalle del Pedido', 105, 22, { align:'center' });
-
-            // --- Order ID (izq) + Estado con badge (der) ---
-            let startY = 40;
-            doc.setFontSize(11).setFont('helvetica','normal');
-            doc.text(`Pedido: ORD${String(order.id).padStart(4, '0')}`, 14, startY);
-
-            const statusCode = order.status;
-            const statusText = `Estado: ${statusTranslations[statusCode] ?? order.status}`;
-            const { bg, fg } = getStatusStyle(statusCode);
-            drawStatusBadge(doc, statusText, 196, startY + 6, bg, fg);
-
-            // --- Cliente y Enviar a ---
-            startY += 15;
-            const addr = (order.shippingAddress || '').split(', ').join('\n');
-            doc.autoTable({
-              startY,
-              body: [[
-                  { content:'CLIENTE', styles:{ fontStyle:'bold', textColor:'#333' } },
-                  { content:'ENVIAR A', styles:{ fontStyle:'bold', textColor:'#333' } },
-              ], [
-                  `${order.customerName}\n${order.customerEmail ?? ''}`,
-                  `${order.recipientName || order.customerName}\n${order.recipientPhone || ''}\n${addr}`
-              ]],
-              theme: 'plain',
-              styles: { fontSize:10, cellPadding:{ top:0,right:0,bottom:2,left:0 } },
-              columnStyles: { 0:{ cellWidth:70 }, 1:{ cellWidth:112 } },
-              didDrawPage: (data: any) => { data.cursor.y += 5; }
-            });
-            startY = (doc as any).lastAutoTable.finalY + 5;
-            doc.setLineWidth(0.2).line(14, startY, 196, startY);
-
-            // --- Repartidor ---
-            if (order.deliveryDriverName) {
-                startY += 8;
-                doc.autoTable({
-                  startY,
-                  body: [
-                    [{ content:'REPARTIDOR', styles:{ fontStyle:'bold', textColor:'#333' } }],
-                    [`Nombre: ${order.deliveryDriverName}`]
-                  ],
-                  theme:'plain',
-                  styles:{ fontSize:10, cellPadding:{ top:0,right:0,bottom:2,left:0 } }
-                });
-                startY = (doc as any).lastAutoTable.finalY + 5;
-                doc.setLineWidth(0.2).line(14, startY, 196, startY);
+    useEffect(() => {
+        if (isOpen) {
+            // Mock data fetch
+            const foundOrder = allOrders.find(o => o.id === orderId);
+            if (foundOrder) {
+                setOrder(foundOrder);
+            } else {
+                toast({ title: "Error", description: "Pedido no encontrado en datos de prueba", variant: "destructive" });
             }
-
-            // --- Detalles de entrega ---
-            startY += 8;
-            const deliveryDateTime = `${format(new Date(order.delivery_date), 'PPP', { locale: es })} – ${formatTimeSlotForUI(order.delivery_time_slot)}`;
-            doc.autoTable({
-              startY,
-              body: [
-                [{ content:'DETALLES DE ENTREGA', styles:{ fontStyle:'bold', textColor:'#333' } }],
-                [`Fecha y Hora: ${deliveryDateTime}`],
-                [`Firma: ${order.is_anonymous ? 'Anónimo' : (order.signature || 'N/A')}`],
-                [`Dedicación: ${order.dedication || 'N/A'}`]
-              ],
-              theme:'plain',
-              styles:{ fontSize:10, cellPadding:{ top:0,right:0,bottom:2,left:0 } }
-            });
-            startY = (doc as any).lastAutoTable.finalY + 10;
-            
-            // --- Tabla de artículos ---
-            doc.autoTable({
-              startY,
-              head: [['Artículo', 'Cant.', 'Precio Unit.', 'Subtotal']],
-              body: (order.items || []).map(it => [
-                `${it.product_name || 'Artículo'}`,
-                it.quantity,
-                formatCurrency(it.price),
-                formatCurrency(it.price * it.quantity),
-              ]),
-              theme:'grid',
-              headStyles:{ fillColor:[241,245,249], textColor:20, fontStyle:'bold', halign:'center' },
-              styles:{ fontSize:10, cellPadding:3, minCellHeight: 15 },
-            });
-
-            // --- Totales ---
-            let totalsY = (doc as any).lastAutoTable.finalY + 10;
-            const totalsBody: any[] = [['Subtotal:', formatCurrency(order.subtotal)]];
-            if (order.coupon_discount && order.coupon_discount > 0) {
-              totalsBody.push(['Descuento:', `-${formatCurrency(order.coupon_discount)}`]);
-            }
-            totalsBody.push(['Envío:', formatCurrency(order.shipping_cost || 0)]);
-
-            doc.autoTable({
-              startY: totalsY, body: totalsBody, theme: 'plain', styles: { fontSize: 10, cellPadding: 1 },
-              columnStyles: { 0: { halign: 'right', fontStyle: 'bold' }, 1: { halign: 'right' } },
-              tableWidth: 'wrap', margin: { left: 140 }
-            });
-
-            const totalsFinalY = (doc as any).lastAutoTable.finalY;
-            doc.setLineWidth(0.5).line(140, totalsFinalY + 2, 196, totalsFinalY + 2);
-            doc.setFontSize(14).setFont('helvetica','bold');
-            doc.text('Total:', 140, totalsFinalY + 8, { align:'right' });
-            doc.text(formatCurrency(order.total), 196, totalsFinalY + 8, { align:'right' });
-
-            doc.save(`pedido_ORD${String(order.id).padStart(4, '0')}.pdf`);
-            toast({ title: '¡Éxito!', description: 'El PDF del pedido se ha descargado.', variant: 'success' });
-        } catch (err) {
-            console.error(err);
-            toast({ title: 'Error', description: 'No se pudo generar el PDF.', variant: 'destructive' });
-        } finally {
-            setIsDownloadingPdf(false);
         }
-    };
-      
-    const handleDownloadCustomPhoto = (url: string, filename: string) => {
-        fetch(url)
-            .then(res => res.blob())
-            .then(blob => {
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = filename;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            })
-            .catch(() => toast({ variant: 'destructive', title: 'Error', description: 'No se pudo descargar la imagen.'}));
-    }
+    }, [isOpen, orderId, toast]);
+
+    if (!order && isOpen) return null;
 
     return (
-        <Dialog onOpenChange={(open) => open && fetchOrderDetails()}>
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
                 {trigger}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle className="font-headline text-2xl">
-                        Detalles del Pedido: ORD${String(orderId).padStart(4, '0')}
-                    </DialogTitle>
-                </DialogHeader>
-                {isLoading ? <LoadingSpinner /> : order ? (
-                    <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <h4 className="font-semibold mb-2">Detalles del Cliente</h4>
-                                <p className="text-sm text-muted-foreground"><strong>Cliente:</strong> {order.customerName}</p>
-                                <p className="text-sm text-muted-foreground"><strong>Email:</strong> {order.customerEmail}</p>
-                                {order.customerPhone && <p className="text-sm text-muted-foreground"><strong>Teléfono:</strong> {order.customerPhone}</p>}
-                                <p className="text-sm text-muted-foreground"><strong>Dirección:</strong> {order.shippingAddress}</p>
-                            </div>
-                            <div className="bg-muted/50 p-4 rounded-lg">
-                                <h4 className="font-semibold mb-2">Detalles de Entrega</h4>
-                                <div className="flex items-center gap-4">
-                                     <Avatar className="h-14 w-14 border">
-                                        <AvatarImage src={(order as any).deliveryDriverProfilePic} alt={order.deliveryDriverName || 'Repartidor'} />
-                                        <AvatarFallback>{order.deliveryDriverName ? order.deliveryDriverName.charAt(0) : '?'}</AvatarFallback>
-                                    </Avatar>
-                                    <div>
-                                        <p className="font-bold">{order.recipientName || 'N/A'}</p>
-                                        <Badge variant="outline" className={`capitalize ${statusStyles[order.status]}`}>{statusTranslations[order.status]}</Badge>
-                                    </div>
+            <DialogContent className="max-w-6xl p-0 gap-0 bg-background dark:bg-card border-primary/20 overflow-hidden flex flex-col max-h-[90vh]">
+                 <DialogTitle className="sr-only">Detalle del Pedido #{orderId}</DialogTitle>
+                
+                {order && (
+                    <>
+                        {/* Header Section */}
+                        <header className="flex items-center justify-between px-8 py-6 border-b border-primary/10 bg-background dark:bg-card/50">
+                            <div className="flex items-center gap-6">
+                                <div className="flex flex-col">
+                                    <h1 className="font-serif text-3xl lg:text-4xl text-foreground tracking-tight font-bold">
+                                        Pedido #ORD-{String(order.id).padStart(4, '0')}
+                                    </h1>
+                                    <p className="text-primary/70 text-sm mt-1">
+                                        Realizado el {format(parseISO(order.created_at), "d 'de' MMMM, yyyy • HH:mm", { locale: es })}
+                                    </p>
                                 </div>
-                                <div className="text-sm text-muted-foreground mt-2 space-y-1">
-                                    <p><strong>Tel. Recibe:</strong> {order.recipientPhone || 'N/A'}</p>
-                                    <p className="font-bold text-primary"><strong>Fecha:</strong> {format(parseISO(order.delivery_date), 'PPP', { locale: es })}</p>
-                                    <p className="font-bold text-primary"><strong>Horario:</strong> {formatTimeSlotForUI(order.delivery_time_slot)}</p>
-                                    <p><strong>Firma:</strong> {order.is_anonymous ? 'Anónimo' : (order.signature || 'N/A')}</p>
-                                    {order.dedication && <p><strong>Dedicatoria:</strong> {order.dedication}</p>}
-                                </div>
+                                <span className={cn(
+                                    "px-4 py-1.5 rounded-full border text-sm font-bold tracking-wide uppercase",
+                                    statusColors[order.status]
+                                )}>
+                                    {order.status}
+                                </span>
                             </div>
-                        </div>
+                            {/* <Button variant="ghost" className="text-muted-foreground hover:text-foreground transition-colors p-0 h-auto" onClick={() => setIsOpen(false)}>
+                                <X className="h-8 w-8" />
+                            </Button> */}
+                        </header>
 
-                        <Separator />
-                        <div>
-                            <h4 className="font-semibold mb-2">Artículos</h4>
-                            <ul className="space-y-2">
-                                {order.items?.map((item, i) => (
-                                    <li key={i} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                                        <div className="flex items-center gap-4">
-                                            <div className="relative h-12 w-12 flex-shrink-0">
-                                                <Image src={item.image || 'https://placehold.co/50x50.png'} alt={item.product_name || 'Artículo'} width={50} height={50} className="rounded-md" />
+                        {/* Content Area */}
+                        <div className="flex-1 overflow-y-auto p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
+                            {/* Left Column: Customer & Shipping */}
+                            <div className="lg:col-span-3 space-y-8">
+                                {/* Customer Section */}
+                                <section>
+                                    <h2 className="font-serif text-xl text-foreground mb-4 flex items-center gap-2 font-bold">
+                                        <User className="h-5 w-5 text-primary" />
+                                        Datos del Cliente
+                                    </h2>
+                                    <div className="bg-card dark:bg-white/5 p-4 rounded-lg border border-border dark:border-white/5 shadow-sm">
+                                        <p className="text-foreground font-semibold">{order.customerName}</p>
+                                        <p className="text-muted-foreground text-sm mt-1">{order.customerEmail}</p>
+                                        <p className="text-muted-foreground text-sm">{order.customerPhone || 'Sin teléfono'}</p>
+                                        
+                                        {order.dedication && (
+                                             <div className="mt-4 pt-4 border-t border-border dark:border-white/5">
+                                                <p className="text-xs uppercase tracking-wider text-primary font-bold">Mensaje Dedicatoria</p>
+                                                <p className="text-sm italic text-muted-foreground mt-2">"{order.dedication}"</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </section>
+
+                                {/* Shipping Section */}
+                                <section>
+                                    <h2 className="font-serif text-xl text-foreground mb-4 flex items-center gap-2 font-bold">
+                                        <Truck className="h-5 w-5 text-primary" />
+                                        Envío
+                                    </h2>
+                                    <div className="bg-card dark:bg-white/5 rounded-lg border border-border dark:border-white/5 overflow-hidden shadow-sm">
+                                        <div className="p-4">
+                                            <p className="text-foreground text-sm font-medium">{order.recipientName || order.customerName}</p>
+                                            <p className="text-muted-foreground text-sm mt-1">{order.shippingAddress}</p>
+                                            {order.delivery_notes && (
+                                                <p className="text-muted-foreground text-xs mt-2 italic">Note: {order.delivery_notes}</p>
+                                            )}
+                                        </div>
+                                        {/* Map Placeholder */}
+                                        <div className="h-32 bg-muted relative group cursor-pointer">
+                                            <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                                                 <MapPin className="h-8 w-8 text-primary drop-shadow-lg" />
+                                            </div>
+                                            <div className="absolute inset-0 bg-black/5 dark:bg-black/20"></div>
+                                        </div>
+                                        <div className="p-3 bg-primary/5 text-center border-t border-primary/10">
+                                            <p className="text-xs text-primary font-bold">
+                                                Entrega: {format(parseISO(order.delivery_date), 'd MMM', { locale: es })}, {formatTimeSlotForUI(order.delivery_time_slot)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+
+                            {/* Center Column: Product List */}
+                            <div className="lg:col-span-6 space-y-6">
+                                <h2 className="font-serif text-xl text-foreground mb-4 flex items-center gap-2 font-bold">
+                                    <Flower2 className="h-5 w-5 text-primary" />
+                                    Resumen del Pedido
+                                </h2>
+                                <div className="space-y-4">
+                                    {order.items?.map((item, idx) => (
+                                        <div key={idx} className="flex items-center gap-4 p-4 bg-card dark:bg-white/5 rounded-lg border border-border dark:border-white/5 hover:border-primary/30 transition-all shadow-sm">
+                                            <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-muted relative">
+                                                <Image 
+                                                    src={item.image} 
+                                                    alt={item.product_name} 
+                                                    fill 
+                                                    className="object-cover"
+                                                />
+                                            </div>
+                                            <div className="flex-1">
+                                                <h3 className="text-foreground font-medium">{item.product_name}</h3>
+                                                {item.variant_name && (
+                                                     <p className="text-muted-foreground text-sm">Variante: {item.variant_name}</p>
+                                                )}
                                                 {item.customPhotoUrl && (
-                                                    <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-0.5"><ImageIcon className="w-3 h-3 text-white"/></div>
+                                                    <div className="flex items-center gap-1 mt-1 text-xs text-primary font-medium">
+                                                        <span className="material-symbols-outlined text-[14px]">image</span>
+                                                        Incluye foto personalizada
+                                                    </div>
                                                 )}
                                             </div>
-                                            <div>
-                                                <p className="font-medium">{item.product_name}{item.variant_name ? ` (${item.variant_name})` : ''}</p>
-                                                <p className="text-sm text-muted-foreground">Cantidad: {item.quantity}</p>
+                                            <div className="text-right">
+                                                <p className="text-foreground font-bold">{formatCurrency(item.price)}</p>
+                                                <p className="text-muted-foreground text-xs">Cant: {item.quantity}</p>
                                             </div>
                                         </div>
-                                        <p className="font-medium">{formatCurrency(item.price * item.quantity)}</p>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
+                                    ))}
+                                </div>
 
-                        {order.items?.some(item => item.customPhotoUrl) && (
-                            <>
-                            <Separator />
-                            <div>
-                                <h4 className="font-semibold mb-2">Fotos Personalizadas</h4>
-                                {order.items.filter(item => item.customPhotoUrl).map((item, index) => (
-                                    <div key={index} className="flex items-center gap-4 p-2 rounded-md bg-muted/50 mt-2">
-                                        <Image src={item.customPhotoUrl!} alt={`Foto para ${item.product_name}`} width={60} height={60} className="rounded-md" />
-                                        <div className="flex-1">
-                                            <p className="text-sm font-medium">Para: {item.product_name}</p>
-                                        </div>
-                                        <Button variant="outline" size="sm" onClick={() => handleDownloadCustomPhoto(item.customPhotoUrl!, `foto_${orderId}_${item.product_id}.webp`)}>
-                                            <Download className="mr-2 h-4 w-4"/>
-                                            Descargar
-                                        </Button>
+                                {/* Financial Summary */}
+                                <div className="mt-8 pt-6 border-t border-border dark:border-white/10 space-y-3">
+                                    <div className="flex justify-between text-muted-foreground text-sm">
+                                        <span>Subtotal</span>
+                                        <span>{formatCurrency(order.subtotal)}</span>
                                     </div>
-                                ))}
-                            </div>
-                            </>
-                        )}
+                                    <div className="flex justify-between text-muted-foreground text-sm">
+                                        <span>Gastos de Envío</span>
+                                        <span className={order.shipping_cost === 0 ? "text-green-500 font-medium" : ""}>
+                                            {order.shipping_cost === 0 ? 'Gratis' : formatCurrency(order.shipping_cost)}
+                                        </span>
+                                    </div>
+                                    {/* Mock tax calculation just for display to match design if needed, or just standard summary */}
+                                    <div className="hidden flex justify-between text-muted-foreground text-sm">
+                                         <span>Impuestos (IVA 16%)</span>
+                                         <span>{formatCurrency(order.total * 0.16)}</span>
+                                    </div>
 
-
-                        <Separator />
-                         <div className="space-y-2 text-right">
-                            <p>Subtotal: <strong>{formatCurrency(order.subtotal)}</strong></p>
-                            {order.coupon_discount && order.coupon_discount > 0 && <p className="text-green-600">Descuento: -{formatCurrency(order.coupon_discount)}</p>}
-                            <p>Envío: <strong>{formatCurrency(order.shipping_cost || 0)}</strong></p>
-                            <p className="font-bold text-xl">Total: <strong>{formatCurrency(order.total)}</strong></p>
-                        </div>
-
-                         {(order.deliveryDriverName || order.delivery_notes || order.delivered_at) && <Separator />}
-                        
-                        {(order.deliveryDriverName || order.delivery_notes || order.delivered_at) && (
-                             <div>
-                                <h4 className="font-semibold mb-2 text-primary">Información del Reparto</h4>
-                                <div className="text-sm text-muted-foreground space-y-2 bg-muted/50 p-3 rounded-md">
-                                    {order.deliveryDriverName && <p className="flex items-center gap-2"><Truck className="w-4 h-4" /><strong>Repartidor:</strong> {order.deliveryDriverName}</p>}
-                                    {order.delivered_at && <p className="flex items-center gap-2"><CalendarIcon className="w-4 h-4" /><strong>Entregado:</strong> {format(new Date(order.delivered_at), 'Pp', { locale: es })}</p>}
-                                    {order.delivery_notes && <p className="flex items-start gap-2"><MessageSquare className="w-4 h-4 mt-1 flex-shrink-0" /><span><strong>Notas:</strong> {order.delivery_notes}</span></p>}
+                                    <div className="flex justify-between items-center pt-4 mt-2 border-t border-primary/20">
+                                        <span className="font-serif text-2xl text-foreground font-bold">Total del Pedido</span>
+                                        <span className="font-serif text-3xl text-primary font-bold">{formatCurrency(order.total)}</span>
+                                    </div>
                                 </div>
                             </div>
-                        )}
-                       
 
-                    </div>
-                ) : <p>No se encontraron detalles del pedido.</p>}
-                <DialogFooter>
-                    <Button variant="outline" onClick={handleDownloadPdf} loading={isDownloadingPdf} disabled={!order || isLoading}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Descargar PDF
-                    </Button>
-                </DialogFooter>
+                            {/* Right Column: Timeline */}
+                            <div className="lg:col-span-3">
+                                <h2 className="font-serif text-xl text-foreground mb-6 flex items-center gap-2 font-bold">
+                                    <History className="h-5 w-5 text-primary" />
+                                    Seguimiento
+                                </h2>
+                                <div className="relative pl-2">
+                                    {/* Vertical Line */}
+                                    <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-border dark:bg-white/10"></div>
+                                    
+                                    <ul className="space-y-8 relative">
+                                        {/* Mock timeline steps based on mock status */}
+                                        <li className="flex gap-4 items-start">
+                                            <div className="z-10 h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white shrink-0 shadow-lg shadow-primary/20">
+                                                <Check className="h-4 w-4" />
+                                            </div>
+                                            <div>
+                                                <p className="text-foreground text-sm font-bold">Pedido Recibido</p>
+                                                <p className="text-muted-foreground text-xs">
+                                                     {format(parseISO(order.created_at), "d MMM, HH:mm", { locale: es })}
+                                                </p>
+                                            </div>
+                                        </li>
+                                         
+                                        {['procesando', 'enviado', 'completado'].includes(order.status) && (
+                                             <li className="flex gap-4 items-start">
+                                                <div className="z-10 h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white shrink-0 shadow-lg shadow-primary/20">
+                                                    <Package className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-foreground text-sm font-bold">En Preparación</p>
+                                                    <p className="text-muted-foreground text-xs">Procesado por Floristas</p>
+                                                </div>
+                                            </li>
+                                        )}
+
+                                        {['enviado', 'completado'].includes(order.status) && (
+                                            <li className="flex gap-4 items-start">
+                                                <div className={cn(
+                                                    "z-10 h-8 w-8 rounded-full flex items-center justify-center text-white shrink-0",
+                                                    order.status === 'enviado' ? "bg-primary border-4 border-background ring-4 ring-primary/20" : "bg-primary"
+                                                )}>
+                                                    <Truck className={cn("h-4 w-4", order.status === 'enviado' && "animate-pulse")} />
+                                                </div>
+                                                <div>
+                                                    <p className={cn("text-sm font-bold", order.status === 'enviado' ? "text-primary" : "text-foreground")}>
+                                                        En Camino
+                                                    </p>
+                                                    <p className="text-muted-foreground text-xs font-medium">Repartidor: {order.deliveryDriverName || 'Asignando...'}</p>
+                                                </div>
+                                            </li>
+                                        )}
+
+                                        {order.status === 'completado' && (
+                                             <li className="flex gap-4 items-start">
+                                                <div className="z-10 h-8 w-8 rounded-full bg-muted-foreground flex items-center justify-center text-white shrink-0">
+                                                    <Check className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-foreground text-sm font-bold">Entregado</p>
+                                                    <p className="text-muted-foreground text-xs">Pedido finalizado</p>
+                                                </div>
+                                            </li>
+                                        )}
+                                    </ul>
+                                </div>
+
+                                {/* Internal Notes */}
+                                <div className="mt-12">
+                                    <h3 className="text-xs uppercase tracking-widest text-muted-foreground font-bold mb-3">Notas Internas</h3>
+                                    <textarea 
+                                        className="w-full bg-card dark:bg-white/5 border border-border dark:border-white/10 rounded-lg p-3 text-sm text-foreground focus:ring-primary focus:border-primary placeholder:text-muted-foreground focus-visible:outline-none focus:ring-1" 
+                                        placeholder="Añadir nota para el equipo..." 
+                                        rows={3}
+                                    ></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer Actions */}
+                        <footer className="px-8 py-6 bg-background dark:bg-card/50 border-t border-primary/10 flex flex-wrap gap-4 justify-between items-center sm:flex-row flex-col">
+                            <div className="flex gap-3 w-full sm:w-auto">
+                                <Button variant="outline" className="flex-1 sm:flex-none gap-2 border-border dark:border-white/10 text-muted-foreground hover:bg-primary hover:text-accent-foreground dark:hover:bg-white/10 dark:hover:text-white transition-all font-medium h-11">
+                                    <Printer className="h-5 w-5" />
+                                    Imprimir Ticket
+                                </Button>
+                                <Button variant="outline" className="flex-1 sm:flex-none gap-2 border-border dark:border-white/10 text-muted-foreground hover:bg-primary hover:text-accent-foreground dark:hover:bg-white/10 dark:hover:text-white transition-all font-medium h-11">
+                                    <Mail className="h-5 w-5" />
+                                    Reenviar Factura
+                                </Button>
+                            </div>
+                            <div className="flex gap-3 w-full sm:w-auto">
+                               
+                                {order.status !== 'cancelado' && order.status !== 'completado' && (
+                                     <Button variant="ghost" className="flex-1 sm:flex-none gap-2 border border-primary/30 text-primary hover:bg-primary/10 hover:text-primary transition-all font-medium h-11">
+                                        <Ban className="h-5 w-5" />
+                                        Cancelar Pedido
+                                    </Button>
+                                )}
+                                <Button className="flex-1 sm:flex-none gap-2 bg-primary text-white hover:bg-primary/90 transition-all font-bold shadow-lg shadow-primary/20 h-11 px-8 rounded-lg">
+                                    <RefreshCcw className="h-5 w-5" />
+                                    Actualizar Estado
+                                </Button>
+                            </div>
+                        </footer>
+                    </>
+                )}
             </DialogContent>
         </Dialog>
     );

@@ -39,7 +39,8 @@ import {
   Heart, 
   Headphones, 
   ArrowRight,
-  ChevronRight
+  ChevronRight,
+  Edit
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useCallback } from 'react';

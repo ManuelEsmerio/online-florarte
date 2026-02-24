@@ -141,7 +141,9 @@ function ProfilePageContent() {
   
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [addressToEdit, setAddressToEdit] = useState<Address | null>(null);
+  const [addressToDelete, setAddressToDelete] = useState<number | null>(null);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [isDeletingAddress, setIsDeletingAddress] = useState(false);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -267,6 +269,19 @@ function ProfilePageContent() {
     if (result.success) {
         toast({ title: "Dirección principal actualizada", variant: "success" });
     }
+  };
+
+  const confirmDeleteAddress = async () => {
+    if (addressToDelete === null) return;
+    setIsDeletingAddress(true);
+    const result = await deleteAddress(addressToDelete);
+    if (result.success) {
+        toast({ title: "Dirección eliminada", variant: "success" });
+    } else {
+        toast({ title: "Error al eliminar", description: result.message, variant: "destructive" });
+    }
+    setAddressToDelete(null);
+    setIsDeletingAddress(false);
   };
 
   if (authLoading || !user) {
@@ -463,7 +478,7 @@ function ProfilePageContent() {
                                         <button onClick={() => handleEditAddress(addr)} className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors">
                                             <Edit className="w-4 h-4" /> Editar
                                         </button>
-                                        <button onClick={() => deleteAddress(addr.id)} className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-destructive transition-colors">
+                                        <button onClick={() => setAddressToDelete(addr.id)} className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-destructive transition-colors">
                                             <Trash2 className="w-4 h-4" /> Eliminar
                                         </button>
                                     </div>
@@ -504,7 +519,7 @@ function ProfilePageContent() {
                                                             <Button 
                                                                 variant="ghost" 
                                                                 size="icon" 
-                                                                className="h-9 w-9 rounded-full text-muted-foreground hover:text-primary transition-all"
+                                                                className="h-9 w-9 rounded-full text-muted-foreground hover:text-white transition-all"
                                                                 onClick={() => handleSetDefault(addr.id)}
                                                                 title="Marcar como predeterminada"
                                                             >
@@ -514,7 +529,7 @@ function ProfilePageContent() {
                                                         <Button 
                                                             variant="ghost" 
                                                             size="icon" 
-                                                            className="h-9 w-9 rounded-full text-muted-foreground hover:text-primary transition-all"
+                                                            className="h-9 w-9 rounded-full text-muted-foreground hover:text-white transition-all"
                                                             onClick={() => handleEditAddress(addr)}
                                                         >
                                                             <Edit className="w-4 h-4" />
@@ -522,8 +537,8 @@ function ProfilePageContent() {
                                                         <Button 
                                                             variant="ghost" 
                                                             size="icon" 
-                                                            className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive transition-all"
-                                                            onClick={() => deleteAddress(addr.id)}
+                                                            className="h-9 w-9 rounded-full text-muted-foreground hover:bg-primary/10 hover:text-destructive transition-all"
+                                                            onClick={() => setAddressToDelete(addr.id)}
                                                         >
                                                             <Trash2 className="w-4 h-4" />
                                                         </Button>
@@ -616,6 +631,23 @@ function ProfilePageContent() {
         isSaving={isSavingAddress}
         addressToEdit={addressToEdit}
       />
+
+      <AlertDialog open={!!addressToDelete} onOpenChange={(open) => !open && setAddressToDelete(null)}>
+        <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl">
+            <AlertDialogHeader>
+                <AlertDialogTitle className="font-headline text-2xl text-foreground">Confirmar eliminación</AlertDialogTitle>
+                <AlertDialogDescription className="text-sm leading-relaxed text-muted-foreground">
+                    ¿Estás seguro de que deseas eliminar esta dirección? Esta acción no se puede deshacer.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="gap-2">
+                <AlertDialogCancel className="rounded-2xl h-12 border-none bg-muted font-bold text-foreground" onClick={() => setAddressToDelete(null)}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmDeleteAddress} className='bg-destructive hover:bg-destructive/90 rounded-2xl h-12 font-bold shadow-lg shadow-destructive/20 text-white' disabled={isDeletingAddress}>
+                    {isDeletingAddress ? 'Eliminando...' : 'Sí, eliminar'}
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

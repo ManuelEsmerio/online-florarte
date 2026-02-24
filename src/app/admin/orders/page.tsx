@@ -46,6 +46,10 @@ export default function OrdersPage() {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  
+  const columnFilters = useMemo(() => {
+     return statusFilter.length > 0 ? [{ id: 'status', value: statusFilter }] : [];
+  }, [statusFilter]);
 
   // Simulación de repartidores (filtrados de la lista de usuarios con rol 'delivery')
   const deliveryDrivers = useMemo(() => {
@@ -88,7 +92,7 @@ export default function OrdersPage() {
     state: {
       sorting,
       columnVisibility,
-      columnFilters: statusFilter.length > 0 ? [{ id: 'status', value: statusFilter }] : [],
+      columnFilters,
       globalFilter: searchTerm,
       pagination
     },
