@@ -102,10 +102,9 @@ const Header = () => {
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-             <Button variant="default" className="flex gap-2 relative overflow-hidden group transition-all duration-300">
+            <Button variant="ghost" className="flex gap-2 relative overflow-hidden group transition-all duration-300 rounded-xl dark:hover:bg-primary dark:hover:text-white hover:bg-primary/5 hover:text-primary">
               <User className="h-5 w-5" />
               <span className="font-semibold text-base">¡Hola, {user.name.split(' ')[0]}!</span>
-              <div className="absolute bottom-0 left-0 w-full h-0.5 bg-destructive scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="rounded-2xl p-2 border-none shadow-2xl min-w-[200px] animate-in fade-in slide-in-from-top-2 duration-300">
@@ -180,18 +179,33 @@ const Header = () => {
           <Isotype className="h-12 w-auto" />
         </Link>
         <nav className="hidden items-center space-x-6 md:flex">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={cn(
-                "link-underline text-sm font-medium transition-all duration-300 hover:text-primary",
-                isLinkActive(link.href) ? 'text-primary' : 'text-foreground/80'
-              )}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link) => {
+            const isActive = isLinkActive(link.href);
+
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "relative text-sm font-medium transition-colors duration-300",
+
+                  // Texto
+                  isActive ? "text-primary" : "text-foreground/80 hover:text-primary",
+
+                  // Línea animada
+                  "after:absolute after:left-1/2 after:-bottom-1 after:h-[2px] after:w-0 after:bg-primary after:rounded-full after:transition-all after:duration-300 after:-translate-x-1/2",
+
+                  // Hover
+                  "hover:after:w-full",
+
+                  // Activo fijo
+                  isActive && "after:w-full"
+                )}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
         <div className="hidden items-center space-x-2 md:flex">
           {isClient && (
@@ -202,7 +216,7 @@ const Header = () => {
                 variant="ghost"
                 size="icon"
                 asChild
-                className="relative group transition-all duration-300 hover:bg-primary/5 hover:text-primary rounded-xl"
+                className="relative group transition-all duration-300 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary dark:hover:text-white rounded-xl"
               >
                 <Link href="/wishlist" aria-label="Wishlist">
                   <Heart className={cn("h-5 w-5 transition-all group-hover:scale-110", wishlist.length > 0 && "fill-primary text-primary")} />
@@ -223,7 +237,7 @@ const Header = () => {
           <ThemeToggle />
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Open Menu" className="rounded-xl">
+              <Button variant="ghost" size="icon" aria-label="Open Menu" className="rounded-xl hover:bg-primary/5 hover:text-primary">
                 <Menu className="h-6 w-6" />
               </Button>
             </SheetTrigger>

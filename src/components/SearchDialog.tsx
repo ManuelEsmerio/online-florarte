@@ -164,22 +164,22 @@ export function SearchDialog() {
     <>
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label="Search" className="h-10 w-10 md:h-11 md:w-11">
+          <Button variant="ghost" size="icon" aria-label="Search" className="h-10 w-10 md:h-11 md:w-11 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary dark:hover:text-white rounded-xl">
             <Search className="h-5 w-5 md:h-6 md:w-6" />
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-[2.5rem] bg-background dark:bg-[#0A0A0A] relative transition-all duration-300">
-          <DialogHeader className="p-8 pb-0 md:p-12 md:pb-0">
+        <DialogContent className="w-[95vw] sm:max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-3xl md:rounded-[2.5rem] bg-background dark:bg-[#0A0A0A] relative transition-all duration-300 max-h-[90vh]">
+          <DialogHeader className="p-6 md:p-12 pb-0 md:pb-0">
             <DialogTitle className="sr-only">Buscar Productos</DialogTitle>
-            <div className="relative mt-4 group">
+            <div className="relative mt-2 md:mt-4 group">
                 <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
-                    <Search className="h-6 w-6 text-primary group-focus-within:scale-110 transition-transform" />
+                    <Search className="h-5 w-5 md:h-6 md:w-6 text-primary group-focus-within:scale-110 transition-transform" />
                 </div>
                 <Input
                     placeholder="¿Qué flores estás buscando?"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full h-16 md:h-20 pl-14 pr-12 bg-stone-100 dark:bg-[#161616] border-none rounded-2xl text-stone-800 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 text-lg focus-visible:ring-1 focus-visible:ring-primary/30 transition-all outline-none shadow-inner"
+                    className="w-full h-14 md:h-20 pl-12 md:pl-14 pr-10 md:pr-12 bg-stone-100 dark:bg-[#161616] border-none rounded-xl md:rounded-2xl text-stone-800 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 text-base md:text-lg focus-visible:ring-1 focus-visible:ring-primary/30 transition-all outline-none shadow-inner"
                     autoFocus
                 />
                 {searchTerm && (
@@ -187,15 +187,15 @@ export function SearchDialog() {
                         variant="ghost" 
                         size="icon" 
                         onClick={() => setSearchTerm('')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full hover:bg-white/10"
+                        className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 h-8 w-8 md:h-10 md:w-10 rounded-full hover:bg-white/10"
                     >
-                        <X className="h-5 w-5" />
+                        <X className="h-4 w-4 md:h-5 md:w-5" />
                     </Button>
                 )}
             </div>
           </DialogHeader>
 
-          <div className="p-8 md:p-12 pt-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+          <div className="p-6 md:p-12 pt-4 md:pt-6 max-h-[65vh] overflow-y-auto custom-scrollbar">
             {isSearching || isLoadingProducts ? (
                  <div className="space-y-1">
                     <SearchResultItemSkeleton />

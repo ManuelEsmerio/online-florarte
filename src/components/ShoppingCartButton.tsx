@@ -46,7 +46,7 @@ const ShoppingCartButton = () => {
     return (
         <Sheet open={isCartOpen} onOpenChange={setCartOpen}>
             <SheetTrigger asChild>
-                 <Button variant="ghost" size="icon" aria-label="Shopping Cart" className="relative h-10 w-10 md:h-11 md:w-11">
+                 <Button variant="ghost" size="icon" aria-label="Shopping Cart" className="relative h-10 w-10 md:h-11 md:w-11 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary dark:hover:text-white rounded-xl">
                     <ShoppingBag className="h-5 w-5 md:h-6 md:w-6" />
                     {isClient && cartItemCount > 0 && (
                         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground animate-in fade-in zoom-in">
