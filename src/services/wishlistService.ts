@@ -1,38 +1,33 @@
 // src/services/wishlistService.ts
 import { wishlistRepository } from '../repositories/wishlistRepository';
-import { userRepository } from '../repositories/userRepository';
-import { productService } from './productService';
+import { productRepository } from '../repositories/productRepository';
 import type { Product } from '@/lib/definitions';
-// import { dbWithAudit } from '@/lib/db';
 
 type WishlistResponse = {
   wishlistItems: Product[];
   productIds: number[];
 };
 
-const dbWithAudit = async <T>(userId: number, fn: () => Promise<T>): Promise<T> => fn();
-
 export const wishlistService = {
 
   async getWishlistByUserId(userId: number): Promise<WishlistResponse> {
-    const dbProducts = await wishlistRepository.findByUserId(userId);
-    if (dbProducts.length === 0) {
+    const productIds = await wishlistRepository.findProductIdsByUserId(userId);
+
+    if (productIds.length === 0) {
       return { wishlistItems: [], productIds: [] };
     }
-    
-    const { products } = await productService.getAdminProductList();
-    const wishlistItems = products.filter(p => dbProducts.some(dp => dp.id === p.id));
-    
-    const productIds = wishlistItems.map(item => item.id);
+
+    // Obtener datos de productos desde el repositorio actual
+    const allProducts = await productRepository.findAllForAdmin();
+    const wishlistItems = allProducts.filter(p => productIds.includes(p.id));
+
     return { wishlistItems, productIds };
   },
-  
-  async toggleWishlist(userId: number, productId: number): Promise<void> {
+
+  async toggleWishlist(userId: number, productId: number): Promise<'added' | 'removed'> {
     if (!productId) {
       throw new Error('El ID de producto es requerido.');
     }
-    await dbWithAudit(userId, () =>
-      wishlistRepository.toggle(userId, productId)
-    );
+    return wishlistRepository.toggle(userId, productId);
   },
 };

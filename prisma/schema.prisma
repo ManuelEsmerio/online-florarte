@@ -95,8 +95,12 @@ model User {
   profilePicUrl    String?   @db.VarChar(500)
   loyaltyPoints    Int       @default(0)
   acceptsMarketing Boolean   @default(false)
-  emailVerifiedAt  DateTime?
-  isDeleted        Boolean   @default(false)
+  emailVerifiedAt      DateTime?
+  passwordResetToken      String?   @db.VarChar(255)
+  passwordResetExpiry     DateTime?
+  emailVerificationToken  String?   @db.VarChar(255)
+  emailVerificationExpiry DateTime?
+  isDeleted               Boolean   @default(false)
   deletedAt        DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -109,8 +113,20 @@ model User {
   loyaltyHistory LoyaltyHistory[]
   testimonials   Testimonial[]
   couponUsers    CouponUser[]
+  wishlistItems  WishlistItem[]
 
   @@map("users")
+}
+
+model WishlistItem {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId Int
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@map("wishlist_items")
 }
 
 model Address {

@@ -72,28 +72,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!res.ok) {
         console.warn('Sesión inválida en backend');
-
         setUser(null);
+        setWishlist([]);
         localStorage.removeItem('florarte_user_session');
-
-        return; // 👈 NO tirar error
+        return;
       }
 
       const result = await res.json();
-
       const userData = result.data;
-
       setUser(userData);
+      localStorage.setItem('florarte_user_session', JSON.stringify(userData));
 
-      localStorage.setItem(
-        'florarte_user_session',
-        JSON.stringify(userData)
-      );
+      // Cargar wishlist del usuario desde la BD
+      try {
+        const wRes = await apiFetch('/api/wishlist');
+        if (wRes.ok) {
+          const wResult = await wRes.json();
+          setWishlist(wResult.data?.wishlistItems ?? []);
+        }
+      } catch {
+        // Wishlist no crítica — no bloquear el login
+      }
 
     } catch (error) {
       console.error(error);
-
       setUser(null);
+      setWishlist([]);
       localStorage.removeItem('florarte_user_session');
     }
   }, [apiFetch]);
@@ -179,10 +183,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       }
 
+      // La cookie ya fue seteada por el servidor — populamos el estado del usuario
+      const userData = result.data;
+      localStorage.setItem('florarte_user_session', JSON.stringify(userData));
+      setUser(userData);
+
       return {
         success: true,
         message: 'Registro exitoso',
-        data: result,
+        data: userData,
       };
 
     } catch (error) {
@@ -389,15 +398,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return userCoupons.filter(c => c.scope === 'global' || c.user_id === user?.id);
   };
 
-  const toggleWishlist = async (productId: number, product: Product) => {
-      const exists = wishlist.some(p => p.id === productId);
-      if (exists) {
-          setWishlist(prev => prev.filter(p => p.id !== productId));
-          return { success: true, type: 'removed' as const };
-      } else {
+  const toggleWishlist = async (productId: number, product: Product): Promise<ToggleWishlistResult> => {
+    // Actualización optimista
+    const exists = wishlist.some(p => p.id === productId);
+    if (exists) {
+      setWishlist(prev => prev.filter(p => p.id !== productId));
+    } else {
+      setWishlist(prev => [...prev, product]);
+    }
+
+    try {
+      const res = await apiFetch('/api/wishlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId }),
+      });
+
+      if (!res.ok) {
+        // Revertir si falla
+        if (exists) {
           setWishlist(prev => [...prev, product]);
-          return { success: true, type: 'added' as const };
+        } else {
+          setWishlist(prev => prev.filter(p => p.id !== productId));
+        }
+        return { success: false };
       }
+
+      const data = await res.json();
+      return { success: true, type: data.data?.type as 'added' | 'removed' };
+
+    } catch {
+      // Revertir si falla
+      if (exists) {
+        setWishlist(prev => [...prev, product]);
+      } else {
+        setWishlist(prev => prev.filter(p => p.id !== productId));
+      }
+      return { success: false };
+    }
   };
 
   const contextValue: AuthContextType = {

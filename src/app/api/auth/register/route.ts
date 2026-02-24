@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { errorHandler } from '@/utils/api-utils';
 import { signToken, COOKIE_NAME, COOKIE_MAX_AGE } from '@/lib/jwt';
+import { sendVerificationEmail } from '@/lib/email';
+import crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,29 +29,39 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+
     const newUser = await prisma.user.create({
       data: {
         name,
         email: emailLower,
         passwordHash: hashedPassword,
+        emailVerificationToken: verificationToken,
+        emailVerificationExpiry: verificationExpiry,
       },
     });
 
     const { passwordHash: _, ...userSafe } = newUser;
 
-    const token = await signToken({
+    const jwtToken = await signToken({
       sub: String(newUser.id),
       role: newUser.role,
     });
 
     const res = NextResponse.json({ success: true, data: userSafe }, { status: 201 });
 
-    res.cookies.set(COOKIE_NAME, token, {
+    res.cookies.set(COOKIE_NAME, jwtToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: COOKIE_MAX_AGE,
       path: '/',
+    });
+
+    // Enviar email en background — no bloquear la respuesta si falla
+    sendVerificationEmail(emailLower, verificationToken).catch((err) => {
+      console.error('[REGISTER] Error enviando email de verificación:', err);
     });
 
     return res;
