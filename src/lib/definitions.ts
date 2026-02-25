@@ -47,6 +47,8 @@ export type TestimonialStatus =
   | "APPROVED"
   | "REJECTED";
 
+export type CartStatus = "ACTIVE" | "CHECKED_OUT" | "ABANDONED";
+
 // ============================================================
 // USER & AUTH
 // ============================================================
@@ -84,6 +86,7 @@ export interface User {
   testimonials?: Testimonial[];
   couponUsers?: CouponUser[];
   wishlistItems?: WishlistItem[];
+  carts?: Cart[];
 }
 
 export interface WishlistItem {
@@ -210,6 +213,7 @@ export interface Product {
   occasions?: ProductOccasion[];
   orderItems?: OrderItem[];
   couponProducts?: CouponProduct[];
+  cartItems?: CartItem[];
 }
 
 export interface ProductVariant {
@@ -231,6 +235,7 @@ export interface ProductVariant {
   images?: ProductImage[];
   specifications?: ProductSpecification[];
   orderItems?: OrderItem[];
+  cartItems?: CartItem[];
 }
 
 export interface ProductImage {
@@ -357,11 +362,58 @@ export interface Coupon {
   createdAt: Date;
   updatedAt: Date;
 
+  // Detalles de alcance (populados en vistas de admin)
+  details?: {
+    users?: { id: number; name: string }[];
+    products?: { id: number; name: string }[];
+    categories?: { id: number; name: string }[];
+  };
+
   // Relaciones
   orders?: Order[];
+  carts?: Cart[];
   couponUsers?: CouponUser[];
   couponCategories?: CouponCategory[];
   couponProducts?: CouponProduct[];
+}
+
+// ============================================================
+// CART
+// ============================================================
+
+export interface Cart {
+  id: number;
+  userId?: number | null;
+  sessionId?: string | null;
+  status: CartStatus;
+  couponId?: number | null;
+  couponCode?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+
+  user?: User | null;
+  coupon?: Coupon | null;
+  items?: CartItem[];
+}
+
+export interface CartItem {
+  id: number;
+  cartId: number;
+  productId: number;
+  variantId?: number | null;
+  quantity: number;
+  unitPrice: number; // Decimal
+  isComplement: boolean;
+  parentCartItemId?: number | null;
+  customPhotoUrl?: string | null;
+  deliveryDate?: Date | null;
+  deliveryTimeSlot?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+
+  cart?: Cart;
+  product?: Product;
+  variant?: ProductVariant | null;
 }
 
 export interface CouponUser {
@@ -403,6 +455,10 @@ export interface LoyaltyHistory {
   transactionType: LoyaltyTransactionType;
   notes?: string | null;
   createdAt: Date;
+
+  // Campos desnormalizados (populados en vistas de admin)
+  userName?: string;
+  userEmail?: string;
 
   // Relaciones
   user?: User;

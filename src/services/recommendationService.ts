@@ -1,9 +1,9 @@
 // src/services/recommendationService.ts
-import { recommendationRepository } from '../repositories/recommendationRepository';
+import { prisma } from '@/lib/prisma';
 import { productService } from './productService';
-import type { Product, DbProduct, PeakDate } from '@/lib/definitions';
+import type { Product, PeakDate } from '@/lib/definitions';
 import { peakDateService } from './peakDateService';
-import { startOfDay } from 'date-fns';
+import { startOfDay, subDays } from 'date-fns';
 
 interface RecommendationParams {
   context: 'home' | 'pdp-similar' | 'pdp-bought-together' | 'cart';
@@ -16,25 +16,17 @@ interface RecommendationParams {
 
 const DIVERSIFICATION_LIMIT_PER_CATEGORY = 4;
 
-async function applyBusinessRules(
-  products: Product[],
-  peakDays: PeakDate[],
-  excludeProductId?: number
-): Promise<Product[]> {
-  // 1. Filtrar productos a excluir
-  let filtered = excludeProductId
-    ? products.filter(p => p.id !== excludeProductId)
-    : products;
+async function applyBusinessRules(products: Product[], peakDays: PeakDate[], excludeProductId?: number): Promise<Product[]> {
+  let filtered = excludeProductId ? products.filter(p => p.id !== excludeProductId) : products;
 
-  // 2. Aplicar lógica de Peak Days
   const today = startOfDay(new Date());
-  const isPeak = peakDays.some(pd => 
-      startOfDay(pd.peak_date).getTime() === today.getTime() && pd.is_coupon_restricted
+  const isPeak = peakDays.some(pd =>
+    startOfDay(pd.peakDate).getTime() === today.getTime() && pd.isCouponRestricted
   );
 
   if (isPeak) {
     filtered = filtered.sort((a, b) => (b.stock ?? 0) - (a.stock ?? 0));
-    filtered.forEach(p => (p as any).badge = "Precio de temporada");
+    filtered.forEach(p => (p as any).badge = 'Precio de temporada');
   }
 
   return filtered;
@@ -43,9 +35,8 @@ async function applyBusinessRules(
 function diversifyResults(products: Product[]): Product[] {
   const categoryCount: { [key: number]: number } = {};
   const diversified: Product[] = [];
-
   for (const product of products) {
-    const categoryId = product.category.id;
+    const categoryId = product.categoryId;
     if ((categoryCount[categoryId] || 0) < DIVERSIFICATION_LIMIT_PER_CATEGORY) {
       diversified.push(product);
       categoryCount[categoryId] = (categoryCount[categoryId] || 0) + 1;
@@ -55,15 +46,10 @@ function diversifyResults(products: Product[]): Product[] {
 }
 
 export const recommendationService = {
-  /**
-   * Orquesta la obtención de recomendaciones según el contexto.
-   */
   async getRecommendations(params: RecommendationParams): Promise<Product[]> {
     const { context, userId, productId, categoryId, limit } = params;
-    
     let candidateIds: number[] = [];
-    
-    // 1. Generar candidatos según la estrategia
+
     switch (context) {
       case 'home':
         candidateIds = await this.getGlobalTrending(userId, limit * 2);
@@ -75,59 +61,97 @@ export const recommendationService = {
         break;
       case 'pdp-bought-together':
       case 'cart':
-        if (productId) { // En el contexto del carrito, podríamos pasar un array de productIds
+        if (productId) {
           candidateIds = await this.getFrequentlyBoughtTogether([productId], limit * 2);
         }
         break;
     }
-    
-    // 2. Fallback si no hay candidatos
+
     if (candidateIds.length < limit) {
       const fallbackIds = await this.getFallbackRecommendations(limit, [...candidateIds, ...(productId ? [productId] : [])]);
-      candidateIds.push(...fallbackIds);
-      candidateIds = [...new Set(candidateIds)]; // Eliminar duplicados
+      candidateIds = [...new Set([...candidateIds, ...fallbackIds])];
     }
-    
-    if (candidateIds.length === 0) {
-      return [];
-    }
-    
-    // 3. Obtener detalles de productos y aplicar reglas
+
+    if (candidateIds.length === 0) return [];
+
     const candidateProducts = await productService.getProductsByIds(candidateIds);
     const peakDays = await peakDateService.getAllPeakDates();
-    const filteredAndBadgedProducts = await applyBusinessRules(candidateProducts, peakDays, productId);
-    
-    // 4. Diversificar y cortar al límite
-    const diversified = diversifyResults(filteredAndBadgedProducts);
-    
+    const filtered = await applyBusinessRules(candidateProducts, peakDays, productId);
+    const diversified = diversifyResults(filtered);
     return diversified.slice(0, limit);
   },
 
-  /**
-   * Obtiene los productos más populares globalmente.
-   */
   async getGlobalTrending(userId: number | null | undefined, limit: number): Promise<number[]> {
-    return recommendationRepository.findTrendingProductIds(limit);
+    const thirtyDaysAgo = subDays(new Date(), 30);
+    const topItems = await prisma.orderItem.groupBy({
+      by: ['productId'],
+      _count: { productId: true },
+      where: { order: { createdAt: { gte: thirtyDaysAgo }, status: { not: 'CANCELLED' } } },
+      orderBy: { _count: { productId: 'desc' } },
+      take: limit,
+    });
+
+    if (topItems.length >= limit) return topItems.map(i => i.productId);
+
+    // Fallback: newest published products
+    const fallback = await prisma.product.findMany({
+      where: { isDeleted: false, status: 'PUBLISHED', id: { notIn: topItems.map(i => i.productId) } },
+      select: { id: true },
+      orderBy: { createdAt: 'desc' },
+      take: limit - topItems.length,
+    });
+
+    return [...topItems.map(i => i.productId), ...fallback.map(p => p.id)];
   },
 
-  /**
-   * Obtiene productos similares basados en metadatos (tags, ocasiones).
-   */
   async getSimilarByContent(productId: number, categoryId: number, limit: number): Promise<number[]> {
-    return recommendationRepository.findSimilarProductIdsByContent(productId, categoryId, limit);
+    const similar = await prisma.product.findMany({
+      where: { categoryId, id: { not: productId }, isDeleted: false, status: 'PUBLISHED' },
+      select: { id: true },
+      take: limit,
+    });
+
+    if (similar.length >= limit) return similar.map(p => p.id);
+
+    const others = await prisma.product.findMany({
+      where: { id: { notIn: [productId, ...similar.map(p => p.id)] }, isDeleted: false, status: 'PUBLISHED' },
+      select: { id: true },
+      take: limit - similar.length,
+    });
+
+    return [...similar.map(p => p.id), ...others.map(p => p.id)];
   },
 
-  /**
-   * Obtiene productos frecuentemente comprados juntos.
-   */
   async getFrequentlyBoughtTogether(productIds: number[], limit: number): Promise<number[]> {
-    return recommendationRepository.findFrequentlyBoughtTogetherIds(productIds, limit);
+    const frequent = await prisma.orderItem.groupBy({
+      by: ['productId'],
+      _count: { productId: true },
+      where: {
+        order: { items: { some: { productId: { in: productIds } } } },
+        productId: { notIn: productIds },
+      },
+      orderBy: { _count: { productId: 'desc' } },
+      take: limit,
+    });
+    return frequent.map(i => i.productId);
   },
 
-  /**
-   * Obtiene recomendaciones de fallback (destacados o más nuevos).
-   */
   async getFallbackRecommendations(limit: number, excludeIds: number[]): Promise<number[]> {
-    return recommendationRepository.findFallbackProductIds(limit, excludeIds);
+    const featured = await prisma.product.findMany({
+      where: { isDeleted: false, status: 'PUBLISHED', id: { notIn: excludeIds }, tags: { some: { tag: { name: 'destacado' } } } },
+      select: { id: true },
+      take: limit,
+    });
+
+    if (featured.length >= limit) return featured.map(p => p.id);
+
+    const newest = await prisma.product.findMany({
+      where: { isDeleted: false, status: 'PUBLISHED', id: { notIn: [...excludeIds, ...featured.map(p => p.id)] } },
+      select: { id: true },
+      orderBy: { createdAt: 'desc' },
+      take: limit - featured.length,
+    });
+
+    return [...featured.map(p => p.id), ...newest.map(p => p.id)];
   },
 };

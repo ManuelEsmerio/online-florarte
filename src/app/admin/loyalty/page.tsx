@@ -7,7 +7,8 @@ import { useReactTable, getCoreRowModel, getPaginationRowModel, getSortedRowMode
 import { LoyaltyHistory } from '@/lib/definitions';
 import { columns } from './columns';
 import { loyaltyHistoryData } from '@/lib/data/loyalty-history-data';
-import { mapDbLoyaltyHistoryToLoyaltyHistory } from '@/mappers/loyaltyHistoryMapper';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 
 export default function LoyaltyHistoryPage() {
@@ -15,9 +16,16 @@ export default function LoyaltyHistoryPage() {
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  // Mapear datos mock de snake_case a camelCase
   const history: LoyaltyHistory[] = useMemo(() =>
-    loyaltyHistoryData.map(mapDbLoyaltyHistoryToLoyaltyHistory),
+    loyaltyHistoryData.map(row => ({
+      id: row.id,
+      userName: row.user_name,
+      userEmail: row.user_email,
+      orderId: row.order_id,
+      points: row.points,
+      transactionType: row.transaction_type,
+      createdAt: format(new Date(row.created_at), "dd MMM yyyy, HH:mm'h'", { locale: es }),
+    })),
     []
   );
 

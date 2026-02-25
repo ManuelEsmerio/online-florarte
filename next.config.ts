@@ -6,7 +6,7 @@ const ContentSecurityPolicy = `
   script-src 'self' 'unsafe-eval' 'unsafe-inline' *.googletagmanager.com;
   child-src 'self' *.google.com;
   style-src 'self' 'unsafe-inline' fonts.googleapis.com;
-  img-src 'self' https://placehold.co https://picsum.photos https://i.pravatar.cc data: blob:;
+  img-src 'self' https://placehold.co https://picsum.photos https://i.pravatar.cc https://res.cloudinary.com data: blob:;
   font-src 'self' fonts.gstatic.com;
   connect-src 'self' *.googleapis.com *.google.com;
   frame-src 'self' *.google.com;
@@ -73,6 +73,12 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'i.pravatar.cc',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
         port: '',
         pathname: '/**',
       },

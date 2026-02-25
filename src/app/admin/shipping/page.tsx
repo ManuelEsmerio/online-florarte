@@ -12,16 +12,12 @@ import { ShippingZone } from '@/lib/definitions';
 import { columns } from './columns';
 import { ShippingZoneForm } from './shipping-zone-form';
 import { allShippingZones } from '@/lib/data/shipping-zones';
-import { mapDbShippingZoneToShippingZone } from '@/mappers/shippingZoneMapper';
 
 
 export default function ShippingPage() {
   const { toast } = useToast();
 
-  // Inicializar desde datos mock, mapeando snake_case → camelCase
-  const [shippingZones, setShippingZones] = useState<ShippingZone[]>(() =>
-    allShippingZones.map(mapDbShippingZoneToShippingZone)
-  );
+  const [shippingZones, setShippingZones] = useState<ShippingZone[]>(() => [...allShippingZones]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);

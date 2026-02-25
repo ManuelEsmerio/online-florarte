@@ -3,8 +3,8 @@ import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession } from '@/utils/auth';
 import { userService } from '@/services/userService';
+import { prisma } from '@/lib/prisma';
 import { ZodError } from 'zod';
-import { userRepository } from '@/repositories/userRepository';
 
 interface RouteParams {
   params: { id: string };
@@ -24,11 +24,11 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const userIdToUpdate = parseInt(params.id, 10);
     const body = await req.json();
     
-    const userToUpdate = await userRepository.findById(userIdToUpdate);
+    const userToUpdate = await prisma.user.findFirst({ where: { id: userIdToUpdate, isDeleted: false } });
     if (!userToUpdate) return errorHandler(new Error("Usuario no encontrado."), 404);
 
     if (body.email && body.email !== userToUpdate.email) {
-        const existing = await userRepository.findByEmail(body.email);
+        const existing = await prisma.user.findFirst({ where: { email: body.email, isDeleted: false } });
         if (existing && existing.id !== userIdToUpdate) {
             return errorHandler(new Error("El correo electrónico ya está en uso por otra cuenta."), 409);
         }
@@ -67,7 +67,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       return errorHandler(new Error('No puedes eliminar tu propia cuenta.'), 400);
     }
     
-    const userToDelete = await userRepository.findById(userIdToDelete);
+    const userToDelete = await prisma.user.findFirst({ where: { id: userIdToDelete, isDeleted: false } });
     if (!userToDelete) return errorHandler(new Error("Usuario no encontrado."), 404);
 
     // En modo demo el borrado es solo lógico en nuestro array local

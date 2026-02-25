@@ -3,8 +3,7 @@ import { type NextRequest } from 'next/server';
 import { getIdentity } from '@/utils/request-utils';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { cartService } from '@/services/cartService';
-import { productRepository } from '@/repositories/productRepository';
-import { mapDbProductToProduct } from '@/mappers/productMapper';
+import { prisma } from '@/lib/prisma';
 
 /**
  * POST /api/cart/validate
@@ -14,7 +13,6 @@ export async function POST(req: NextRequest) {
   try {
     const { userId, sessionId } = await getIdentity(req);
     if (!sessionId && !userId) {
-      // Si no hay sesión ni usuario, no hay carrito que validar.
       return successResponse([]);
     }
 
@@ -27,58 +25,44 @@ export async function POST(req: NextRequest) {
     const validationIssues = [];
 
     for (const item of cartItems) {
-      let productInDb = null;
       let stock = -1;
       let status = 'borrador';
+      let found = false;
 
       if (item.variantId) {
-        // Si es una variante, obtenemos los datos específicos de la variante.
-        const [variantData] = await productRepository.findVariantsByProductIds([item.id]);
-        if (variantData) {
-          stock = variantData.stock;
-          // El estado se hereda del producto padre
-          const parentProduct = await productRepository.findById(item.id);
-          status = parentProduct?.status || 'borrador';
+        const variant = await prisma.productVariant.findUnique({
+          where: { id: item.variantId },
+          include: { product: { select: { status: true } } },
+        });
+        if (variant) {
+          found = true;
+          stock = variant.stock;
+          status = variant.product.status === 'PUBLISHED' ? 'publicado' : 'borrador';
         }
       } else {
-        // Si es un producto simple, obtenemos sus datos.
-        productInDb = await productRepository.findById(item.id);
-        if (productInDb) {
-          stock = productInDb.stock ?? -1;
-          status = productInDb.status;
+        const product = await prisma.product.findUnique({
+          where: { id: item.id, isDeleted: false },
+          select: { stock: true, status: true },
+        });
+        if (product) {
+          found = true;
+          stock = product.stock;
+          status = product.status === 'PUBLISHED' ? 'publicado' : 'borrador';
         }
       }
-      
-      if (!productInDb && !item.variantId) {
-        validationIssues.push({
-          cartItemId: item.cartItemId,
-          productId: item.id,
-          name: item.name,
-          reason: 'not_found',
-          message: 'El producto ya no existe',
-        });
+
+      if (!found) {
+        validationIssues.push({ cartItemId: item.cartItemId, productId: item.id, name: item.name, reason: 'not_found', message: 'El producto ya no existe' });
         continue;
       }
-      
+
       if (status !== 'publicado') {
-         validationIssues.push({
-          cartItemId: item.cartItemId,
-          productId: item.id,
-          name: item.name,
-          reason: 'not_published',
-          message: 'Ya no está disponible',
-        });
+        validationIssues.push({ cartItemId: item.cartItemId, productId: item.id, name: item.name, reason: 'not_published', message: 'Ya no está disponible' });
         continue;
       }
 
       if (stock < item.quantity) {
-        validationIssues.push({
-          cartItemId: item.cartItemId,
-          productId: item.id,
-          name: item.name,
-          reason: 'out_of_stock',
-          message: `Sin existencias (solo ${stock > 0 ? stock : 0} disponibles)`,
-        });
+        validationIssues.push({ cartItemId: item.cartItemId, productId: item.id, name: item.name, reason: 'out_of_stock', message: `Sin existencias (solo ${stock > 0 ? stock : 0} disponibles)` });
         continue;
       }
     }

@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import type { Occasion } from '@/lib/definitions';
 import slugify from 'slugify';
 import { z } from 'zod';
-import { saveOccasionImage, deleteLocalFile } from './file.service';
+import { saveOccasionImage, deleteManagedFile } from './file.service';
 import { getPublicUrlForPath } from '@/utils/file-utils';
 
 const occasionSchema = z.object({
@@ -92,7 +92,7 @@ export const occasionService = {
     
     let imageUrl = existing.imageUrl;
     if (imageFile) {
-        if(imageUrl) await deleteLocalFile(imageUrl);
+      if(imageUrl) await deleteManagedFile(imageUrl);
         imageUrl = await saveOccasionImage(imageFile, id);
     }
     
@@ -134,7 +134,7 @@ export const occasionService = {
     });
 
     if (existing?.imageUrl) {
-      await deleteLocalFile(existing.imageUrl);
+      await deleteManagedFile(existing.imageUrl);
     }
   },
 

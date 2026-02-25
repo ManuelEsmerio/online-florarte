@@ -1,29 +1,56 @@
 import { prisma } from '@/lib/prisma';
 import type { ProductCategory } from '@/lib/definitions';
-import { z } from 'zod'; // Assuming you are using zod for validation
 import slugify from 'slugify';
+import { saveCategoryImage, deleteManagedFile } from './file.service';
+import { getPublicUrlForPath } from '@/utils/file-utils';
 
-// Define the shape based on your Prisma Schema and Definitions
-// We map Prisma fields to your application interface
+type CategoryInput = Partial<ProductCategory> & {
+  parent_id?: number | null;
+  show_on_home?: boolean;
+  image_url?: string | null;
+};
+
+function normalizeCategoryInput(data: CategoryInput) {
+  return {
+    name: data.name,
+    slug: data.slug,
+    prefix: data.prefix,
+    description: data.description,
+    parentId: data.parentId ?? data.parent_id ?? null,
+    showOnHome: data.showOnHome ?? data.show_on_home ?? false,
+    imageUrl: data.imageUrl ?? data.image_url ?? null,
+  };
+}
+
+function mapCategoryForOutput<T extends { imageUrl: string | null }>(category: T): T {
+  return {
+    ...category,
+    imageUrl: getPublicUrlForPath(category.imageUrl) || '/placehold.webp',
+  };
+}
 
 export const categoryService = {
-  // --- Get All (Flattened or Tree) ---
   async getAllCategories() {
     const categories = await prisma.productCategory.findMany({
       where: { isDeleted: false },
-      orderBy: { id: 'asc' }, // Or sortOrder if you add it later
+      orderBy: { id: 'asc' },
       include: {
         children: {
           where: { isDeleted: false },
         },
       },
     });
-    return categories;
+
+    return categories.map((category) =>
+      mapCategoryForOutput({
+        ...category,
+        children: category.children.map((child) => mapCategoryForOutput(child)),
+      }),
+    );
   },
 
-  // --- Get Main Categories (Roots) ---
   async getMainCategories() {
-    return await prisma.productCategory.findMany({
+    const categories = await prisma.productCategory.findMany({
       where: {
         parentId: null,
         isDeleted: false,
@@ -33,12 +60,19 @@ export const categoryService = {
           where: { isDeleted: false },
         },
       },
+      orderBy: { id: 'asc' },
     });
+
+    return categories.map((category) =>
+      mapCategoryForOutput({
+        ...category,
+        children: category.children.map((child) => mapCategoryForOutput(child)),
+      }),
+    );
   },
 
-  // --- Get Home Page Categories ---
   async getHomePageCategories() {
-    return await prisma.productCategory.findMany({
+    const categories = await prisma.productCategory.findMany({
       where: {
         showOnHome: true,
         isDeleted: false,
@@ -50,13 +84,19 @@ export const categoryService = {
         },
       },
     });
+
+    return categories.map((category) =>
+      mapCategoryForOutput({
+        ...category,
+        children: category.children.map((child) => mapCategoryForOutput(child)),
+      }),
+    );
   },
 
-  // --- Get by Slug ---
   async getCategoryBySlug(slug: string) {
     const category = await prisma.productCategory.findFirst({
       where: {
-        slug: slug,
+        slug,
         isDeleted: false,
       },
       include: {
@@ -68,10 +108,14 @@ export const categoryService = {
     });
 
     if (!category) return null;
-    return category;
+
+    return mapCategoryForOutput({
+      ...category,
+      parent: category.parent ? mapCategoryForOutput(category.parent) : null,
+      children: category.children.map((child) => mapCategoryForOutput(child)),
+    });
   },
 
-  // --- Get by ID ---
   async getCategoryById(id: number) {
     const category = await prisma.productCategory.findUnique({
       where: { id },
@@ -81,92 +125,127 @@ export const categoryService = {
         },
       },
     });
-    
-    // Check logical deletion manually if needed, though findUnique returns null if not found
-    if (category?.isDeleted) return null;
-    
-    return category;
+
+    if (!category || category.isDeleted) return null;
+
+    return mapCategoryForOutput({
+      ...category,
+      children: category.children.map((child) => mapCategoryForOutput(child)),
+    });
   },
 
-  // --- Create ---
-  async createCategory(data: Partial<ProductCategory>) {
-    // Generate Slug if not provided
-    let slug = data.slug;
-    if (!slug && data.name) {
-      slug = slugify(data.name, { lower: true, strict: true });
+  async createCategory(data: CategoryInput, imageFile: File | null = null, _creatorId?: number) {
+    const normalized = normalizeCategoryInput(data);
+
+    let slug = normalized.slug;
+    if (!slug && normalized.name) {
+      slug = slugify(normalized.name, { lower: true, strict: true });
     }
 
     if (!slug) throw new Error('Slug is required or could not be generated');
-    if (!data.name) throw new Error('Name is required');
+    if (!normalized.name) throw new Error('Name is required');
 
-    // Check slug uniqueness
-    const existing = await prisma.productCategory.findUnique({
-      where: { slug },
-    });
+    const existing = await prisma.productCategory.findUnique({ where: { slug } });
     if (existing) throw new Error(`Category with slug "${slug}" already exists.`);
 
-    return await prisma.productCategory.create({
+    const created = await prisma.productCategory.create({
       data: {
-        name: data.name,
-        slug: slug,
-        prefix: data.prefix || 'CAT',
-        description: data.description,
-        imageUrl: data.imageUrl,
-        parentId: data.parentId,
-        showOnHome: data.showOnHome ?? false,
+        name: normalized.name,
+        slug,
+        prefix: normalized.prefix || 'CAT',
+        description: normalized.description,
+        imageUrl: normalized.imageUrl,
+        parentId: normalized.parentId,
+        showOnHome: normalized.showOnHome,
       },
     });
+
+    if (!imageFile) {
+      return mapCategoryForOutput(created);
+    }
+
+    const uploadedUrl = await saveCategoryImage(imageFile, created.id);
+    const updated = await prisma.productCategory.update({
+      where: { id: created.id },
+      data: { imageUrl: uploadedUrl },
+    });
+
+    return mapCategoryForOutput(updated);
   },
 
-  // --- Update ---
-  async updateCategory(id: number, data: Partial<ProductCategory>) {
-    // Check if exists
+  async updateCategory(id: number, data: CategoryInput, imageFile: File | null = null, _editorId?: number) {
     const existing = await prisma.productCategory.findUnique({ where: { id } });
     if (!existing || existing.isDeleted) throw new Error('Category not found');
 
-    // Handle slug update check
-    if (data.slug && data.slug !== existing.slug) {
-      const duplicate = await prisma.productCategory.findUnique({
-        where: { slug: data.slug },
-      });
+    const normalized = normalizeCategoryInput(data);
+
+    let slug = normalized.slug ?? existing.slug;
+    if (!slug && normalized.name) {
+      slug = slugify(normalized.name, { lower: true, strict: true });
+    }
+
+    if (slug !== existing.slug) {
+      const duplicate = await prisma.productCategory.findUnique({ where: { slug } });
       if (duplicate && duplicate.id !== id) {
         throw new Error('Slug already in use by another category.');
       }
     }
 
-    return await prisma.productCategory.update({
+    let imageUrlToSave = normalized.imageUrl ?? existing.imageUrl;
+    if (imageFile) {
+      if (existing.imageUrl) {
+        await deleteManagedFile(existing.imageUrl);
+      }
+      imageUrlToSave = await saveCategoryImage(imageFile, id);
+    }
+
+    const updated = await prisma.productCategory.update({
       where: { id },
       data: {
-        name: data.name,
-        slug: data.slug,
-        prefix: data.prefix,
-        description: data.description,
-        imageUrl: data.imageUrl,
-        parentId: data.parentId,
-        showOnHome: data.showOnHome,
+        name: normalized.name,
+        slug,
+        prefix: normalized.prefix,
+        description: normalized.description,
+        imageUrl: imageUrlToSave,
+        parentId: normalized.parentId,
+        showOnHome: normalized.showOnHome,
       },
     });
+
+    return mapCategoryForOutput(updated);
   },
 
-  // --- Delete (Soft Delete) ---
-  async deleteCategory(id: number) {
-    // Check for children or products before deleting
+  async toggleCategoryShowOnHome(id: number, showOnHome: boolean, _editorId?: number) {
+    const existing = await prisma.productCategory.findUnique({ where: { id } });
+    if (!existing || existing.isDeleted) throw new Error('Category not found');
+
+    const updated = await prisma.productCategory.update({
+      where: { id },
+      data: { showOnHome },
+    });
+
+    return mapCategoryForOutput(updated);
+  },
+
+  async deleteCategory(id: number, _deleterId?: number) {
+    const existing = await prisma.productCategory.findUnique({ where: { id } });
+    if (!existing || existing.isDeleted) throw new Error('Category not found');
+
     const hasChildren = await prisma.productCategory.count({
       where: { parentId: id, isDeleted: false },
     });
     if (hasChildren > 0) {
       throw new Error('Cannot delete category with active subcategories.');
     }
-    
+
     const hasProducts = await prisma.product.count({
-      where: { categoryId: id, isDeleted: false }
+      where: { categoryId: id, isDeleted: false },
     });
-    
     if (hasProducts > 0) {
-        throw new Error('Cannot delete category containing active products.');
+      throw new Error('Cannot delete category containing active products.');
     }
 
-    return await prisma.productCategory.update({
+    return prisma.productCategory.update({
       where: { id },
       data: {
         isDeleted: true,

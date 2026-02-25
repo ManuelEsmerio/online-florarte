@@ -1,102 +1,172 @@
 // src/services/orderService.ts
-import { orderRepository } from '../repositories/orderRepository';
-import { cartRepository } from '../repositories/cartRepository';
+import { prisma } from '@/lib/prisma';
+import { cartService } from './cartService';
 import type { Order, OrderStatus } from '@/lib/definitions';
+
+const ORDER_STATUS_MAP: Record<string, string> = {
+  PENDING: 'pendiente',
+  PROCESSING: 'procesando',
+  SHIPPED: 'en_reparto',
+  DELIVERED: 'completado',
+  CANCELLED: 'cancelado',
+};
+
+function mapStatus(status: string): string {
+  return ORDER_STATUS_MAP[status] ?? status.toLowerCase();
+}
 
 export const orderService = {
   async getAllOrdersForAdmin(filters: any) {
-    return await orderRepository.findAllForAdmin(filters);
-  },
-  
-  async getOrdersForUser(userId: number): Promise<Order[]> {
-    const dbRows = await orderRepository.findUserOrdersWithItems(userId);
-    const ordersMap = new Map<number, Order>();
+    const where: any = {};
+    if (filters?.status) where.status = filters.status.toUpperCase();
+    if (filters?.userId) where.userId = filters.userId;
 
-    for (const row of dbRows) {
-        if (!ordersMap.has(row.id)) {
-            ordersMap.set(row.id, {
-                id: row.id,
-                user_id: row.user_id,
-                customerName: row.customer_name,
-                customerEmail: row.customer_email,
-                status: row.status as OrderStatus,
-                subtotal: row.subtotal,
-                total: row.total,
-                shipping_cost: row.shipping_cost,
-                shippingAddress: row.shippingAddress || 'Dirección de prueba',
-                delivery_date: row.delivery_date,
-                delivery_time_slot: row.delivery_time_slot,
-                dedication: row.dedication,
-                is_anonymous: row.is_anonymous,
-                signature: row.signature,
-                created_at: row.created_at,
-                items: [],
-            } as Order);
-        }
-        const order = ordersMap.get(row.id)!;
-        order.items!.push({
-            product_id: row.product_id,
-            quantity: row.quantity,
-            price: row.unit_price,
-            product_name: row.product_name,
-            image: row.product_image,
-        } as any);
-    }
-    return Array.from(ordersMap.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const orders = await prisma.order.findMany({
+      where,
+      include: { user: { select: { name: true, email: true } }, items: { include: { product: true, variant: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      orders: orders.map(o => ({
+        ...o,
+        status: mapStatus(o.status),
+        customerName: o.user.name,
+        customerEmail: o.user.email,
+        total: Number(o.total),
+        subtotal: Number(o.subtotal),
+        shipping_cost: Number(o.shippingCost),
+        created_at: o.createdAt.toISOString(),
+        updated_at: o.updatedAt.toISOString(),
+      })),
+      total: orders.length,
+    };
   },
-  
+
+  async getOrdersForUser(userId: number): Promise<Order[]> {
+    const orders = await prisma.order.findMany({
+      where: { userId },
+      include: {
+        user: { select: { name: true, email: true } },
+        items: { include: { product: { include: { images: { where: { isPrimary: true, variantId: null }, take: 1 } } }, variant: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return orders.map(o => ({
+      id: o.id,
+      user_id: o.userId,
+      customerName: o.user.name,
+      customerEmail: o.user.email,
+      status: mapStatus(o.status) as OrderStatus,
+      subtotal: Number(o.subtotal),
+      total: Number(o.total),
+      shipping_cost: Number(o.shippingCost),
+      shippingAddress: o.shippingAddressSnapshot ?? '',
+      delivery_date: o.deliveryDate?.toISOString().slice(0, 10) ?? '',
+      delivery_time_slot: o.deliveryTimeSlot,
+      dedication: o.dedication,
+      is_anonymous: o.isAnonymous,
+      signature: o.signature,
+      created_at: o.createdAt.toISOString(),
+      items: o.items.map(it => ({
+        product_id: it.productId,
+        quantity: it.quantity,
+        price: Number(it.unitPrice),
+        product_name: it.productNameSnap,
+        image: it.imageSnap ?? it.product.images[0]?.src ?? '',
+      })),
+    } as unknown as Order));
+  },
+
   async getOrderDetails(orderId: number): Promise<Order | null> {
-    const dbOrder = await orderRepository.findDetailsById(orderId);
-    if (!dbOrder) return null;
-    const items = await orderRepository.findItemsByOrderId(orderId);
-    return { ...dbOrder, items } as any;
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { user: { select: { name: true, email: true } }, items: { include: { product: true, variant: true } } },
+    });
+    if (!order) return null;
+
+    return {
+      id: order.id,
+      user_id: order.userId,
+      customerName: order.user.name,
+      customerEmail: order.user.email,
+      status: mapStatus(order.status) as OrderStatus,
+      subtotal: Number(order.subtotal),
+      total: Number(order.total),
+      shipping_cost: Number(order.shippingCost),
+      shippingAddress: order.shippingAddressSnapshot ?? '',
+      delivery_date: order.deliveryDate?.toISOString().slice(0, 10) ?? '',
+      delivery_time_slot: order.deliveryTimeSlot,
+      dedication: order.dedication,
+      is_anonymous: order.isAnonymous,
+      signature: order.signature,
+      created_at: order.createdAt.toISOString(),
+      items: order.items.map(it => ({
+        product_id: it.productId,
+        quantity: it.quantity,
+        price: Number(it.unitPrice),
+        product_name: it.productNameSnap,
+        image: it.imageSnap ?? '',
+      })),
+    } as unknown as Order;
   },
-  
+
   async updateOrderStatus(orderId: number, newStatus: OrderStatus, payload: any): Promise<boolean> {
-    return await orderRepository.update(orderId, { status: newStatus, ...payload });
+    const prismaStatus = Object.entries(ORDER_STATUS_MAP).find(([, v]) => v === newStatus)?.[0] ?? (newStatus as string).toUpperCase();
+    await prisma.order.update({ where: { id: orderId }, data: { status: prismaStatus as any, ...payload } });
+    return true;
   },
 
   async initializeCheckout(params: any) {
-    // Obtenemos el carrito para calcular el total real y pasar los items a la orden
-    const cartData = await cartRepository.getContents({ userId: params.userId, sessionId: params.sessionId });
-    
+    const cartData = await cartService.getCartContents({ userId: params.userId, sessionId: params.sessionId });
+
     if (!cartData.items || cartData.items.length === 0) {
-        throw new Error("El carrito está vacío.");
+      throw new Error('El carrito está vacío.');
     }
 
-    const result = await orderRepository.initializeCheckout({
-        ...params,
-        p_user_id: params.userId,
-        p_session_id: params.sessionId,
-        p_delivery_date: params.deliveryDate,
-        p_delivery_time_slot: params.deliveryTimeSlot,
+    const subtotal = cartData.subtotal;
+    const shippingCost = params.shippingCost ?? 0;
+    const total = subtotal + shippingCost;
+
+    const newOrder = await prisma.order.create({
+      data: {
+        userId: params.userId,
+        addressId: params.addressId ?? null,
+        shippingAddressSnapshot: params.shippingAddressSnapshot ?? null,
+        status: 'PENDING',
+        subtotal,
+        shippingCost,
+        total,
+        deliveryDate: new Date(params.deliveryDate ?? params.p_delivery_date),
+        deliveryTimeSlot: params.deliveryTimeSlot ?? params.p_delivery_time_slot ?? '',
+        dedication: params.dedication ?? null,
+        isAnonymous: params.isAnonymous ?? false,
+        signature: params.signature ?? null,
+        items: {
+          create: cartData.items.map(it => ({
+            productId: it.id,
+            variantId: it.variants?.[0]?.id ?? null,
+            productNameSnap: it.name,
+            variantNameSnap: it.variants?.[0]?.name ?? null,
+            imageSnap: it.image ?? null,
+            quantity: it.quantity,
+            unitPrice: it.price,
+          })),
+        },
+      },
     });
-    
-    if (result.order_id) {
-        const order = await orderRepository.findDetailsById(result.order_id);
-        if (order) {
-            order.subtotal = cartData.totals.subtotal;
-            order.total = cartData.totals.subtotal + (params.shippingCost || 0);
-            order.items = cartData.items.map(it => ({
-                product_id: it.product_id,
-                quantity: it.quantity,
-                price: it.unit_price,
-                product_name: it.product_name,
-                image: it.product_image
-            }));
-        }
-    }
 
-    return { 
-        orderId: result.order_id!, 
-        total: (cartData.totals.subtotal + (params.shippingCost || 0)),
-        customerEmail: result.customer_email || '',
-        orderToken: result.order_token || '',
+    return {
+      orderId: newOrder.id,
+      total,
+      customerEmail: '',
+      orderToken: `token_${newOrder.id}`,
     };
   },
-  
+
   async finalizeOrderFromWebhook(params: any) {
-    const result = await orderRepository.finalizePayment({ p_order_id_opt: params.orderId, ...params });
-    return { success: true, orderId: result.orderId };
+    await prisma.order.update({ where: { id: params.orderId }, data: { status: 'PROCESSING' } });
+    return { success: true, orderId: params.orderId };
   },
 };

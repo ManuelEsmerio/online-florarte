@@ -8,8 +8,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Order, Product, Address, ShippingZone, Coupon, User } from '@/lib/definitions';
 import type { LoginCredentials, RegisterData } from '@/lib/definitions';
 import { apiFetch as baseApiFetch } from '@/lib/apiFetch';
-import { mapDbShippingZoneToShippingZone } from '@/mappers/shippingZoneMapper';
-
 // Importación de datos mock
 import { allShippingZones } from '@/lib/data/shipping-zones';
 import { allUsers } from '@/lib/data/user-data';

@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 import fs from 'fs/promises';
 import path from 'path';
+import { cloudinary } from '@/lib/cloudinary';
 
 /**
  * Asegura que un directorio exista, creándolo si es necesario.
@@ -51,6 +52,49 @@ async function saveImageLocally(file: File, entityType: 'products' | 'categories
   return `images/${entityType}/${entityId}/${uniqueFilename}`;
 }
 
+async function uploadImageToCloudinary(file: File, folder: string, publicId?: string): Promise<string> {
+  if (!process.env.CLOUDINARY_URL) {
+    throw new Error('CLOUDINARY_URL no está configurado');
+  }
+
+  const imageBuffer = Buffer.from(await file.arrayBuffer());
+  const webpBuffer = await sharp(imageBuffer).webp({ quality: 82 }).toBuffer();
+  const dataUri = `data:image/webp;base64,${webpBuffer.toString('base64')}`;
+
+  const uploaded = await cloudinary.uploader.upload(dataUri, {
+    folder,
+    public_id: publicId,
+    overwrite: !!publicId,
+    invalidate: !!publicId,
+    resource_type: 'image',
+    format: 'webp',
+  });
+
+  return uploaded.secure_url;
+}
+
+function extractCloudinaryPublicId(url: string): string | null {
+  try {
+    if (!url.includes('/upload/')) return null;
+
+    const withoutQuery = url.split('?')[0];
+    const afterUpload = withoutQuery.split('/upload/')[1];
+    if (!afterUpload) return null;
+
+    const segments = afterUpload.split('/').filter(Boolean);
+    if (segments.length === 0) return null;
+
+    const noVersion = /^v\d+$/.test(segments[0]) ? segments.slice(1) : segments;
+    if (noVersion.length === 0) return null;
+
+    const fullPath = noVersion.join('/');
+    const dotIndex = fullPath.lastIndexOf('.');
+    return dotIndex > -1 ? fullPath.slice(0, dotIndex) : fullPath;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Guarda la imagen de perfil de un usuario.
  */
@@ -58,57 +102,68 @@ export async function saveProfilePicture(
   userId: number,
   base64: string
 ) {
-  const matches = base64.match(/^data:(.+);base64,(.+)$/);
+  if (!base64 || typeof base64 !== 'string' || !base64.startsWith('data:image')) {
+    throw new Error('Formato inválido');
+  }
 
-  if (!matches) throw new Error("Formato inválido");
+  if (!process.env.CLOUDINARY_URL) {
+    throw new Error('CLOUDINARY_URL no está configurado');
+  }
 
-  const ext = matches[1].split("/")[1];
-  const buffer = Buffer.from(matches[2], "base64");
+  const uploaded = await cloudinary.uploader.upload(base64, {
+    folder: 'online-florarte/profiles',
+    format: 'webp',
+    quality_analysis: true,
+    public_id: `user-${userId}-avatar`,
+    overwrite: true,
+    invalidate: true,
+    resource_type: 'image',
+  });
 
-  const dir = path.join(
-    process.cwd(),
-    "public",
-    "uploads",
-    "profiles",
-    String(userId)
-  );
-
-  await fs.mkdir(dir, { recursive: true });
-
-  const filename = `avatar.${ext}`;
-  const filepath = path.join(dir, filename);
-
-  await fs.writeFile(filepath, buffer);
-
-  return `/uploads/profiles/${userId}/${filename}`;
+  return uploaded.secure_url;
 }
 
 /**
  * Guarda la imagen de un producto.
  */
 export async function saveProductImage(file: File, productId: number | string): Promise<string> {
-  return saveImageLocally(file, 'products', productId);
+  return uploadImageToCloudinary(file, 'online-florarte/products', `product-${productId}-${uuidv4()}`);
+}
+
+/**
+ * Guarda la imagen de una variante de producto.
+ */
+export async function saveProductVariantImage(
+  file: File,
+  productId: number | string,
+  variantId: number | string,
+): Promise<string> {
+  return uploadImageToCloudinary(
+    file,
+    'online-florarte/products/variants',
+    `product-${productId}-variant-${variantId}-${uuidv4()}`,
+  );
 }
 
 /**
  * Guarda la imagen de una categoría.
  */
 export async function saveCategoryImage(file: File, categoryId: number): Promise<string> {
-  return saveImageLocally(file, 'categories', categoryId);
+  return uploadImageToCloudinary(file, 'online-florarte/categories', `category-${categoryId}`);
 }
 
 /**
  * Guarda la imagen de una ocasión.
  */
 export async function saveOccasionImage(file: File, occasionId: number): Promise<string> {
-  return saveImageLocally(file, 'occasions', occasionId);
+  return uploadImageToCloudinary(file, 'online-florarte/occasions', `occasion-${occasionId}`);
 }
 
 /**
  * Guarda la imagen de un anuncio.
  */
 export async function saveAnnouncementImage(file: File, announcementId: string | number): Promise<string> {
-  return saveImageLocally(file, 'announcements', announcementId);
+  return uploadImageToCloudinary(file, 'online-florarte/announcements', `announcement-${announcementId}-${uuidv4()}`);
 }
 
 /**
@@ -148,4 +203,28 @@ export async function deleteLocalFile(relativePath: string): Promise<void> {
             console.error(`Error al eliminar el archivo local ${relativePath}:`, error);
         }
     }
+}
+
+export async function deleteManagedFile(pathOrUrl: string): Promise<void> {
+  if (!pathOrUrl) return;
+
+  const asText = String(pathOrUrl).trim();
+  if (!asText) return;
+
+  if (asText.startsWith('http://') || asText.startsWith('https://')) {
+    const publicId = extractCloudinaryPublicId(asText);
+    if (!publicId) return;
+
+    try {
+      await cloudinary.uploader.destroy(publicId, {
+        resource_type: 'image',
+        invalidate: true,
+      });
+    } catch (error) {
+      console.error(`Error al eliminar archivo de Cloudinary (${publicId}):`, error);
+    }
+    return;
+  }
+
+  await deleteLocalFile(asText);
 }

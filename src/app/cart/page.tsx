@@ -42,6 +42,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Image from 'next/image';
 import { ShippingCityModal, type SelectedCity } from '@/components/ShippingCityModal';
+import type { ShippingZone } from '@/lib/definitions';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DeliveryDateModal } from '@/components/DeliveryDateModal';
 import { format } from 'date-fns';
@@ -131,7 +132,8 @@ export default function CartPage() {
     subtotal 
   } = useCart();
   
-  const { shippingZones } = useAuth();
+    const { shippingZones: authShippingZones } = useAuth();
+    const [shippingZones, setShippingZones] = useState<ShippingZone[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [isShippingDateModalOpen, setIsShippingDateModalOpen] = useState(false);
   const [isShippingCityModalOpen, setIsShippingCityModalOpen] = useState(false);
@@ -145,6 +147,38 @@ export default function CartPage() {
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+    useEffect(() => {
+        if (authShippingZones?.length) {
+            setShippingZones(authShippingZones);
+        }
+    }, [authShippingZones]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const fetchShippingZones = async () => {
+            try {
+                const response = await fetch('/api/shipping', { cache: 'no-store' });
+                if (!response.ok) return;
+
+                const result = await response.json();
+                const zones = Array.isArray(result?.data) ? result.data : [];
+
+                if (!cancelled) {
+                      setShippingZones(zones as ShippingZone[]);
+                }
+            } catch (error) {
+                console.error('[CART_SHIPPING_FETCH_ERROR]', error);
+            }
+        };
+
+        fetchShippingZones();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
   const isShippingInfoComplete = useMemo(() => {
     return deliveryDate && !deliveryDate.includes('No especificada');

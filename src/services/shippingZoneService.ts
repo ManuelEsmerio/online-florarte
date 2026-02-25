@@ -1,9 +1,7 @@
 // src/services/shippingZoneService.ts
-import { shippingZoneRepository } from '../repositories/shippingZoneRepository';
-import { mapDbShippingZoneToShippingZone } from '../mappers/shippingZoneMapper';
-import type { ShippingZone, DbShippingZone } from '@/lib/definitions';
+import { prisma } from '@/lib/prisma';
+import type { ShippingZone } from '@/lib/definitions';
 import { z } from 'zod';
-// import { dbWithAudit } from '@/lib/db';
 
 const shippingZoneSchema = z.object({
   postal_code: z.string().length(5, 'El código postal debe tener 5 dígitos.'),
@@ -13,61 +11,103 @@ const shippingZoneSchema = z.object({
 
 const dbWithAudit = async <T>(userId: number, fn: () => Promise<T>): Promise<T> => fn();
 
+function mapToShippingZone(zone: {
+  id: number;
+  postalCode: string;
+  locality: string;
+  shippingCost: any;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}): ShippingZone {
+  return {
+    id: zone.id,
+    postalCode: zone.postalCode,
+    locality: zone.locality,
+    shippingCost: Number(zone.shippingCost),
+    isActive: zone.isActive,
+    createdAt: zone.createdAt,
+    updatedAt: zone.updatedAt,
+  };
+}
+
 export const shippingZoneService = {
   async getAllShippingZones(): Promise<ShippingZone[]> {
-    const dbZones = await shippingZoneRepository.findAll();
-    return dbZones.map(mapDbShippingZoneToShippingZone);
+    const zones = await prisma.shippingZone.findMany({
+      where: { isActive: true },
+      orderBy: { postalCode: 'asc' },
+    });
+    return zones.map(mapToShippingZone);
   },
 
   async getZoneById(id: number): Promise<ShippingZone | null> {
-    const dbZone = await shippingZoneRepository.findById(id);
-    if (!dbZone) return null;
-    return mapDbShippingZoneToShippingZone(dbZone);
+    const zone = await prisma.shippingZone.findUnique({ where: { id } });
+    return zone ? mapToShippingZone(zone) : null;
   },
 
   async getZoneByPostalCode(postalCode: string): Promise<ShippingZone | null> {
-    const dbZone = await shippingZoneRepository.findByPostalCode(postalCode);
-    if (!dbZone) return null;
-    return mapDbShippingZoneToShippingZone(dbZone);
+    const zone = await prisma.shippingZone.findUnique({ where: { postalCode } });
+    return zone ? mapToShippingZone(zone) : null;
   },
-  
+
   async createShippingZone(data: any, creatorId: number): Promise<ShippingZone> {
     const validatedData = shippingZoneSchema.parse(data);
-    
-    const existing = await shippingZoneRepository.findByPostalCode(validatedData.postal_code);
+
+    const existing = await prisma.shippingZone.findUnique({
+      where: { postalCode: validatedData.postal_code },
+    });
     if (existing) {
-        throw new Error('Ya existe una zona con este código postal.');
+      throw new Error('Ya existe una zona con este código postal.');
     }
 
     const newZone = await dbWithAudit(creatorId, () =>
-      shippingZoneRepository.create(validatedData)
+      prisma.shippingZone.create({
+        data: {
+          postalCode: validatedData.postal_code,
+          locality: validatedData.locality,
+          shippingCost: validatedData.shipping_cost,
+          isActive: true,
+        },
+      })
     );
-    if (!newZone) throw new Error('Error al crear la zona de envío.');
 
-    return mapDbShippingZoneToShippingZone(newZone);
+    return mapToShippingZone(newZone);
   },
 
   async updateShippingZone(id: number, data: any, editorId: number): Promise<ShippingZone> {
     const validatedData = shippingZoneSchema.partial().parse(data);
 
     if (validatedData.postal_code) {
-        const existing = await shippingZoneRepository.findByPostalCode(validatedData.postal_code);
-        if (existing && existing.id !== id) {
-            throw new Error('Ya existe otra zona con este código postal.');
-        }
+      const existing = await prisma.shippingZone.findUnique({
+        where: { postalCode: validatedData.postal_code },
+      });
+      if (existing && existing.id !== id) {
+        throw new Error('Ya existe otra zona con este código postal.');
+      }
     }
-    
-    const updatedZone = await dbWithAudit(editorId, () =>
-      shippingZoneRepository.update(id, validatedData)
-    );
-    if (!updatedZone) throw new Error('Zona no encontrada después de actualizar.');
 
-    return mapDbShippingZoneToShippingZone(updatedZone);
+    const updatedZone = await dbWithAudit(editorId, () =>
+      prisma.shippingZone.update({
+        where: { id },
+        data: {
+          postalCode: validatedData.postal_code,
+          locality: validatedData.locality,
+          shippingCost: validatedData.shipping_cost,
+        },
+      })
+    );
+
+    return mapToShippingZone(updatedZone);
   },
 
   async deleteShippingZone(id: number, deleterId: number): Promise<boolean> {
-    return dbWithAudit(deleterId, () =>
-      shippingZoneRepository.delete(id)
-    );
-  }
+    return dbWithAudit(deleterId, async () => {
+      try {
+        await prisma.shippingZone.delete({ where: { id } });
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  },
 };
