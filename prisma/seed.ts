@@ -156,6 +156,8 @@ async function main() {
         orderId: t.orderId,
         rating: t.rating,
         comment: t.comment,
+        userName: t.userName,
+        userProfilePic: t.userProfilePic,
         status: getTestimonialStatus(t.status),
         createdAt: t.createdAt ? new Date(t.createdAt) : undefined,
       },

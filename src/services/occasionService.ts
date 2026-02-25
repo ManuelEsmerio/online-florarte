@@ -1,9 +1,8 @@
 // src/services/occasionService.ts
-import { occasionRepository } from '../repositories/occasionRepository';
+import { prisma } from '@/lib/prisma';
 import type { Occasion } from '@/lib/definitions';
 import slugify from 'slugify';
 import { z } from 'zod';
-// import { dbWithAudit } from '@/lib/db';
 import { saveOccasionImage, deleteLocalFile } from './file.service';
 import { getPublicUrlForPath } from '@/utils/file-utils';
 
@@ -17,14 +16,19 @@ const dbWithAudit = async <T>(userId: number, fn: () => Promise<T>): Promise<T> 
 
 export const occasionService = {
   async getAllOccasions(): Promise<Occasion[]> {
-    const dbOccasions = await occasionRepository.findAll();
+    const dbOccasions = await prisma.occasion.findMany({
+      orderBy: { name: 'asc' }
+    });
+    
     return dbOccasions.map(o => {
-        const imageUrl = getPublicUrlForPath(o.image_url);
+        const imageUrl = getPublicUrlForPath(o.imageUrl);
         return {
             ...o,
-            image_url: imageUrl || '/placehold.webp',
-            show_on_home: !!o.show_on_home,
-        }
+            imageUrl: imageUrl || '/placehold.webp',
+            // Prisma returns showOnHome, interface expects showOnHome
+            showOnHome: o.showOnHome,
+            products: [] // Prisma findMany doesn't include relation unless include is used
+        } as Occasion;
     });
   },
   
@@ -32,79 +36,127 @@ export const occasionService = {
     const validatedData = occasionSchema.parse(data);
     const slug = slugify(validatedData.name, { lower: true, strict: true });
     
-    const existing = await occasionRepository.findBySlug(slug);
+    const existing = await prisma.occasion.findUnique({
+      where: { slug }
+    });
     if(existing) throw new Error('Ya existe una ocasión con este nombre/slug.');
     
-    const newId = Date.now();
-    let imageUrl: string | null = null;
-    if (imageFile) {
-        imageUrl = await saveOccasionImage(imageFile, newId);
-    }
-
-    const dataToCreate: Occasion = {
-        id: newId,
-        name: validatedData.name,
-        slug,
-        description: validatedData.description,
-        image_url: imageUrl || '',
-        show_on_home: validatedData.show_on_home,
-    };
-
-    const newOccasion = await dbWithAudit(creatorId, () =>
-      occasionRepository.create(dataToCreate)
-    );
+    const newOccasion = await dbWithAudit(creatorId, async () => {
+         return await prisma.occasion.create({
+            data: {
+                name: validatedData.name,
+                slug,
+                description: validatedData.description,
+                imageUrl: null, 
+                showOnHome: validatedData.show_on_home, 
+            }
+        });
+    });
 
     if(!newOccasion) throw new Error('No se pudo crear la ocasión.');
+    const newId = newOccasion.id;
 
-    return {...newOccasion, image_url: getPublicUrlForPath(newOccasion.image_url), show_on_home: !!newOccasion.show_on_home};
+    let imageUrl: string | null = null;
+    if (imageFile) {
+        try {
+            imageUrl = await saveOccasionImage(imageFile, newId);
+            // Update the record with the image URL
+            await prisma.occasion.update({
+                where: { id: newId },
+                data: { imageUrl }
+            });
+            newOccasion.imageUrl = imageUrl;
+        } catch (e) {
+            console.error("Error saving image", e);
+        }
+    }
+
+    return {
+        ...newOccasion, 
+        imageUrl: getPublicUrlForPath(newOccasion.imageUrl),
+        products: []
+    } as Occasion;
   },
   
   async updateOccasion(id: number, data: any, imageFile: File | null, editorId: number): Promise<Occasion> {
-    const existing = await occasionRepository.findById(id);
+    const existing = await prisma.occasion.findUnique({ where: { id } });
     if (!existing) throw new Error('Ocasión no encontrada.');
 
     const validatedData = occasionSchema.parse(data);
     const slug = slugify(validatedData.name, { lower: true, strict: true });
 
-    const existingSlug = await occasionRepository.findBySlug(slug);
+    const existingSlug = await prisma.occasion.findUnique({ where: { slug } });
     if(existingSlug && existingSlug.id !== id) {
         throw new Error('Ya existe otra ocasión con este nombre/slug.');
     }
     
-    let imageUrl = existing.image_url;
+    let imageUrl = existing.imageUrl;
     if (imageFile) {
         if(imageUrl) await deleteLocalFile(imageUrl);
         imageUrl = await saveOccasionImage(imageFile, id);
     }
     
-    const dataToUpdate: Partial<Omit<Occasion, 'id'>> & { image_url?: string | null } = {
-        name: validatedData.name,
-        slug,
-        description: validatedData.description,
-        image_url: imageUrl,
-        show_on_home: validatedData.show_on_home,
-    };
-    
     const updatedOccasion = await dbWithAudit(editorId, () =>
-      occasionRepository.update(id, dataToUpdate)
+      prisma.occasion.update({
+        where: { id },
+        data: {
+            name: validatedData.name,
+            slug,
+            description: validatedData.description,
+            imageUrl: imageUrl,
+            showOnHome: validatedData.show_on_home,
+        }
+      })
     );
-    if(!updatedOccasion) throw new Error('No se pudo actualizar la ocasión.');
-
-    return {...updatedOccasion, image_url: getPublicUrlForPath(updatedOccasion.image_url), show_on_home: !!updatedOccasion.show_on_home};
+    
+    return {
+        ...updatedOccasion, 
+        imageUrl: getPublicUrlForPath(updatedOccasion.imageUrl),
+        products: []
+    } as Occasion;
   },
   
   async deleteOccasion(id: number, deleterId: number): Promise<void> {
-    const existing = await occasionRepository.findById(id);
+    const existing = await prisma.occasion.findUnique({ where: { id } });
+    if (!existing) return;
 
-    const hasProducts = await occasionRepository.hasProducts(id);
+    // Check relations
+    // Assuming Relation name follows naming convention or explicitly checked in schema
+    // In schema: products ProductOccasion[]
+    const hasProducts = await prisma.productOccasion.findFirst({
+        where: { occasionId: id }
+    });
+    
     if(hasProducts) throw new Error('No se puede eliminar la ocasión porque tiene productos asociados.');
     
-    await dbWithAudit(deleterId, () =>
-      occasionRepository.delete(id)
-    );
+    await dbWithAudit(deleterId, async () => {
+        await prisma.occasion.delete({ where: { id } });
+    });
 
-    if (existing?.image_url) {
-      await deleteLocalFile(existing.image_url);
+    if (existing?.imageUrl) {
+      await deleteLocalFile(existing.imageUrl);
     }
+  },
+
+  async getOccasionBySlug(slug: string): Promise<Occasion | null> {
+    const occasion = await prisma.occasion.findUnique({ where: { slug } });
+    if (!occasion) return null;
+    
+    return {
+        ...occasion,
+        imageUrl: getPublicUrlForPath(occasion.imageUrl),
+        products: []
+    } as Occasion;
+  },
+    
+  async getOccasionById(id: number): Promise<Occasion | null> {
+    const occasion = await prisma.occasion.findUnique({ where: { id } });
+    if (!occasion) return null;
+    
+    return {
+        ...occasion,
+        imageUrl: getPublicUrlForPath(occasion.imageUrl),
+        products: []
+    } as Occasion;
   }
 };

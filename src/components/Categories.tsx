@@ -19,7 +19,7 @@ interface CategoriesProps {
 }
 
 export function Categories({ categories, isLoading }: CategoriesProps) {
-  const mainCategories = categories.filter(c => c.show_on_home && !c.parent_id && c.slug !== 'complementos');
+  const mainCategories = categories.filter(c => c.showOnHome && !c.parentId && c.slug !== 'complementos');
 
   if (!isLoading && mainCategories.length === 0) {
     return null;
@@ -56,7 +56,7 @@ export function Categories({ categories, isLoading }: CategoriesProps) {
                     <Link href={`/categories/${category.slug}`} className="group relative block h-full">
                         <Card className="overflow-hidden h-full aspect-[4/5] rounded-3xl shadow-md transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 border-none">
                             <Image
-                                src={category.image_url || '/placehold.webp'}
+                                src={category.imageUrl || '/placehold.webp'}
                                 alt={`Colección de ${category.name}`}
                                 fill
                                 className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-110"

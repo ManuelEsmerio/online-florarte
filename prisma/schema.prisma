@@ -492,6 +492,8 @@ model Testimonial {
   order     Order             @relation(fields: [orderId], references: [id])
   rating    Int               // 1–5
   comment   String            @db.Text
+  userName  String
+  userProfilePic String?
   status    TestimonialStatus @default(PENDING)
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt

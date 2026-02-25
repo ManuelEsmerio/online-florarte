@@ -1,114 +1,177 @@
-// src/services/categoryService.ts
-import { categoryRepository } from '../repositories/categoryRepository';
+import { prisma } from '@/lib/prisma';
 import type { ProductCategory } from '@/lib/definitions';
-import { getPublicUrlForPath } from '@/utils/file-utils';
-import { saveCategoryImage, deleteLocalFile } from './file.service';
-import { z } from 'zod';
+import { z } from 'zod'; // Assuming you are using zod for validation
 import slugify from 'slugify';
-import { dbWithAudit } from '@/lib/db';
 
-const categorySchema = z.object({
-  name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
-  description: z.string().min(10, 'La descripción es muy corta.'),
-  parent_id: z.coerce.number().optional().nullable(),
-  show_on_home: z.boolean().default(false),
-});
+// Define the shape based on your Prisma Schema and Definitions
+// We map Prisma fields to your application interface
 
 export const categoryService = {
-  async getHomePageCategories(): Promise<ProductCategory[]> {
-    const dbCategories = await categoryRepository.findAll();
-    return dbCategories
-      .filter(c => c.show_on_home)
-      .map(c => ({
-        ...c,
-        image_url: getPublicUrlForPath(c.image_url) || '/placehold.webp',
-        show_on_home: !!c.show_on_home,
-    }));
+  // --- Get All (Flattened or Tree) ---
+  async getAllCategories() {
+    const categories = await prisma.productCategory.findMany({
+      where: { isDeleted: false },
+      orderBy: { id: 'asc' }, // Or sortOrder if you add it later
+      include: {
+        children: {
+          where: { isDeleted: false },
+        },
+      },
+    });
+    return categories;
   },
 
-  async getAllCategories(): Promise<ProductCategory[]> {
-    const dbCategories = await categoryRepository.findAll();
-    return dbCategories.map(c => ({
-        ...c,
-        image_url: getPublicUrlForPath(c.image_url) || '/placehold.webp',
-        show_on_home: !!c.show_on_home,
-    }));
+  // --- Get Main Categories (Roots) ---
+  async getMainCategories() {
+    return await prisma.productCategory.findMany({
+      where: {
+        parentId: null,
+        isDeleted: false,
+      },
+      include: {
+        children: {
+          where: { isDeleted: false },
+        },
+      },
+    });
   },
-  
-  async createCategory(data: any, imageFile: File | null, creatorId: number): Promise<ProductCategory> {
-    const validatedData = categorySchema.parse(data);
-    const slug = slugify(validatedData.name, { lower: true, strict: true });
-    
-    const existing = await categoryRepository.findByName(validatedData.name);
-    if(existing) throw new Error('Ya existe una categoría con este nombre.');
-    
-    const newCategoryId = await dbWithAudit(creatorId, async (connection) => {
-      const createParams = { ...validatedData, slug, prefix: validatedData.name.substring(0,3).toUpperCase() };
-      return await categoryRepository.create(connection, createParams);
+
+  // --- Get Home Page Categories ---
+  async getHomePageCategories() {
+    return await prisma.productCategory.findMany({
+      where: {
+        showOnHome: true,
+        isDeleted: false,
+      },
+      orderBy: { id: 'asc' },
+      include: {
+        children: {
+          where: { isDeleted: false },
+        },
+      },
+    });
+  },
+
+  // --- Get by Slug ---
+  async getCategoryBySlug(slug: string) {
+    const category = await prisma.productCategory.findFirst({
+      where: {
+        slug: slug,
+        isDeleted: false,
+      },
+      include: {
+        children: {
+          where: { isDeleted: false },
+        },
+        parent: true,
+      },
     });
 
-    if (!newCategoryId) {
-      throw new Error("No se pudo crear la categoría");
-    }
-    
-    let imageUrl: string | null = null;
-    if (imageFile) {
-        imageUrl = await saveCategoryImage(imageFile, newCategoryId);
-        await dbWithAudit(creatorId, async (connection) => {
-            await categoryRepository.update(connection, newCategoryId, { image_url: imageUrl });
-        });
-    }
-
-    const newCategory = await categoryRepository.findById(newCategoryId);
-    if (!newCategory) throw new Error("No se pudo recuperar la categoría creada.");
-    
-    return { ...newCategory, image_url: getPublicUrlForPath(imageUrl), show_on_home: !!newCategory.show_on_home };
+    if (!category) return null;
+    return category;
   },
-  
-  async updateCategory(id: number, data: any, imageFile: File | null, editorId: number): Promise<ProductCategory> {
-    const existing = await categoryRepository.findById(id);
-    if(!existing) throw new Error('Categoría no encontrada.');
-    
-    const validatedData = categorySchema.parse(data);
-    const slug = slugify(validatedData.name, { lower: true, strict: true });
 
-    const existingSlug = await categoryRepository.findByName(validatedData.name);
-    if(existingSlug && existingSlug.id !== id) {
-        throw new Error('Ya existe otra categoría con este nombre.');
-    }
-    
-    const dataToUpdate: any = { ...validatedData, slug };
-    
-    if (imageFile) {
-        if(existing.image_url) await deleteLocalFile(existing.image_url);
-        dataToUpdate.image_url = await saveCategoryImage(imageFile, id);
-    }
-    
-    await dbWithAudit(editorId, async (connection) => {
-        await categoryRepository.update(connection, id, dataToUpdate);
+  // --- Get by ID ---
+  async getCategoryById(id: number) {
+    const category = await prisma.productCategory.findUnique({
+      where: { id },
+      include: {
+        children: {
+          where: { isDeleted: false },
+        },
+      },
     });
-
-    const updatedCategory = await categoryRepository.findById(id);
-    if(!updatedCategory) throw new Error('No se pudo actualizar la categoría.');
-
-    return {...updatedCategory, image_url: getPublicUrlForPath(updatedCategory.image_url), show_on_home: !!updatedCategory.show_on_home};
-  },
-  
-  async toggleCategoryShowOnHome(categoryId: number, showOnHome: boolean, editorId: number): Promise<void> {
-    await dbWithAudit(editorId, (connection) => 
-      categoryRepository.update(connection, categoryId, { show_on_home: showOnHome })
-    );
+    
+    // Check logical deletion manually if needed, though findUnique returns null if not found
+    if (category?.isDeleted) return null;
+    
+    return category;
   },
 
-  async deleteCategory(id: number, deleterId: number): Promise<void> {
-    const hasProducts = await categoryRepository.hasProducts(id);
-    if(hasProducts) throw new Error('No se puede eliminar la categoría porque tiene productos asociados.');
+  // --- Create ---
+  async createCategory(data: Partial<ProductCategory>) {
+    // Generate Slug if not provided
+    let slug = data.slug;
+    if (!slug && data.name) {
+      slug = slugify(data.name, { lower: true, strict: true });
+    }
+
+    if (!slug) throw new Error('Slug is required or could not be generated');
+    if (!data.name) throw new Error('Name is required');
+
+    // Check slug uniqueness
+    const existing = await prisma.productCategory.findUnique({
+      where: { slug },
+    });
+    if (existing) throw new Error(`Category with slug "${slug}" already exists.`);
+
+    return await prisma.productCategory.create({
+      data: {
+        name: data.name,
+        slug: slug,
+        prefix: data.prefix || 'CAT',
+        description: data.description,
+        imageUrl: data.imageUrl,
+        parentId: data.parentId,
+        showOnHome: data.showOnHome ?? false,
+      },
+    });
+  },
+
+  // --- Update ---
+  async updateCategory(id: number, data: Partial<ProductCategory>) {
+    // Check if exists
+    const existing = await prisma.productCategory.findUnique({ where: { id } });
+    if (!existing || existing.isDeleted) throw new Error('Category not found');
+
+    // Handle slug update check
+    if (data.slug && data.slug !== existing.slug) {
+      const duplicate = await prisma.productCategory.findUnique({
+        where: { slug: data.slug },
+      });
+      if (duplicate && duplicate.id !== id) {
+        throw new Error('Slug already in use by another category.');
+      }
+    }
+
+    return await prisma.productCategory.update({
+      where: { id },
+      data: {
+        name: data.name,
+        slug: data.slug,
+        prefix: data.prefix,
+        description: data.description,
+        imageUrl: data.imageUrl,
+        parentId: data.parentId,
+        showOnHome: data.showOnHome,
+      },
+    });
+  },
+
+  // --- Delete (Soft Delete) ---
+  async deleteCategory(id: number) {
+    // Check for children or products before deleting
+    const hasChildren = await prisma.productCategory.count({
+      where: { parentId: id, isDeleted: false },
+    });
+    if (hasChildren > 0) {
+      throw new Error('Cannot delete category with active subcategories.');
+    }
     
-    const hasSubcategories = await categoryRepository.hasSubcategories(id);
-    if(hasSubcategories) throw new Error('No se puede eliminar la categoría porque tiene subcategorías asociadas.');
+    const hasProducts = await prisma.product.count({
+      where: { categoryId: id, isDeleted: false }
+    });
     
-    await dbWithAudit(deleterId, (connection) => 
-        categoryRepository.delete(connection, id)
-    );
-  }
+    if (hasProducts > 0) {
+        throw new Error('Cannot delete category containing active products.');
+    }
+
+    return await prisma.productCategory.update({
+      where: { id },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+    });
+  },
 };
