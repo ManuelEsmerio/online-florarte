@@ -50,6 +50,17 @@ type SortOption = 'recommended' | 'price-asc' | 'price-desc';
 const PRODUCT_LIMIT = 999; 
 const ITEMS_PER_PAGE = 16;
 
+type HomeDataCache = {
+  categories: ProductCategory[];
+  occasions: Occasion[];
+  testimonials: any[];
+  announcements: Announcement[];
+  tags: Tag[];
+};
+
+let homeDataMemoryCache: HomeDataCache | null = null;
+let homeDataInFlight: Promise<HomeDataCache> | null = null;
+
 interface CategoryPageClientProps {
   categorySlug?: string | null;
   pageType: 'category' | 'all' | 'occasion';
@@ -88,12 +99,37 @@ export function CategoryPageClient({
         }
         
         const productsPromise = apiFetch(productsUrl);
-        const homeDataPromise = apiFetch('/api/home');
+        const cachedHomeData = homeDataMemoryCache;
+        let homeDataPromise: Promise<HomeDataCache>;
 
-        const [productsRes, homeDataRes] = await Promise.all([productsPromise, homeDataPromise]);
+        if (cachedHomeData) {
+          homeDataPromise = Promise.resolve(cachedHomeData);
+        } else {
+          if (!homeDataInFlight) {
+            homeDataInFlight = (async () => {
+              const homeDataRes = await apiFetch('/api/home');
+              const homeData = await handleApiResponse(homeDataRes);
+
+              return {
+                categories: homeData.categories || [],
+                occasions: homeData.occasions || [],
+                testimonials: homeData.testimonials || [],
+                announcements: homeData.announcements || [],
+                tags: homeData.tags || [],
+              } as HomeDataCache;
+            })();
+          }
+
+          homeDataPromise = homeDataInFlight;
+        }
+
+        const [productsRes, homeData] = await Promise.all([productsPromise, homeDataPromise]);
         
         const productsData = await handleApiResponse(productsRes);
-        const homeData = await handleApiResponse(homeDataRes);
+        if (!cachedHomeData) {
+          homeDataMemoryCache = homeData;
+          homeDataInFlight = null;
+        }
         
         setAllProducts(productsData.products || []);
         setAllCategories(homeData.categories || []);
@@ -102,6 +138,7 @@ export function CategoryPageClient({
         setAnnouncements(homeData.announcements || []);
 
     } catch (error) {
+      homeDataInFlight = null;
         console.error("Failed to fetch initial page data:", error);
     } finally {
         setIsLoading(false);

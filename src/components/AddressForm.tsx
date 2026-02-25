@@ -1,17 +1,18 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Textarea } from './ui/textarea';
 import type { Address } from '@/lib/definitions';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 import { ADDRESS_TYPE_OPTIONS } from '@/utils/constants';
+import { useAuth } from '@/context/AuthContext';
 
 const addressFormSchema = z.object({
   id: z.number().optional(),
@@ -39,6 +40,7 @@ interface AddressFormProps {
 }
 
 export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: AddressFormProps) {
+    const { shippingZones } = useAuth();
   const form = useForm<AddressFormValues>({
     resolver: zodResolver(addressFormSchema),
     defaultValues: {
@@ -67,6 +69,28 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
       });
     }
   }, [addressToEdit, form]);
+
+    const cityValue = useWatch({ control: form.control, name: 'city' });
+    const postalCodeValue = useWatch({ control: form.control, name: 'postalCode' });
+
+    const cityOptions = useMemo(
+        () => Array.from(new Set((shippingZones || []).map(zone => zone.locality).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+        [shippingZones]
+    );
+
+    useEffect(() => {
+        if (!cityValue && cityOptions.length > 0) {
+            form.setValue('city', cityOptions[0], { shouldValidate: true });
+        }
+    }, [cityOptions, cityValue, form]);
+
+    useEffect(() => {
+        if (!postalCodeValue) return;
+        const matchedZone = shippingZones.find(zone => zone.postalCode === postalCodeValue);
+        if (matchedZone?.locality && matchedZone.locality !== cityValue) {
+            form.setValue('city', matchedZone.locality, { shouldValidate: true });
+        }
+    }, [postalCodeValue, shippingZones, cityValue, form]);
 
   const onSubmit = async (data: AddressFormValues) => {
     const finalData = { ...data, id: addressToEdit?.id ?? 0, recipientPhone: data.recipientPhone, referenceNotes: data.referenceNotes };
@@ -185,9 +209,26 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
                     render={({ field }) => (
                         <FormItem className="space-y-2">
                             <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Ciudad *</FormLabel>
-                            <FormControl>
-                                <Input {...field} className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium" />
-                            </FormControl>
+                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                                <FormControl>
+                                                                        <SelectTrigger className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium">
+                                                                                <SelectValue placeholder="Selecciona una ciudad" />
+                                                                        </SelectTrigger>
+                                                                </FormControl>
+                                                                <SelectContent className="z-[9999] max-h-[200px]">
+                                                                        {cityOptions.length > 0 ? (
+                                                                            cityOptions.map((city) => (
+                                                                                <SelectItem key={city} value={city}>
+                                                                                    {city}
+                                                                                </SelectItem>
+                                                                            ))
+                                                                        ) : (
+                                                                            <SelectItem value={field.value || 'sin-localidades'} disabled>
+                                                                                Sin localidades disponibles
+                                                                            </SelectItem>
+                                                                        )}
+                                                                </SelectContent>
+                                                        </Select>
                             <FormMessage />
                         </FormItem>
                     )}

@@ -18,24 +18,48 @@ function mapStatus(status: string): string {
 export const orderService = {
   async getAllOrdersForAdmin(filters: any) {
     const where: any = {};
-    if (filters?.status) where.status = filters.status.toUpperCase();
+    if (Array.isArray(filters?.status) && filters.status.length > 0) {
+      where.status = {
+        in: filters.status.map((status: string) => Object.entries(ORDER_STATUS_MAP).find(([, value]) => value === status)?.[0] ?? String(status).toUpperCase()),
+      };
+    } else if (typeof filters?.status === 'string' && filters.status.trim() !== '') {
+      where.status = (Object.entries(ORDER_STATUS_MAP).find(([, value]) => value === filters.status)?.[0] ?? String(filters.status).toUpperCase());
+    }
+
+    if (filters?.search) {
+      where.OR = [
+        { id: Number.isNaN(Number(filters.search)) ? undefined : Number(filters.search) },
+        { user: { name: { contains: filters.search } } },
+        { user: { email: { contains: filters.search } } },
+      ].filter(Boolean);
+    }
+
     if (filters?.userId) where.userId = filters.userId;
 
     const orders = await prisma.order.findMany({
       where,
-      include: { user: { select: { name: true, email: true } }, items: { include: { product: true, variant: true } } },
+      include: {
+        user: { select: { name: true, email: true } },
+        deliveryDriver: { select: { name: true } },
+        items: { include: { product: true, variant: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
     return {
-      orders: orders.map(o => ({
+      orders: orders.map((o: any) => ({
         ...o,
         status: mapStatus(o.status),
         customerName: o.user.name,
         customerEmail: o.user.email,
+        deliveryDriverName: o.deliveryDriver?.name ?? null,
         total: Number(o.total),
         subtotal: Number(o.subtotal),
+        coupon_discount: Number(o.couponDiscount),
         shipping_cost: Number(o.shippingCost),
+        delivery_date: o.deliveryDate?.toISOString().slice(0, 10) ?? '',
+        delivery_time_slot: o.deliveryTimeSlot,
+        delivery_notes: o.deliveryNotes,
         created_at: o.createdAt.toISOString(),
         updated_at: o.updatedAt.toISOString(),
       })),
@@ -53,7 +77,7 @@ export const orderService = {
       orderBy: { createdAt: 'desc' },
     });
 
-    return orders.map(o => ({
+    return orders.map((o: any) => ({
       id: o.id,
       user_id: o.userId,
       customerName: o.user.name,
@@ -69,7 +93,7 @@ export const orderService = {
       is_anonymous: o.isAnonymous,
       signature: o.signature,
       created_at: o.createdAt.toISOString(),
-      items: o.items.map(it => ({
+      items: o.items.map((it: any) => ({
         product_id: it.productId,
         quantity: it.quantity,
         price: Number(it.unitPrice),
@@ -102,7 +126,7 @@ export const orderService = {
       is_anonymous: order.isAnonymous,
       signature: order.signature,
       created_at: order.createdAt.toISOString(),
-      items: order.items.map(it => ({
+      items: order.items.map((it: any) => ({
         product_id: it.productId,
         quantity: it.quantity,
         price: Number(it.unitPrice),

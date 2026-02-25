@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { allOrders } from '@/lib/data/order-data';
 import type { Order, OrderStatus } from '@/lib/definitions';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -39,10 +38,28 @@ const formatCurrency = (amount: number | null | undefined) => {
 const statusColors: Record<OrderStatus, string> = {
     pendiente: 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
     procesando: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800',
-    enviado: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800',
+    en_reparto: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800',
     completado: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800',
     cancelado: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/40 dark:text-rose-300 dark:border-rose-800',
 };
+
+const normalizeOrder = (order: any): Order => ({
+    ...order,
+    created_at: order.created_at ?? order.createdAt,
+    delivery_date: order.delivery_date ?? (order.deliveryDate ? new Date(order.deliveryDate).toISOString().slice(0, 10) : ''),
+    delivery_time_slot: order.delivery_time_slot ?? order.deliveryTimeSlot ?? '',
+    shipping_cost: order.shipping_cost ?? order.shippingCost ?? 0,
+    coupon_discount: order.coupon_discount ?? order.couponDiscount ?? 0,
+    delivery_notes: order.delivery_notes ?? order.deliveryNotes ?? '',
+    deliveryDriverName: order.deliveryDriverName ?? order.deliveryDriver?.name ?? '',
+    items: (order.items ?? []).map((item: any) => ({
+        ...item,
+        product_name: item.product_name ?? item.productNameSnap,
+        variant_name: item.variant_name ?? item.variantNameSnap,
+        image: item.image ?? item.imageSnap,
+        price: item.price ?? item.unitPrice,
+    })),
+});
 
 export const OrderDetailsDialog = ({ orderId, trigger }: { orderId: number, trigger: React.ReactNode }) => {
     const { toast } = useToast();
@@ -51,13 +68,27 @@ export const OrderDetailsDialog = ({ orderId, trigger }: { orderId: number, trig
 
     useEffect(() => {
         if (isOpen) {
-            // Mock data fetch
-            const foundOrder = allOrders.find(o => o.id === orderId);
-            if (foundOrder) {
-                setOrder(foundOrder);
-            } else {
-                toast({ title: "Error", description: "Pedido no encontrado en datos de prueba", variant: "destructive" });
-            }
+            const fetchOrder = async () => {
+                try {
+                    const response = await fetch(`/api/admin/orders/${orderId}`, { credentials: 'include' });
+                    const result = await response.json();
+
+                    if (!response.ok || !result?.success) {
+                        throw new Error(result?.message || 'Pedido no encontrado');
+                    }
+
+                    setOrder(normalizeOrder(result.data));
+                } catch (error: any) {
+                    toast({
+                        title: 'Error',
+                        description: error?.message || 'No se pudo cargar el detalle del pedido.',
+                        variant: 'destructive',
+                    });
+                    setOrder(null);
+                }
+            };
+
+            fetchOrder();
         }
     }, [isOpen, orderId, toast]);
 
@@ -236,7 +267,7 @@ export const OrderDetailsDialog = ({ orderId, trigger }: { orderId: number, trig
                                             </div>
                                         </li>
                                          
-                                        {['procesando', 'enviado', 'completado'].includes(order.status) && (
+                                        {['procesando', 'en_reparto', 'completado'].includes(order.status) && (
                                              <li className="flex gap-4 items-start">
                                                 <div className="z-10 h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white shrink-0 shadow-lg shadow-primary/20">
                                                     <Package className="h-4 w-4" />
@@ -248,16 +279,16 @@ export const OrderDetailsDialog = ({ orderId, trigger }: { orderId: number, trig
                                             </li>
                                         )}
 
-                                        {['enviado', 'completado'].includes(order.status) && (
+                                        {['en_reparto', 'completado'].includes(order.status) && (
                                             <li className="flex gap-4 items-start">
                                                 <div className={cn(
                                                     "z-10 h-8 w-8 rounded-full flex items-center justify-center text-white shrink-0",
-                                                    order.status === 'enviado' ? "bg-primary border-4 border-background ring-4 ring-primary/20" : "bg-primary"
+                                                    order.status === 'en_reparto' ? "bg-primary border-4 border-background ring-4 ring-primary/20" : "bg-primary"
                                                 )}>
-                                                    <Truck className={cn("h-4 w-4", order.status === 'enviado' && "animate-pulse")} />
+                                                    <Truck className={cn("h-4 w-4", order.status === 'en_reparto' && "animate-pulse")} />
                                                 </div>
                                                 <div>
-                                                    <p className={cn("text-sm font-bold", order.status === 'enviado' ? "text-primary" : "text-foreground")}>
+                                                    <p className={cn("text-sm font-bold", order.status === 'en_reparto' ? "text-primary" : "text-foreground")}>
                                                         En Camino
                                                     </p>
                                                     <p className="text-muted-foreground text-xs font-medium">Repartidor: {order.deliveryDriverName || 'Asignando...'}</p>

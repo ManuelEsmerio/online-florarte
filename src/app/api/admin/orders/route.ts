@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') {
+    if (user?.role !== 'ADMIN') {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 

@@ -58,14 +58,14 @@ import type { OrderColumnsProps } from '@/app/admin/orders/columns';
 
 const availableTransitions: { [key in OrderStatus]?: OrderStatus[] } = {
   pendiente: ['procesando', 'cancelado'],
-  procesando: ['enviado', 'cancelado'],
-  enviado: ['completado'],
+  procesando: ['en_reparto', 'cancelado'],
+  en_reparto: ['completado'],
 };
 
 const statusTranslations: { [key in OrderStatus]: string } = {
   pendiente: 'Pendiente',
   procesando: 'En Proceso',
-  enviado: 'Enviado',
+  en_reparto: 'En Reparto',
   completado: 'Completado',
   cancelado: 'Cancelado',
 };
@@ -107,7 +107,7 @@ export const OrderActionsCell = ({
     setIsSaving(true);
     const payload: { deliveryDriverId?: number; deliveryNotes?: string } = {};
 
-    if (newStatus === 'enviado') {
+    if (newStatus === 'en_reparto') {
       if (deliveryDriverId) {
         payload.deliveryDriverId = Number(deliveryDriverId);
       }
@@ -138,7 +138,7 @@ export const OrderActionsCell = ({
             </AlertDescription>
           </Alert>
         );
-      case 'enviado':
+      case 'en_reparto':
         return (
           <Alert>
             <Truck className="h-4 w-4" />
@@ -165,7 +165,7 @@ export const OrderActionsCell = ({
 
   const isSaveDisabled =
     isSaving ||
-    (newStatus === 'enviado' && !deliveryDriverId) ||
+    (newStatus === 'en_reparto' && !deliveryDriverId) ||
     newStatus === order.status;
 
   return (
@@ -256,7 +256,7 @@ export const OrderActionsCell = ({
                     </SelectContent>
                   </Select>
                 </div>
-                {newStatus === 'enviado' && (
+                {newStatus === 'en_reparto' && (
                   <>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="driver" className="text-right">

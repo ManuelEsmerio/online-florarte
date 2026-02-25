@@ -30,42 +30,85 @@ import { SlidersHorizontal } from 'lucide-react';
 import { DataTable } from '@/components/ui/data-table/data-table';
 import { useToast } from '@/hooks/use-toast';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
-import { useProductContext } from '@/context/ProductContext';
 import { useAuth } from '@/context/AuthContext';
 
 export default function OrdersPage() {
-  const { orders, isLoading, fetchAppData } = useProductContext();
-  const { allUsers } = useAuth(); // Repartidores se filtran de aquí en un caso real
+  const { apiFetch } = useAuth();
   const { toast } = useToast();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [sorting, setSorting] = useState<SortingState>([{ id: 'id', desc: true }]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [rowSelection, setRowSelection] = useState({});
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [isSendingUpdateFor, setIsSendingUpdateFor] = useState<number | null>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
+
+  const fetchOrders = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await apiFetch('/api/admin/orders?limit=200');
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || 'No se pudieron cargar los pedidos');
+      }
+
+      setOrders((result.data?.orders ?? []) as Order[]);
+    } catch (error: any) {
+      toast({
+        title: 'Error al cargar pedidos',
+        description: error?.message || 'Ocurrió un problema al obtener los pedidos.',
+        variant: 'destructive',
+      });
+      setOrders([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [apiFetch, toast]);
   
   const columnFilters = useMemo(() => {
      return statusFilter.length > 0 ? [{ id: 'status', value: statusFilter }] : [];
   }, [statusFilter]);
 
-  // Simulación de repartidores (filtrados de la lista de usuarios con rol 'delivery')
   const deliveryDrivers = useMemo(() => {
-      // En el prototipo, buscamos los usuarios que tengan rol de repartidor
-      return []; // Por ahora vacío si no hay datos de repartidores en AuthContext
+      return [];
   }, []);
 
   const handleUpdateStatus = useCallback(async (orderId: number, newStatus: OrderStatus, payload: any) => {
-    // Simulación de actualización local
-    toast({
-        title: '¡Estado Actualizado!',
-        description: `El pedido ORD${String(orderId).padStart(4, '0')} ha cambiado a ${newStatus}.`,
-        variant: 'success'
-    });
-    // En un prototipo real, actualizaríamos el estado global o el archivo local
-  }, [toast]);
+    try {
+      const response = await apiFetch(`/api/admin/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: newStatus,
+          deliveryDriverId: payload?.deliveryDriverId,
+          deliveryNotes: payload?.deliveryNotes,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || 'No se pudo actualizar el estado del pedido.');
+      }
+
+      toast({
+        title: '¡Estado actualizado!',
+        description: `El pedido ORD${String(orderId).padStart(4, '0')} se actualizó correctamente.`,
+        variant: 'success',
+      });
+
+      await fetchOrders();
+    } catch (error: any) {
+      toast({
+        title: 'Error al actualizar estado',
+        description: error?.message || 'No fue posible actualizar el pedido.',
+        variant: 'destructive',
+      });
+    }
+  }, [apiFetch, fetchOrders, toast]);
 
   const handleCancelOrder = useCallback(async (orderId: number) => {
     await handleUpdateStatus(orderId, 'cancelado', {});
@@ -85,6 +128,10 @@ export default function OrdersPage() {
     onSendUpdate: handleSendUpdate,
     isSendingUpdateFor,
   }), [handleUpdateStatus, handleCancelOrder, handleSendUpdate, isSendingUpdateFor]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   const table = useReactTable({
     data: orders,
@@ -106,11 +153,11 @@ export default function OrdersPage() {
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const statusOptions: OrderStatus[] = ['pendiente', 'procesando', 'enviado', 'completado', 'cancelado'];
+  const statusOptions: OrderStatus[] = ['pendiente', 'procesando', 'en_reparto', 'completado', 'cancelado'];
   const statusTranslations: { [key in OrderStatus]: string } = {
     'pendiente': 'Pendiente',
     'procesando': 'En Proceso',
-    'enviado': 'Enviado',
+    'en_reparto': 'En Reparto',
     'completado': 'Completado',
     'cancelado': 'Cancelado',
   }

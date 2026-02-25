@@ -60,14 +60,18 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
   
   const addressId = watch('addressId');
   const selectedAddress = user?.addresses?.find(a => a.id === addressId);
-  const currentZone = selectedAddress ? shippingZones.find(z => z.postalCode === selectedAddress.postalCode) : null;
+  const currentZone = selectedAddress
+    ? shippingZones.find(z => z.postalCode === selectedAddress.postalCode)
+      ?? shippingZones.find(z => z.locality === selectedAddress.city)
+    : null;
   const shippingCostValue = currentZone?.shippingCost ?? null;
   
   const isCompleted = (!!selectedAddress && shippingCostValue !== null) || currentStep > 2;
 
   useEffect(() => {
     if (selectedAddress) {
-      const zone = shippingZones.find(z => z.postalCode === selectedAddress.postalCode);
+      const zone = shippingZones.find(z => z.postalCode === selectedAddress.postalCode)
+        ?? shippingZones.find(z => z.locality === selectedAddress.city);
       setShippingCost(zone ? zone.shippingCost : null);
     }
   }, [selectedAddress, shippingZones, setShippingCost]);
@@ -79,12 +83,6 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
 
   const handleSaveAddress = async (address: Address) => {
     setIsSaving(true);
-    const zone = shippingZones.find(z => z.postalCode === address.postalCode);
-    if (!zone) {
-      toast({ title: 'Sin cobertura', description: 'Lo sentimos, no tenemos cobertura para este código postal.', variant: 'destructive' });
-      setIsSaving(false);
-      return false;
-    }
     const action = address.id && address.id > 0 ? updateAddress : addAddress;
     if (action) {
       const result = await action(address);

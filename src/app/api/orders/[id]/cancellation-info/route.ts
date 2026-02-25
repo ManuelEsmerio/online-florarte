@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
     
     // Asegurarse de que el usuario solo pueda ver la información de sus propios pedidos
-    if (order.user_id !== session.dbId) {
+    if (order.userId !== session.dbId) {
         return errorHandler(new Error('Acceso prohibido. No puedes ver este pedido.'), 403);
     }
 

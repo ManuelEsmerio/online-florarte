@@ -1,7 +1,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { useAuth } from '@/context/AuthContext';
 
 interface CustomerDetailModalProps {
   isOpen: boolean;
@@ -42,7 +43,17 @@ export function CustomerDetailModal({
   onOpenChange,
   user,
 }: CustomerDetailModalProps) {
+    const { shippingZones } = useAuth();
   if (!user) return null;
+
+    const localityByPostalCode = useMemo(() => {
+        const entries = (shippingZones || []).map(zone => [zone.postalCode, zone.locality] as const);
+        return new Map(entries);
+    }, [shippingZones]);
+
+    const getAddressLocality = (address: Address) => {
+        return localityByPostalCode.get(address.postalCode) || address.city;
+    };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -116,9 +127,9 @@ export function CustomerDetailModal({
                                     <Badge variant="secondary" className="capitalize text-[9px] font-bold">{address.addressType?.replace('-', ' ')}</Badge>
                                 </div>
                                 <div className="text-muted-foreground space-y-1 pl-1">
-                                    <p className="text-xs"><strong>Recibe:</strong> {address.recipientName} ({address.phone})</p>
+                                    <p className="text-xs"><strong>Recibe:</strong> {address.recipientName} ({address.recipientPhone || 'Sin teléfono'})</p>
                                     <p className="text-xs leading-relaxed">{`${address.streetName} ${address.streetNumber}${address.interiorNumber ? `, Int. ${address.interiorNumber}` : ''}`}</p>
-                                    <p className="text-[10px] font-bold uppercase tracking-wider">{`${address.neighborhood}, ${address.city}, CP ${address.postalCode}`}</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-wider">{`${address.neighborhood}, ${getAddressLocality(address)}, CP ${address.postalCode}`}</p>
                                     {address.reference_notes && (
                                         <div className="mt-3 p-3 rounded-xl bg-muted/50 text-[10px] italic border-l-2 border-primary/30">
                                             Ref: {address.reference_notes}

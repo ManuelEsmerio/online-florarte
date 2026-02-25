@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { 
@@ -223,25 +223,38 @@ function ProfilePageContent() {
     setIsChangingPassword(false);
     };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+            if (file.size > 2 * 1024 * 1024) {
+                toast({
+                    title: 'Imagen demasiado grande',
+                    description: 'La foto debe pesar máximo 2MB.',
+                    variant: 'destructive',
+                });
+                e.target.value = '';
+                return;
+            }
+
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        form.setValue('profilePic', base64String);
+                form.setValue('profilePic', base64String, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                });
+                e.target.value = '';
       };
       reader.readAsDataURL(file);
     }
   };
-  
-  const profilePic = useMemo(() => {
-    return (
-        form.watch("profilePic") ||
-        user?.profilePicUrl ||
-        ""
-    );
-    }, [form, user]);
+
+    const watchedProfilePic = useWatch({
+        control: form.control,
+        name: 'profilePic',
+    });
+
+    const profilePic = watchedProfilePic || user?.profilePicUrl || '';
 
   const handleDeleteAccount = async () => {
     if(deleteAccount) {

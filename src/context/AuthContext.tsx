@@ -8,9 +8,11 @@ import { useToast } from '@/hooks/use-toast';
 import { Order, Product, Address, ShippingZone, Coupon, User } from '@/lib/definitions';
 import type { LoginCredentials, RegisterData } from '@/lib/definitions';
 import { apiFetch as baseApiFetch } from '@/lib/apiFetch';
-// Importación de datos mock
 import { allShippingZones } from '@/lib/data/shipping-zones';
 import { allUsers } from '@/lib/data/user-data';
+
+let shippingZonesMemoryCache: ShippingZone[] | null = null;
+let shippingZonesInFlight: Promise<ShippingZone[]> | null = null;
 
 interface AuthResult {
   success: boolean;
@@ -64,6 +66,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const fetchShippingZones = useCallback(async () => {
+    if (shippingZonesMemoryCache && shippingZonesMemoryCache.length > 0) {
+      setShippingZones(shippingZonesMemoryCache);
+      return;
+    }
+
+    if (!shippingZonesInFlight) {
+      shippingZonesInFlight = (async () => {
+        try {
+          const res = await apiFetch('/api/shipping', { cache: 'force-cache' });
+          if (!res.ok) {
+            return allShippingZones as unknown as ShippingZone[];
+          }
+
+          const result = await res.json();
+          const zones = Array.isArray(result?.data) ? (result.data as ShippingZone[]) : [];
+          return zones.length > 0 ? zones : (allShippingZones as unknown as ShippingZone[]);
+        } catch {
+          return allShippingZones as unknown as ShippingZone[];
+        }
+      })();
+    }
+
+    try {
+      const zones = await shippingZonesInFlight;
+      shippingZonesMemoryCache = zones;
+      setShippingZones(zones);
+    } finally {
+      shippingZonesInFlight = null;
+    }
+  }, [apiFetch]);
+
   const fetchUserData = useCallback(async (): Promise<void> => {
     try {
       const res = await apiFetch('/api/users/profile');
@@ -103,11 +137,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initializeSession = async () => {
       setLoading(true);
-      await fetchUserData();
+      await Promise.all([fetchUserData(), fetchShippingZones()]);
       setLoading(false);
     };
     initializeSession();
-  }, [fetchUserData]);
+  }, [fetchUserData, fetchShippingZones]);
 
   // Login User DB
   const login = async (credentials: LoginCredentials): Promise<AuthResult> => {
@@ -385,15 +419,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
   
-  const getOrders = async () => {
-      // Retornamos pedidos reales para el usuario logueado en modo mock
-      const { allOrders } = await import('@/lib/data/order-data');
-      return allOrders.filter(o => o.user_id === user?.id);
+  const getOrders = async (): Promise<Order[]> => {
+    try {
+      const res = await apiFetch('/api/orders');
+      if (!res.ok) {
+        return [];
+      }
+
+      const result = await res.json();
+      return (result.data ?? []) as Order[];
+    } catch {
+      return [];
+    }
   };
 
-  const getCoupons = async () => {
-      const { userCoupons } = await import('@/lib/data/user-coupon-data');
-      return userCoupons.filter(c => c.scope === 'global' || c.user_id === user?.id);
+  const getCoupons = async (): Promise<Coupon[]> => {
+    try {
+      const res = await apiFetch('/api/users/coupons');
+      if (!res.ok) {
+        return [];
+      }
+
+      const result = await res.json();
+      return (result.data ?? []) as Coupon[];
+    } catch {
+      return [];
+    }
   };
 
   const toggleWishlist = async (productId: number, product: Product): Promise<ToggleWishlistResult> => {

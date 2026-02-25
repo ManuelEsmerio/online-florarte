@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') {
+    if (user?.role !== 'ADMIN') {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 
@@ -52,7 +52,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
             return errorHandler(new Error('Acceso denegado.'), 401);
         }
         const user = await userService.getUserById(session.dbId);
-        if (user?.role !== 'admin') {
+        if (user?.role !== 'ADMIN') {
             return errorHandler(new Error('Acceso prohibido.'), 403);
         }
 
@@ -60,7 +60,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         const body = await req.json();
 
         // Validar que el código de estado sea uno de los permitidos
-        const validStatusCodes: OrderStatus[] = ['procesando', 'en_reparto', 'completado', 'cancelado'];
+        const validStatusCodes: OrderStatus[] = ['pendiente', 'procesando', 'en_reparto', 'completado', 'cancelado'];
         if (!body.status || !validStatusCodes.includes(body.status)) {
             return errorHandler(new Error('Código de estado no válido.'), 400);
         }
@@ -70,7 +70,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
             deliveryNotes: body.deliveryNotes || null,
         };
 
-        const success = await orderService.updateOrderStatus(orderId, body.status, payload, session.dbId);
+        const success = await orderService.updateOrderStatus(orderId, body.status, payload);
 
         if (!success) {
             throw new Error('No se pudo actualizar el estado del pedido.');

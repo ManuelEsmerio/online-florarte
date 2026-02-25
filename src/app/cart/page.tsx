@@ -154,32 +154,6 @@ export default function CartPage() {
         }
     }, [authShippingZones]);
 
-    useEffect(() => {
-        let cancelled = false;
-
-        const fetchShippingZones = async () => {
-            try {
-                const response = await fetch('/api/shipping', { cache: 'no-store' });
-                if (!response.ok) return;
-
-                const result = await response.json();
-                const zones = Array.isArray(result?.data) ? result.data : [];
-
-                if (!cancelled) {
-                      setShippingZones(zones as ShippingZone[]);
-                }
-            } catch (error) {
-                console.error('[CART_SHIPPING_FETCH_ERROR]', error);
-            }
-        };
-
-        fetchShippingZones();
-
-        return () => {
-            cancelled = true;
-        };
-    }, []);
-
   const isShippingInfoComplete = useMemo(() => {
     return deliveryDate && !deliveryDate.includes('No especificada');
   }, [deliveryDate]);
