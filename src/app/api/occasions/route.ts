@@ -3,6 +3,9 @@ import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { occasionService } from '@/services/occasionService';
 
+// Las ocasiones raramente cambian. Next.js cachea la respuesta 1 hora.
+export const revalidate = 3600;
+
 /**
  * GET /api/occasions
  * Endpoint público para obtener todas las ocasiones.

@@ -416,6 +416,28 @@ export interface CartItem {
   variant?: ProductVariant | null;
 }
 
+export interface DbCartItem {
+  id: number;
+  product_id: number;
+  product_name: string;
+  product_slug: string;
+  product_image: string;
+  product_sku_short: string;
+  category_name: string;
+  category_slug: string;
+  variant_id: number | null;
+  variant_name: string | null;
+  variant_code: string | null;
+  variant_image: string | null;
+  quantity: number;
+  unit_price: number;
+  is_complement: number;
+  parent_cart_item_id: number | null;
+  custom_photo_url: string | null;
+  delivery_date: string | null;
+  delivery_time_slot: string | null;
+}
+
 export interface CouponUser {
   couponId: number;
   userId: number;

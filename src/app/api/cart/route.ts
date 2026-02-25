@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
       return successResponse({ items: [], totalItems: 0, subtotal: 0 });
     }
 
-    const cartContents = await cartService.getCartContents({
+    const cartContents = await cartService.getCartContentsForUi({
       userId: userId,
       sessionId: sessionId,
     });

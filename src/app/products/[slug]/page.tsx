@@ -81,7 +81,8 @@ async function getProductData(slug: string): Promise<{ product: Product, complem
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
-  const { slug } = params;
+  const { slug } = await params;
+  console.log('slug: ', slug);
   const data = await getProductData(slug);
 
   if (!data || !data.product) {

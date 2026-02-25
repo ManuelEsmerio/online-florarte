@@ -1,4 +1,3 @@
-// src/app/api/orders/[id]/cancellation-info/route.ts
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession } from '@/utils/auth';
@@ -9,10 +8,6 @@ interface RouteParams {
   params: { id: string };
 }
 
-/**
- * GET /api/orders/[id]/cancellation-info
- * Obtiene la información sobre si un pedido puede ser cancelado y el mensaje correspondiente.
- */
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const session: UserSession | null = await getDecodedToken(req);
@@ -21,24 +16,28 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     const orderId = parseInt(params.id, 10);
-    const order = await orderService.getOrderDetails(orderId);
+    if (Number.isNaN(orderId) || orderId <= 0) {
+      return errorHandler(new Error('ID de pedido inválido.'), 400);
+    }
 
+    const order = await orderService.getOrderDetails(orderId);
     if (!order) {
       return errorHandler(new Error('Pedido no encontrado.'), 404);
     }
 
     const ownerUserId = Number((order as any).user_id ?? (order as any).userId ?? 0);
-    
-    // Asegurarse de que el usuario solo pueda ver la información de sus propios pedidos
     if (!ownerUserId || ownerUserId !== session.dbId) {
-        return errorHandler(new Error('Acceso prohibido. No puedes ver este pedido.'), 403);
+      return errorHandler(new Error('Acceso prohibido. No puedes ver este pedido.'), 403);
     }
 
-    const cancellationInfo = getCancellationInfo(order);
+    const cancellationInfo = getCancellationInfo(order as any);
 
-    return successResponse(cancellationInfo);
+    return successResponse({
+      order,
+      cancellationInfo,
+    });
   } catch (error) {
-    console.error(`[API_CANCELLATION_INFO_ERROR] ID: ${params.id}`, error);
+    console.error(`[API_ORDER_DETAILS_ERROR] ID: ${params.id}`, error);
     return errorHandler(error);
   }
 }

@@ -12,6 +12,9 @@ import { ComplementCategoryModal } from './ComplementCategoryModal';
 import { ComplementCard, ComplementCardSkeleton } from './ComplementCard';
 import { cn } from '@/lib/utils';
 
+const complementSessionCache = new Map<string, Product[]>();
+const complementInFlight = new Map<string, Promise<Product[]>>();
+
 interface ComplementSliderProps {
   product: Product;
   parentCartItemId?: string;
@@ -30,12 +33,30 @@ export function ComplementSlider({ product, parentCartItemId }: ComplementSlider
     const fetchComplements = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/products/${product.slug}/complements`);
-        const data = await handleApiResponse(res, { complements: [] });
-        setComplements(data.complements || []);
+        const cacheKey = String(product.slug);
+
+        if (complementSessionCache.has(cacheKey)) {
+          setComplements(complementSessionCache.get(cacheKey) ?? []);
+          return;
+        }
+
+        if (!complementInFlight.has(cacheKey)) {
+          const request = (async () => {
+            const res = await fetch(`/api/products/${product.slug}/complements`);
+            const data = await handleApiResponse<{ complements?: Product[] }>(res, { complements: [] });
+            const fetched = data.complements || [];
+            complementSessionCache.set(cacheKey, fetched);
+            return fetched;
+          })();
+          complementInFlight.set(cacheKey, request);
+        }
+
+        const fetchedComplements = await complementInFlight.get(cacheKey);
+        setComplements(fetchedComplements ?? []);
       } catch (error) {
         console.error("Failed to fetch complements:", error);
       } finally {
+        complementInFlight.delete(String(product.slug));
         setIsLoading(false);
       }
     };

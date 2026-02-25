@@ -192,10 +192,13 @@ const CheckoutPageContent = () => {
     setIsProcessing(true);
     try {
       const data = getValues();
+      const selectedAddress = user?.addresses?.find((address) => address.id === data.addressId);
       const response = await apiFetch('/api/stripe/checkout-session', {
         method: 'POST',
         body: JSON.stringify({
           addressId: data.addressId,
+          recipientName: selectedAddress?.recipientName,
+          recipientPhone: selectedAddress?.recipientPhone,
           couponCode: data.couponCode,
           deliveryDate: data.deliveryDate,
           deliveryTimeSlot: data.deliveryTimeSlot,

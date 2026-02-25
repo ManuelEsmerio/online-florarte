@@ -3,7 +3,16 @@ import { prisma } from '@/lib/prisma';
 import { productService } from './productService';
 import type { Product, PeakDate } from '@/lib/definitions';
 import { peakDateService } from './peakDateService';
+import { unstable_cache } from 'next/cache';
 import { startOfDay, subDays } from 'date-fns';
+
+// Las peak dates cambian con muy poca frecuencia (fechas especiales del negocio).
+// Se cachean 1 hora para evitar una query a BD en cada llamada a getRecommendations.
+const getCachedPeakDates = unstable_cache(
+  () => peakDateService.getAllPeakDates(),
+  ['peak-dates'],
+  { revalidate: 3600, tags: ['peak-dates'] }
+);
 
 interface RecommendationParams {
   context: 'home' | 'pdp-similar' | 'pdp-bought-together' | 'cart';
@@ -75,7 +84,7 @@ export const recommendationService = {
     if (candidateIds.length === 0) return [];
 
     const candidateProducts = await productService.getProductsByIds(candidateIds);
-    const peakDays = await peakDateService.getAllPeakDates();
+    const peakDays = await getCachedPeakDates();
     const filtered = await applyBusinessRules(candidateProducts, peakDays, productId);
     const diversified = diversifyResults(filtered);
     return diversified.slice(0, limit);

@@ -80,6 +80,26 @@ const statusTranslations: { [key in OrderStatus]: string } = {
     'cancelado': 'Cancelado',
 }
 
+const paymentStatusTranslations: Record<string, string> = {
+    PENDING: 'Pendiente',
+    SUCCEEDED: 'Pagado',
+    FAILED: 'Fallido',
+    CANCELED: 'Cancelado',
+};
+
+const getPaymentStatusBadgeClass = (status?: string) => {
+    switch (status) {
+        case 'SUCCEEDED':
+            return 'bg-green-100 text-green-700 border-none';
+        case 'FAILED':
+            return 'bg-red-100 text-red-700 border-none';
+        case 'CANCELED':
+            return 'bg-slate-100 text-slate-600 border-none';
+        default:
+            return 'bg-amber-100 text-amber-700 border-none';
+    }
+};
+
 const formatCurrency = (amount: number | undefined) => {
     if (amount === undefined) return 'N/A';
     return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount);
@@ -169,14 +189,20 @@ export const DialogCell = ({ row, trigger }: { row: Order, trigger: React.ReactN
     const [isCancelling, setIsCancelling] = useState(false);
     const [cancellationInfo, setCancellationInfo] = useState<{canCancel: boolean, message: string}>({canCancel: false, message: ''});
     const [view, setView] = useState<'details' | 'review'>('details');
+    const [paymentStatus, setPaymentStatus] = useState<string>(String((row as any).payment_status || 'PENDING'));
 
-     const fetchCancellationInfo = useCallback(async () => {
+     const fetchOrderDetails = useCallback(async () => {
         try {
-            const res = await apiFetch(`/api/orders/${row.id}/cancellation-info`);
+            const res = await apiFetch(`/api/orders/${row.id}/details`);
             const data = await handleApiResponse(res);
-            setCancellationInfo(data);
+            if (data?.cancellationInfo) {
+                setCancellationInfo(data.cancellationInfo);
+            }
+            if (data?.order?.payment_status) {
+                setPaymentStatus(String(data.order.payment_status));
+            }
         } catch (error: any) {
-            console.error("Failed to fetch cancellation info:", error.message);
+            console.error("Failed to fetch order details:", error.message);
         }
     }, [apiFetch, row.id]);
 
@@ -195,13 +221,13 @@ export const DialogCell = ({ row, trigger }: { row: Order, trigger: React.ReactN
     
     return (
         <Dialog onOpenChange={(open) => {
-            if (open) fetchCancellationInfo();
+            if (open) fetchOrderDetails();
             else setTimeout(() => setView('details'), 300);
         }}>
             <DialogTrigger asChild>
                 {trigger}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md md:max-w-lg p-0 overflow-hidden border-none shadow-2xl rounded-[2.5rem]">
+            <DialogContent className="sm:max-w-md md:max-w-lg p-0 max-h-[90vh] overflow-y-auto border-none shadow-2xl rounded-[2.5rem] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 <DialogHeader className="p-8 pb-4 text-center">
                     <DialogTitle className='font-headline text-2xl md:text-3xl font-bold'>
                         {view === 'review' ? (row.testimonial ? 'Editar Reseña' : 'Califica tu Pedido') : (
@@ -220,7 +246,7 @@ export const DialogCell = ({ row, trigger }: { row: Order, trigger: React.ReactN
                                 <TabsTrigger value="shipping" className="rounded-full data-[state=active]:bg-primary data-[state=active]:text-white font-bold transition-all h-full">Envío y Pago</TabsTrigger>
                             </TabsList>
                             
-                            <TabsContent value="products" className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <TabsContent value="products" className="space-y-6 animate-in fade-in duration-200 pt-1">
                                 <div>
                                     <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-4">Artículos</h4>
                                     <div className="space-y-4 max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
@@ -269,7 +295,7 @@ export const DialogCell = ({ row, trigger }: { row: Order, trigger: React.ReactN
                                 </div>
                             </TabsContent>
 
-                            <TabsContent value="shipping" className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <TabsContent value="shipping" className="space-y-6 animate-in fade-in duration-200 pt-1">
                                 <div className="space-y-4">
                                     <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Información de Entrega</h4>
                                     <div className="grid grid-cols-1 gap-4 bg-muted/30 p-5 rounded-3xl border border-border/50">
@@ -308,6 +334,12 @@ export const DialogCell = ({ row, trigger }: { row: Order, trigger: React.ReactN
                                 <div className="space-y-4">
                                     <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Resumen de Pago</h4>
                                     <div className="space-y-2 text-sm px-1">
+                                        <div className="flex justify-between items-center text-muted-foreground">
+                                            <span>Estatus del pago</span>
+                                            <Badge className={cn('h-6 text-[10px] font-bold px-2.5 uppercase', getPaymentStatusBadgeClass(paymentStatus))}>
+                                                {paymentStatusTranslations[paymentStatus] ?? paymentStatus}
+                                            </Badge>
+                                        </div>
                                         <div className="flex justify-between text-muted-foreground">
                                             <span>Subtotal</span>
                                             <span>{formatCurrency(row.subtotal)}</span>

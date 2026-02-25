@@ -1,18 +1,42 @@
 // src/lib/business-logic/order-logic.ts
 import { differenceInHours } from 'date-fns';
-import { Order, OrderStatus } from '../definitions';
+import { Order } from '../definitions';
 
 /**
  * Proporciona una traducción legible para los estados de un pedido.
  * @type {{ [key in OrderStatus]: string }}
  */
-const statusTranslations: { [key in OrderStatus]: string } = {
-    'pendiente': 'Pendiente',
-    'procesando': 'En Proceso',
-    'en_reparto': 'En Reparto',
-    'completado': 'Completado',
-    'cancelado': 'Cancelado',
-}
+type CanonicalOrderStatus = 'PENDING' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+
+const statusLabelMap: Record<CanonicalOrderStatus, string> = {
+    PENDING: 'Pendiente',
+    PROCESSING: 'En Proceso',
+    SHIPPED: 'En Reparto',
+    DELIVERED: 'Completado',
+    CANCELLED: 'Cancelado',
+};
+
+const legacyStatusToCanonical: Record<string, CanonicalOrderStatus> = {
+    pendiente: 'PENDING',
+    procesando: 'PROCESSING',
+    en_reparto: 'SHIPPED',
+    enviado: 'SHIPPED',
+    completado: 'DELIVERED',
+    cancelado: 'CANCELLED',
+};
+
+const normalizeOrderStatus = (status: unknown): CanonicalOrderStatus | null => {
+    if (typeof status !== 'string' || status.trim() === '') return null;
+
+    const raw = status.trim();
+    const upper = raw.toUpperCase();
+
+    if (upper === 'PENDING' || upper === 'PROCESSING' || upper === 'SHIPPED' || upper === 'DELIVERED' || upper === 'CANCELLED') {
+        return upper;
+    }
+
+    return legacyStatusToCanonical[raw.toLowerCase()] ?? null;
+};
 
 /**
  * Determina si un pedido puede ser cancelado y proporciona un mensaje explicativo.
@@ -25,12 +49,17 @@ const statusTranslations: { [key in OrderStatus]: string } = {
  * @returns {{ canCancel: boolean; message: string }} - Un objeto que indica si la cancelación es posible y un mensaje para el usuario.
  */
 export const getCancellationInfo = (order: Order): { canCancel: boolean; message: string } => {
-    const hoursSinceCreation = differenceInHours(new Date(), new Date(order.created_at));
+    const createdAt = (order as any).createdAt ?? (order as any).created_at;
+    const status = normalizeOrderStatus((order as any).status);
+    const hoursSinceCreation = createdAt
+      ? differenceInHours(new Date(), new Date(createdAt))
+      : Number.POSITIVE_INFINITY;
 
-    if (order.status !== 'pendiente') {
+    if (status !== 'PENDING') {
+        const label = status ? statusLabelMap[status] : 'Desconocido';
         return { 
             canCancel: false, 
-            message: `El pedido ya no se puede cancelar porque su estado es "${statusTranslations[order.status]}".`
+            message: `El pedido ya no se puede cancelar porque su estado es "${label}".`
         };
     }
     

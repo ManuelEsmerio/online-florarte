@@ -8,7 +8,7 @@ import type { ProductStatus } from '@/lib/definitions';
 import { ZodError } from 'zod';
 
 interface RouteParams {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 
@@ -17,8 +17,10 @@ interface RouteParams {
  * Endpoint público para obtener los detalles de un producto por su slug.
  */
 export async function GET(req: NextRequest, { params }: RouteParams) {
+  let slug = '';
   try {
-    const { slug } = params;
+    const resolvedParams = await params;
+    slug = resolvedParams.slug;
     const product = await productService.getCompleteProductDetailsBySlug(slug);
 
     if (!product || product.status === 'HIDDEN' || product.status === 'DRAFT') {
@@ -31,6 +33,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
          return errorHandler(new Error('Producto no encontrado o no disponible.'), 404);
       }
     }
+
+    if (!product) {
+      return errorHandler(new Error('Producto no encontrado o no disponible.'), 404);
+    }
     
     const relatedProducts = await productService.findRelatedProducts(product.category.id, product.id);
     const complementProducts = await productService.getComplementProducts();
@@ -41,7 +47,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       complementProducts
     });
   } catch (error) {
-    console.error(`[API_PRODUCT_GET_ERROR] Slug: ${params.slug}`, error);
+    console.error(`[API_PRODUCT_GET_ERROR] Slug: ${slug}`, error);
     return errorHandler(error);
   }
 }

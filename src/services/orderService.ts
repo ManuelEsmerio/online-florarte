@@ -1,7 +1,14 @@
 // src/services/orderService.ts
 import { prisma } from '@/lib/prisma';
 import { cartService } from './cartService';
-import type { Order, OrderStatus } from '@/lib/definitions';
+import type { DbCartItem, Order, OrderStatus } from '@/lib/definitions';
+
+const paymentTransactionModel = (prisma as unknown as {
+  paymentTransaction: {
+    findMany: (args: any) => Promise<any[]>;
+    findFirst: (args: any) => Promise<any | null>;
+  };
+}).paymentTransaction;
 
 const ORDER_STATUS_MAP: Record<string, string> = {
   PENDING: 'pendiente',
@@ -14,6 +21,14 @@ const ORDER_STATUS_MAP: Record<string, string> = {
 function mapStatus(status: string): string {
   return ORDER_STATUS_MAP[status] ?? status.toLowerCase();
 }
+
+const getPaymentTransactionModel = (dbClient: any) => {
+  return (dbClient as {
+    paymentTransaction: {
+      upsert: (args: any) => Promise<any>;
+    };
+  }).paymentTransaction;
+};
 
 export const orderService = {
   async getAllOrdersForAdmin(filters: any) {
@@ -77,6 +92,21 @@ export const orderService = {
       orderBy: { createdAt: 'desc' },
     });
 
+    const orderIds = orders.map((order: any) => order.id);
+    const transactions = orderIds.length > 0
+      ? await paymentTransactionModel.findMany({
+          where: { orderId: { in: orderIds } },
+          orderBy: { createdAt: 'desc' },
+        })
+      : [];
+
+    const latestPaymentStatusByOrderId = new Map<number, string>();
+    for (const transaction of transactions) {
+      if (!latestPaymentStatusByOrderId.has(transaction.orderId)) {
+        latestPaymentStatusByOrderId.set(transaction.orderId, transaction.status);
+      }
+    }
+
     return orders.map((o: any) => ({
       id: o.id,
       user_id: o.userId,
@@ -86,6 +116,9 @@ export const orderService = {
       subtotal: Number(o.subtotal),
       total: Number(o.total),
       shipping_cost: Number(o.shippingCost),
+      recipientName: o.recipientName,
+      recipientPhone: o.recipientPhone,
+      payment_status: latestPaymentStatusByOrderId.get(o.id) ?? 'PENDING',
       shippingAddress: o.shippingAddressSnapshot ?? '',
       delivery_date: o.deliveryDate?.toISOString().slice(0, 10) ?? '',
       delivery_time_slot: o.deliveryTimeSlot,
@@ -110,6 +143,11 @@ export const orderService = {
     });
     if (!order) return null;
 
+    const latestPaymentTransaction = await paymentTransactionModel.findFirst({
+      where: { orderId: order.id },
+      orderBy: { createdAt: 'desc' },
+    });
+
     return {
       id: order.id,
       user_id: order.userId,
@@ -119,6 +157,9 @@ export const orderService = {
       subtotal: Number(order.subtotal),
       total: Number(order.total),
       shipping_cost: Number(order.shippingCost),
+      recipientName: order.recipientName,
+      recipientPhone: order.recipientPhone,
+      payment_status: latestPaymentTransaction?.status ?? 'PENDING',
       shippingAddress: order.shippingAddressSnapshot ?? '',
       delivery_date: order.deliveryDate?.toISOString().slice(0, 10) ?? '',
       delivery_time_slot: order.deliveryTimeSlot,
@@ -153,11 +194,47 @@ export const orderService = {
     const shippingCost = params.shippingCost ?? 0;
     const total = subtotal + shippingCost;
 
+    const selectedAddress = params.addressId
+      ? await prisma.address.findFirst({
+          where: {
+            id: Number(params.addressId),
+            userId: params.userId,
+            isDeleted: false,
+          },
+        })
+      : null;
+
+    const recipientName = params.recipientName ?? selectedAddress?.recipientName ?? null;
+    const recipientPhone = params.recipientPhone ?? selectedAddress?.recipientPhone ?? null;
+    const shippingAddressSnapshot =
+      params.shippingAddressSnapshot
+      ?? (selectedAddress
+        ? `${selectedAddress.streetName} ${selectedAddress.streetNumber}${selectedAddress.interiorNumber ? ` Int. ${selectedAddress.interiorNumber}` : ''}, ${selectedAddress.neighborhood}, ${selectedAddress.city}, ${selectedAddress.state}, CP ${selectedAddress.postalCode}`
+        : null);
+
+    const orderItemsToCreate = cartData.items.map((item: DbCartItem, index: number) => {
+      if (!Number.isFinite(item.product_id) || !Number.isFinite(item.unit_price) || !Number.isFinite(item.quantity) || item.quantity < 1) {
+        throw new Error(`Ítem inválido en carrito (posición ${index + 1}).`);
+      }
+
+      return {
+        productId: item.product_id,
+        variantId: item.variant_id ?? null,
+        productNameSnap: item.product_name ?? 'Producto',
+        variantNameSnap: item.variant_name ?? null,
+        imageSnap: item.variant_image ?? item.product_image ?? null,
+        quantity: item.quantity,
+        unitPrice: item.unit_price,
+      };
+    });
+
     const newOrder = await prisma.order.create({
       data: {
         userId: params.userId,
         addressId: params.addressId ?? null,
-        shippingAddressSnapshot: params.shippingAddressSnapshot ?? null,
+        shippingAddressSnapshot,
+        recipientName,
+        recipientPhone,
         status: 'PENDING',
         subtotal,
         shippingCost,
@@ -168,15 +245,7 @@ export const orderService = {
         isAnonymous: params.isAnonymous ?? false,
         signature: params.signature ?? null,
         items: {
-          create: cartData.items.map(it => ({
-            productId: it.id,
-            variantId: it.variants?.[0]?.id ?? null,
-            productNameSnap: it.name,
-            variantNameSnap: it.variants?.[0]?.name ?? null,
-            imageSnap: it.image ?? null,
-            quantity: it.quantity,
-            unitPrice: it.price,
-          })),
+          create: orderItemsToCreate,
         },
       },
     });
@@ -190,7 +259,66 @@ export const orderService = {
   },
 
   async finalizeOrderFromWebhook(params: any) {
-    await prisma.order.update({ where: { id: params.orderId }, data: { status: 'PROCESSING' } });
+    await prisma.order.update({ where: { id: params.orderId }, data: { status: 'PENDING' } });
+    return { success: true, orderId: params.orderId };
+  },
+
+  async finalizeSuccessfulPaymentFromWebhook(params: {
+    orderId: number;
+    stripePaymentId: string;
+    amount: number;
+  }) {
+    await prisma.$transaction(async (tx: any) => {
+      const paymentTxModel = getPaymentTransactionModel(tx);
+
+      await tx.order.update({
+        where: { id: params.orderId },
+        data: { status: 'PENDING' },
+      });
+
+      await paymentTxModel.upsert({
+        where: { stripePaymentId: params.stripePaymentId },
+        create: {
+          orderId: params.orderId,
+          stripePaymentId: params.stripePaymentId,
+          amount: params.amount,
+          status: 'SUCCEEDED',
+        },
+        update: {
+          orderId: params.orderId,
+          amount: params.amount,
+          status: 'SUCCEEDED',
+        },
+      });
+    });
+
+    return { success: true, orderId: params.orderId };
+  },
+
+  async registerFailedPaymentFromWebhook(params: {
+    orderId: number;
+    stripePaymentId: string;
+    amount: number;
+  }) {
+    await prisma.$transaction(async (tx: any) => {
+      const paymentTxModel = getPaymentTransactionModel(tx);
+
+      await paymentTxModel.upsert({
+        where: { stripePaymentId: params.stripePaymentId },
+        create: {
+          orderId: params.orderId,
+          stripePaymentId: params.stripePaymentId,
+          amount: params.amount,
+          status: 'FAILED',
+        },
+        update: {
+          orderId: params.orderId,
+          amount: params.amount,
+          status: 'FAILED',
+        },
+      });
+    });
+
     return { success: true, orderId: params.orderId };
   },
 };

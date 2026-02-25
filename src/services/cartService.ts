@@ -1,8 +1,7 @@
 // src/services/cartService.ts
 import { prisma } from '@/lib/prisma';
-import { DiscountType } from '@prisma/client';
 import { mapDbCartItemToCartItem } from '../mappers/cartMapper';
-import type { CartItem } from '@/lib/definitions';
+import type { DbCartItem } from '@/lib/definitions';
 import { productService } from './productService';
 
 type Identity = { userId: number | null; sessionId: string | null };
@@ -12,7 +11,7 @@ function toNumber(value: unknown): number {
   return Number(value ?? 0);
 }
 
-function normalizeDiscountType(type: DiscountType): 'percentage' | 'fixed' {
+function normalizeDiscountType(type: string): 'percentage' | 'fixed' {
   return type === 'PERCENTAGE' ? 'percentage' : 'fixed';
 }
 
@@ -54,7 +53,7 @@ async function getCartContentsRaw(identity: Identity) {
     },
   });
 
-  const items = dbItems.map((it) => ({
+  const items = dbItems.map((it: any): DbCartItem => ({
     id: it.id,
     product_id: it.productId,
     product_name: it.product.name,
@@ -76,8 +75,8 @@ async function getCartContentsRaw(identity: Identity) {
     delivery_time_slot: it.deliveryTimeSlot,
   }));
 
-  const subtotal = items.reduce((acc, item) => acc + item.unit_price * item.quantity, 0);
-  const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
+  const subtotal = items.reduce((acc: number, item: DbCartItem) => acc + item.unit_price * item.quantity, 0);
+  const totalItems = items.reduce((acc: number, item: DbCartItem) => acc + item.quantity, 0);
 
   const coupon = cart.couponId
     ? await prisma.coupon.findUnique({ where: { id: cart.couponId } })
@@ -123,14 +122,23 @@ interface UpsertResult {
 }
 
 export const cartService = {
-  async getCartContents(params: GetContentsParams): Promise<{ items: CartItem[]; totalItems: number; subtotal: number; coupon: any | null }> {
+  async getCartContents(params: GetContentsParams): Promise<{ items: DbCartItem[]; totalItems: number; subtotal: number; coupon: any | null }> {
     if (!params.sessionId && !params.userId) {
       return { items: [], totalItems: 0, subtotal: 0, coupon: null };
     }
     await this.revalidateCoupons(params);
     const { items: dbItems, totals, coupon } = await getCartContentsRaw(params);
-    const items = dbItems.map(mapDbCartItemToCartItem);
-    return { items, totalItems: totals.totalItems, subtotal: totals.subtotal, coupon };
+    return { items: dbItems as DbCartItem[], totalItems: totals.totalItems, subtotal: totals.subtotal, coupon };
+  },
+
+  async getCartContentsForUi(params: GetContentsParams): Promise<{ items: any[]; totalItems: number; subtotal: number; coupon: any | null }> {
+    const { items, totalItems, subtotal, coupon } = await this.getCartContents(params);
+    return {
+      items: items.map((item) => mapDbCartItemToCartItem(item)),
+      totalItems,
+      subtotal,
+      coupon,
+    };
   },
 
   async upsertItem(params: UpsertItemParams): Promise<UpsertResult> {
@@ -162,7 +170,7 @@ export const cartService = {
         const product = await productService.getCompleteProductDetailsById(productId);
         if (!product) throw new Error('Producto no encontrado.');
         if (variantId) {
-          const variant = product.variants?.find((v) => v.id === variantId);
+          const variant = product.variants?.find((v: any) => v.id === variantId);
           if (!variant) throw new Error('Variante no encontrada.');
           effectiveUnitPrice = (variant as any).sale_price ?? (variant as any).salePrice ?? (variant as any).price;
         } else {
@@ -233,7 +241,7 @@ export const cartService = {
       return { merged: 0, items: userCart.totalItems, subtotal: userCart.subtotal };
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       const guestCart = await tx.cart.findFirst({ where: { sessionId, status: 'ACTIVE' } });
       if (!guestCart) return;
 

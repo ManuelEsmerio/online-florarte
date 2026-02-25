@@ -27,7 +27,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     await cartService.removeItem(cartItemId, { userId, sessionId });
 
-    const finalCart = await cartService.getCartContents({userId, sessionId});
+    const finalCart = await cartService.getCartContentsForUi({userId, sessionId});
 
     return successResponse(finalCart);
   } catch (error: any) {

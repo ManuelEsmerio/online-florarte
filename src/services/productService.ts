@@ -419,25 +419,48 @@ export const productService = {
       select: { id: true },
     });
 
-    const results: ReturnType<typeof mapProduct>[] = [];
-    for (const sub of subcategories) {
-      const dbProduct = await prisma.product.findFirst({
-        where: { categoryId: sub.id, status: ProductStatus.PUBLISHED, isDeleted: false },
-        include: PRODUCT_INCLUDE,
-      });
-      if (dbProduct) results.push(mapProduct(dbProduct));
+    const subcategoryIds = subcategories.map((sub) => sub.id);
+    if (subcategoryIds.length === 0) {
+      return [];
     }
 
-    if (results.length === 0) {
+    const candidates = await prisma.product.findMany({
+      where: {
+        categoryId: { in: subcategoryIds },
+        status: ProductStatus.PUBLISHED,
+        isDeleted: false,
+      },
+      include: PRODUCT_INCLUDE,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const bySubcategory = new Map<number, typeof candidates>();
+    for (const product of candidates) {
+      const list = bySubcategory.get(product.categoryId) ?? [];
+      list.push(product);
+      bySubcategory.set(product.categoryId, list);
+    }
+
+    const selected: typeof candidates = [];
+    for (const subId of subcategoryIds) {
+      const options = bySubcategory.get(subId) ?? [];
+      if (options.length === 0) continue;
+      const randomIndex = Math.floor(Math.random() * options.length);
+      selected.push(options[randomIndex]);
+    }
+
+    if (selected.length === 0) {
       const fallback = await prisma.product.findMany({
         where: { category: { parentId: COMPLEMENT_PARENT_ID }, status: ProductStatus.PUBLISHED, isDeleted: false },
         include: PRODUCT_INCLUDE,
+        orderBy: { createdAt: 'desc' },
         take: 10,
       });
       return enrichProducts(fallback.map(mapProduct));
     }
 
-    return enrichProducts(results);
+    const shuffled = [...selected].sort(() => Math.random() - 0.5);
+    return enrichProducts(shuffled.map(mapProduct));
   },
 
   async getComplementProducts() {

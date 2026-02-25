@@ -29,9 +29,9 @@ export async function POST(req: NextRequest) {
       let status = 'borrador';
       let found = false;
 
-      if (item.variantId) {
+      if (item.variant_id) {
         const variant = await prisma.productVariant.findUnique({
-          where: { id: item.variantId },
+          where: { id: item.variant_id },
           include: { product: { select: { status: true } } },
         });
         if (variant) {
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         }
       } else {
         const product = await prisma.product.findUnique({
-          where: { id: item.id, isDeleted: false },
+          where: { id: item.product_id, isDeleted: false },
           select: { stock: true, status: true },
         });
         if (product) {
@@ -52,17 +52,17 @@ export async function POST(req: NextRequest) {
       }
 
       if (!found) {
-        validationIssues.push({ cartItemId: item.cartItemId, productId: item.id, name: item.name, reason: 'not_found', message: 'El producto ya no existe' });
+        validationIssues.push({ cartItemId: String(item.id), productId: item.product_id, name: item.product_name, reason: 'not_found', message: 'El producto ya no existe' });
         continue;
       }
 
       if (status !== 'publicado') {
-        validationIssues.push({ cartItemId: item.cartItemId, productId: item.id, name: item.name, reason: 'not_published', message: 'Ya no está disponible' });
+        validationIssues.push({ cartItemId: String(item.id), productId: item.product_id, name: item.product_name, reason: 'not_published', message: 'Ya no está disponible' });
         continue;
       }
 
       if (stock < item.quantity) {
-        validationIssues.push({ cartItemId: item.cartItemId, productId: item.id, name: item.name, reason: 'out_of_stock', message: `Sin existencias (solo ${stock > 0 ? stock : 0} disponibles)` });
+        validationIssues.push({ cartItemId: String(item.id), productId: item.product_id, name: item.product_name, reason: 'out_of_stock', message: `Sin existencias (solo ${stock > 0 ? stock : 0} disponibles)` });
         continue;
       }
     }

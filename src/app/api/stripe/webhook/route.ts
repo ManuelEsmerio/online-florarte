@@ -2,7 +2,6 @@ import Stripe from 'stripe';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { paymentTransactionService } from '@/services/paymentTransactionService';
 import { orderService } from '@/services/orderService';
 
 export const runtime = 'nodejs';
@@ -37,12 +36,10 @@ export async function POST(req: Request) {
         const amount = (session.amount_total ?? 0) / 100;
 
         if (orderId > 0 && paymentIntentId) {
-          await orderService.finalizeOrderFromWebhook({ orderId });
-          await paymentTransactionService.upsertTransaction({
+          await orderService.finalizeSuccessfulPaymentFromWebhook({
             orderId,
-            stripePaymentId: paymentIntentId,
             amount,
-            status: 'SUCCEEDED',
+            stripePaymentId: paymentIntentId,
           });
         }
         break;
@@ -54,12 +51,10 @@ export async function POST(req: Request) {
         const amount = (paymentIntent.amount_received ?? paymentIntent.amount ?? 0) / 100;
 
         if (orderId > 0) {
-          await orderService.finalizeOrderFromWebhook({ orderId });
-          await paymentTransactionService.upsertTransaction({
+          await orderService.finalizeSuccessfulPaymentFromWebhook({
             orderId,
-            stripePaymentId: paymentIntent.id,
             amount,
-            status: 'SUCCEEDED',
+            stripePaymentId: paymentIntent.id,
           });
         }
         break;
@@ -71,11 +66,10 @@ export async function POST(req: Request) {
         const amount = (paymentIntent.amount ?? 0) / 100;
 
         if (orderId > 0) {
-          await paymentTransactionService.upsertTransaction({
+          await orderService.registerFailedPaymentFromWebhook({
             orderId,
-            stripePaymentId: paymentIntent.id,
             amount,
-            status: 'FAILED',
+            stripePaymentId: paymentIntent.id,
           });
         }
         break;

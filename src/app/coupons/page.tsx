@@ -61,14 +61,17 @@ export default function CouponsPage() {
     return coupon.status;
   };
 
+  // user?.id en lugar del objeto completo: fetchCouponsData solo se re-dispara
+  // al cambiar la identidad del usuario (login/logout), no al actualizar perfil.
+  const userId = user?.id;
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authLoading && !userId) {
       router.push('/login?redirect=/coupons');
       return;
     }
 
     const fetchCouponsData = async () => {
-      if (!getCoupons || !user) return;
+      if (!getCoupons || !userId) return;
       setIsLoading(true);
       try {
         const data = await getCoupons();
@@ -79,10 +82,11 @@ export default function CouponsPage() {
         setIsLoading(false);
       }
     };
-    
-    if (user) fetchCouponsData();
 
-  }, [user, getCoupons, router, authLoading]);
+    if (userId) fetchCouponsData();
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, getCoupons, router, authLoading]);
 
   const filteredCoupons = useMemo(() => {
     return coupons

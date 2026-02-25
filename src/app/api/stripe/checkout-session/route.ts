@@ -19,6 +19,8 @@ export async function POST(req: NextRequest) {
       userId: session.dbId,
       sessionId,
       addressId: body.addressId,
+      recipientName: body.recipientName,
+      recipientPhone: body.recipientPhone,
       couponCode: body.couponCode,
       deliveryDate: body.deliveryDate,
       deliveryTimeSlot: body.deliveryTimeSlot,

@@ -126,13 +126,17 @@ export default function OrdersPage() {
     }
   }, [getOrders]);
 
+  // user?.id en lugar del objeto completo: fetchUserOrders solo se re-dispara
+  // al cambiar la identidad del usuario (login/logout), no al actualizar perfil.
+  const userId = user?.id;
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       router.push('/login?redirect=/orders');
       return;
     }
     fetchUserOrders();
-  }, [user, router, fetchUserOrders]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, router, fetchUserOrders]);
   
   const tableColumns = useMemo(() => columns({ onDataChange: fetchUserOrders }), [fetchUserOrders]);
   
