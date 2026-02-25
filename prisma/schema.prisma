@@ -78,6 +78,12 @@ enum TestimonialStatus {
   REJECTED // rechazado
 }
 
+enum CartStatus {
+  ACTIVE
+  CHECKED_OUT
+  ABANDONED
+}
+
 // ============================================================
 // USER & AUTH
 // ============================================================
@@ -114,6 +120,7 @@ model User {
   testimonials   Testimonial[]
   couponUsers    CouponUser[]
   wishlistItems  WishlistItem[]
+  carts          Cart[]
 
   @@map("users")
 }
@@ -248,6 +255,7 @@ model Product {
   occasions      ProductOccasion[]
   orderItems     OrderItem[]
   couponProducts CouponProduct[]
+  cartItems      CartItem[]
 
   @@map("products")
 }
@@ -270,6 +278,7 @@ model ProductVariant {
   images         ProductImage[]
   specifications ProductSpecification[]
   orderItems     OrderItem[]
+  cartItems      CartItem[]
 
   @@map("product_variants")
 }
@@ -419,11 +428,60 @@ model Coupon {
   updatedAt     DateTime     @updatedAt
 
   orders           Order[]
+  carts            Cart[]
   couponUsers      CouponUser[]
   couponCategories CouponCategory[]
   couponProducts   CouponProduct[]
 
   @@map("coupons")
+}
+
+// ============================================================
+// CART
+// ============================================================
+
+model Cart {
+  id           Int        @id @default(autoincrement())
+  userId       Int?
+  user         User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId    String?    @db.VarChar(128)
+  status       CartStatus @default(ACTIVE)
+  couponId     Int?
+  coupon       Coupon?    @relation(fields: [couponId], references: [id])
+  couponCode   String?    @db.VarChar(50)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  items        CartItem[]
+
+  @@index([userId, status])
+  @@index([sessionId, status])
+  @@map("carts")
+}
+
+model CartItem {
+  id               Int             @id @default(autoincrement())
+  cartId           Int
+  cart             Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId        Int
+  product          Product         @relation(fields: [productId], references: [id])
+  variantId        Int?
+  variant          ProductVariant? @relation(fields: [variantId], references: [id])
+  quantity         Int             @default(1)
+  unitPrice        Decimal         @db.Decimal(10, 2)
+  isComplement     Boolean         @default(false)
+  parentCartItemId Int?
+  customPhotoUrl   String?         @db.VarChar(500)
+  deliveryDate     DateTime?       @db.Date
+  deliveryTimeSlot String?         @db.VarChar(50)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([cartId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([parentCartItemId])
+  @@map("cart_items")
 }
 
 /// Links a USERS/SPECIFIC scoped coupon to one or more users
