@@ -241,6 +241,18 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [apiFetch, fetchCart]);
 
+  const clearCart = useCallback(async () => {
+    try {
+      await apiFetch('/api/cart', { method: 'DELETE' });
+      setCart([]);
+      setSubtotal(0);
+      setAppliedCoupon(null);
+      toast.info('Carrito vacío');
+    } catch (e) {
+      toast.error('Error al vaciar');
+    }
+  }, [apiFetch]);
+
   const getDiscountAmount = useCallback((currentSubtotal: number): number => {
     if (!appliedCoupon) return 0;
     if (appliedCoupon.discount_type === 'percentage') return currentSubtotal * (appliedCoupon.discount_value / 100);
@@ -263,15 +275,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     toggleComplement,
     removeFromCart,
     updateQuantity,
-    clearCart: async () => {
-        try {
-            await apiFetch('/api/cart', { method: 'DELETE' });
-            setCart([]);
-            setSubtotal(0);
-            setAppliedCoupon(null);
-            toast.info('Carrito vacío');
-        } catch (e) { toast.error('Error al vaciar'); }
-    },
+    clearCart,
     cartItemCount,
     subtotal,
     getCartTotal: () => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(subtotal),
@@ -293,7 +297,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     setDeliveryDate,
   }), [
     cart, isLoading, fetchCart, addToCart, toggleComplement, removeFromCart, 
-    updateQuantity, apiFetch, cartItemCount, subtotal, appliedCoupon, applyCoupon, 
+    updateQuantity, clearCart, cartItemCount, subtotal, appliedCoupon, applyCoupon, 
     removeCoupon, getDiscountAmount, getTotalWithDiscount, isCartOpen, updatingItemId, 
     isAddingToCart, isTogglingComplement, selectedCity, shippingCost, deliveryDate
   ]);

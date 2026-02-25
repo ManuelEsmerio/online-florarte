@@ -9,7 +9,7 @@ import Stripe from 'stripe';
 import { ZodError } from 'zod';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
+  apiVersion: '2026-01-28.clover',
 });
 
 // Implementa la lógica para crear una orden de PayPal aquí si es necesario

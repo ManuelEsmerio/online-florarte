@@ -84,6 +84,13 @@ enum CartStatus {
   ABANDONED
 }
 
+enum PaymentTransactionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
 // ============================================================
 // USER & AUTH
 // ============================================================
@@ -377,6 +384,7 @@ model Order {
   updatedAt               DateTime    @updatedAt
 
   items          OrderItem[]
+  paymentTransactions PaymentTransaction[]
   loyaltyHistory LoyaltyHistory[]
   testimonial    Testimonial?
 
@@ -625,4 +633,18 @@ model NewsletterSubscriber {
   updatedAt   DateTime @updatedAt
 
   unsubAt     DateTime?
+}
+
+model PaymentTransaction {
+  id              Int                      @id @default(autoincrement())
+  orderId         Int
+  order           Order                    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stripePaymentId String                   @unique @db.VarChar(191)
+  amount          Decimal                  @db.Decimal(10, 2)
+  status          PaymentTransactionStatus @default(PENDING)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  @@index([orderId])
+  @@map("payment_transactions")
 }

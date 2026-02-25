@@ -28,7 +28,6 @@ import { StepDedication } from '@/components/checkout/StepDedication';
 import { StepPayment } from '@/components/checkout/StepPayment';
 import { OrderSummary } from '@/components/checkout/OrderSummary';
 import { handleApiResponse } from '@/utils/handleApiResponse';
-import { OrderSuccessModal } from '@/components/checkout/OrderSuccessModal';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -45,7 +44,7 @@ const checkoutSchema = z.object({
   isAnonymous: z.boolean().optional(),
   signature: z.string().optional(),
   couponCode: z.string().optional(),
-  gateway: z.string().min(1, 'Debes seleccionar un método de pago.').default('mock'),
+  gateway: z.string().min(1, 'Debes seleccionar un método de pago.').default('stripe'),
 });
 
 export type CheckoutFormValues = z.infer<typeof checkoutSchema>;
@@ -76,7 +75,7 @@ const CheckoutSkeleton = () => (
 );
 
 const CheckoutPageContent = () => {
-  const { cart, subtotal, isLoading: isCartLoading, cartItemCount, clearCart, appliedCoupon, deliveryDate, removeFromCart, getDiscountAmount, shippingCost: ctxShippingCost } = useCart();
+  const { cart, subtotal, isLoading: isCartLoading, cartItemCount, appliedCoupon, deliveryDate, removeFromCart, getDiscountAmount, shippingCost: ctxShippingCost } = useCart();
   const { user, loading: authLoading, apiFetch } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
@@ -84,8 +83,6 @@ const CheckoutPageContent = () => {
   const [activeStep, setActiveStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [shippingCost, setShippingCost] = useState<number | null>(null);
-  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
-  const [lastOrderId, setLastOrderId] = useState<number | null>(null);
   
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
   const [isValidatingCart, setIsValidatingCart] = useState(true);
@@ -102,7 +99,7 @@ const CheckoutPageContent = () => {
       isAnonymous: false,
       signature: '',
       couponCode: '',
-      gateway: 'mock',
+      gateway: 'stripe',
     },
     mode: 'onChange'
   });
@@ -182,10 +179,10 @@ const CheckoutPageContent = () => {
 
   useEffect(() => {
     if (authLoading || !isDataSettled) return;
-    if (!isCartLoading && cartItemCount === 0 && !isProcessing && !isSuccessModalOpen) {
+    if (!isCartLoading && cartItemCount === 0 && !isProcessing) {
       router.push('/');
     }
-  }, [authLoading, isCartLoading, cartItemCount, router, isProcessing, isSuccessModalOpen, isDataSettled]);
+  }, [authLoading, isCartLoading, cartItemCount, router, isProcessing, isDataSettled]);
   
   const handleFinalizeOrder = async () => {
     if (hasValidationIssues || !isCurrentStepValid) {
@@ -195,7 +192,7 @@ const CheckoutPageContent = () => {
     setIsProcessing(true);
     try {
       const data = getValues();
-      const response = await apiFetch('/api/checkout/init', {
+      const response = await apiFetch('/api/stripe/checkout-session', {
         method: 'POST',
         body: JSON.stringify({
           addressId: data.addressId,
@@ -209,14 +206,17 @@ const CheckoutPageContent = () => {
         }),
       });
       const result = await handleApiResponse(response);
-      setLastOrderId(result.orderId);
-      setIsSuccessModalOpen(true);
-      await clearCart();
-      toast({ title: '¡Felicidades!', description: `Pedido ORD${String(result.orderId).padStart(4, '0')} recibido.`, variant: 'success' });
+
+      if (!result?.checkoutUrl) {
+        throw new Error('No se pudo generar la sesión de pago.');
+      }
+
+      window.location.href = result.checkoutUrl;
     } catch (error: any) {
       toast({ title: 'Error al procesar', description: error.message, variant: 'destructive' });
-    } finally {
       setIsProcessing(false);
+    } finally {
+      // El estado se mantiene en processing hasta redirección para evitar doble click.
     }
   };
 
@@ -324,10 +324,6 @@ const CheckoutPageContent = () => {
       </div>
 
       <Footer />
-
-      {lastOrderId && (
-          <OrderSuccessModal isOpen={isSuccessModalOpen} orderId={lastOrderId} />
-      )}
     </div>
   );
 };
