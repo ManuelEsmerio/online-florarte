@@ -36,6 +36,7 @@ import {
   CalendarClock,
   Gem,
   FileImage,
+  Mail,
   FileUp,
   FileDown,
   LineChart,
@@ -138,6 +139,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     { href: '/admin/peak-dates', label: 'Fechas Pico', icon: CalendarClock },
     { href: '/admin/loyalty', label: 'Historial de Puntos', icon: Gem },
     { href: '/admin/ads', label: 'Anuncios', icon: FileImage },
+    { href: '/admin/newsletter', label: 'Newsletter', icon: Mail },
   ];
   
   const advancedMenuItems = [

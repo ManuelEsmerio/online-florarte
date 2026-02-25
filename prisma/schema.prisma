@@ -608,3 +608,21 @@ model PeakDate {
 
   @@map("peak_dates")
 }
+
+model NewsletterSubscriber {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  isActive    Boolean  @default(true)
+
+  source      String?  // home, popup, checkout, promo, etc
+  ipAddress   String?
+  userAgent   String?
+
+  confirmed   Boolean  @default(false) // doble opt-in
+  token       String?  // para confirmación
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  unsubAt     DateTime?
+}

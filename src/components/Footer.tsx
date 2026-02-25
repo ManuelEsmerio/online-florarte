@@ -73,12 +73,35 @@ export function Footer() {
 
   const onSubmit = async (data: NewsletterFormValues) => {
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    toast.success('¡Suscrito!', {
-      description: 'Te hemos añadido a nuestra lista de correos.',
-    });
-    form.reset();
-    setIsSubmitting(false);
+    try {
+      const response = await fetch('/api/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: data.email,
+          source: 'footer',
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        toast.error('No se pudo completar la suscripción', {
+          description: result?.error || 'Intenta nuevamente en unos minutos.',
+        });
+        return;
+      }
+
+      toast.success('¡Suscripción exitosa!', {
+        description: result?.message || 'Te hemos añadido a nuestra lista de correos.',
+      });
+      form.reset();
+    } catch {
+      toast.error('Error de conexión', {
+        description: 'No se pudo enviar tu correo. Intenta nuevamente.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const legalLinks = [
