@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ProductCard } from '@/components/ProductCard';
 import type { Product, ProductCategory, Occasion, Announcement, Tag, ProductRow } from '@/lib/definitions';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,6 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { ProductCardSkeleton } from '@/components/ProductCardSkeleton';
-import QuickView from '@/components/QuickView';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,6 +22,9 @@ import { Label } from '@/components/ui/label';
 import { AdCard } from '@/components/AdCard';
 import { Search, Loader2, Filter, SlidersHorizontal, X, LayoutGrid } from 'lucide-react';
 import { handleApiResponse } from '@/utils/handleApiResponse';
+import dynamic from 'next/dynamic';
+
+const QuickView = dynamic(() => import('@/components/QuickView'), { ssr: false });
 import {
   Select,
   SelectContent,
@@ -72,8 +74,12 @@ export function CategoryPageClient({
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
+  const isFetched = useRef(false);
 
   const fetchInitialData = useCallback(async () => {
+    if (isFetched.current) return;
+    isFetched.current = true;
+    
     setIsLoading(true);
     try {
         let productsUrl = `/api/products?limit=${PRODUCT_LIMIT}`;
@@ -102,6 +108,11 @@ export function CategoryPageClient({
     }
   }, [pageType, categorySlug, apiFetch]);
   
+  useEffect(() => {
+    // Reset fetched status if category slug changes
+    isFetched.current = false;
+  }, [categorySlug]);
+
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);

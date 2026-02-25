@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     if (fetchAll) {
       // Devuelve todos los productos activos y publicados para la funcionalidad de búsqueda.
       const adminProductData = await productService.getAdminProductList();
-      const activeAndPublished = adminProductData.products.filter(p => !p.is_deleted && p.status === 'publicado');
+      const activeAndPublished = adminProductData.products.filter(p => !p.isDeleted && p.status === 'PUBLISHED');
       return successResponse({
         products: activeAndPublished,
         total: activeAndPublished.length,

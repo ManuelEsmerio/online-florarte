@@ -2,10 +2,17 @@
 import { Suspense } from 'react';
 import Header from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { CategoryPageClient } from '@/app/categories/[slug]/category-page-client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { ProductCardSkeleton } from '@/components/ProductCardSkeleton';
+import dynamic from 'next/dynamic';
+
+const CategoryPageClient = dynamic(
+  () => import('@/app/categories/[slug]/category-page-client').then(mod => mod.CategoryPageClient),
+  {
+    loading: () => <AllProductsPageSkeleton />,
+  }
+);
 
 const AllProductsPageSkeleton = () => (
      <div className="container mx-auto px-4 py-8 md:px-6 md:py-12">

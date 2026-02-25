@@ -21,13 +21,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { slug } = params;
     const product = await productService.getCompleteProductDetailsBySlug(slug);
 
-    if (!product || product.status === 'oculto' || product.status === 'borrador') {
+    if (!product || product.status === 'HIDDEN' || product.status === 'DRAFT') {
       const session: UserSession | null = await getDecodedToken(req);
       if(!session?.dbId) {
         return errorHandler(new Error('Producto no encontrado o no disponible.'), 404);
       }
       const user = await userService.getUserById(session.dbId);
-      if (user?.role !== 'admin') {
+      if (user?.role !== 'ADMIN') {
          return errorHandler(new Error('Producto no encontrado o no disponible.'), 404);
       }
     }
