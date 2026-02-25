@@ -3,6 +3,26 @@ import { saveProfilePicture } from "@/services/file.service";
 
 export const userService = {
 
+  async getUserById(userId: number) {
+    const user = await prisma.user.findFirst({
+      where: {
+        id: userId,
+        isDeleted: false,
+      },
+      include: {
+        addresses: {
+          where: { isDeleted: false },
+          orderBy: { isDefault: 'desc' },
+        },
+      },
+    });
+
+    if (!user) return null;
+
+    const { passwordHash, ...userWithoutPassword } = user;
+    return userWithoutPassword;
+  },
+
   async updateUser(userId: number, data: any) {
 
     return prisma.$transaction(async (tx) => {
@@ -199,6 +219,19 @@ export const userService = {
       },
     });
 
+  },
+
+  async deleteUser(userId: number) {
+    const timestamp = new Date().getTime();
+    return prisma.user.update({
+      where: { id: userId },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        email: `deleted_${timestamp}_${userId}@example.com`,
+        firebaseUid: `deleted_${timestamp}_${userId}`,
+      },
+    });
   }
 
 };
