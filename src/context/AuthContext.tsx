@@ -15,7 +15,8 @@ import { allUsers } from '@/lib/data/user-data';
 // Evitan que React Strict Mode (doble-invocación en dev) o navegaciones rápidas
 // lancen la misma petición varias veces simultáneamente.
 let profileInFlight: Promise<void> | null = null;
-let shippingZonesMemoryCache: ShippingZone[] | null = null;
+let shippingZonesMemoryCache: { zones: ShippingZone[]; fetchedAt: number } | null = null;
+const SHIPPING_ZONES_TTL = 5 * 60 * 1000; // 5 minutes
 let shippingZonesInFlight: Promise<ShippingZone[]> | null = null;
 
 interface AuthResult {
@@ -79,9 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ─── fetchShippingZones ────────────────────────────────────────────────────
   // Cache de módulo + in-flight guard: solo 1 request por sesión de app.
+  // Cache expires after SHIPPING_ZONES_TTL to pick up admin zone changes.
   const fetchShippingZones = useCallback(async () => {
-    if (shippingZonesMemoryCache && shippingZonesMemoryCache.length > 0) {
-      setShippingZones(shippingZonesMemoryCache);
+    const now = Date.now();
+    if (shippingZonesMemoryCache && now - shippingZonesMemoryCache.fetchedAt < SHIPPING_ZONES_TTL) {
+      setShippingZones(shippingZonesMemoryCache.zones);
       return;
     }
 
@@ -101,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const zones = await shippingZonesInFlight;
-      shippingZonesMemoryCache = zones;
+      shippingZonesMemoryCache = { zones, fetchedAt: Date.now() };
       setShippingZones(zones);
     } finally {
       shippingZonesInFlight = null;

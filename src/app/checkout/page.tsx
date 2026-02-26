@@ -36,8 +36,10 @@ const formatCurrency = (amount: number) => {
 };
 
 const checkoutSchema = z.object({
+  guestName: z.string().optional(),
+  guestEmail: z.string().optional(),
   phone: z.string().min(10, 'El teléfono debe tener 10 dígitos.'),
-  addressId: z.number().min(1, 'Debes seleccionar una dirección.'),
+  addressId: z.number().optional().default(0),
   deliveryDate: z.string().min(1, 'La fecha de entrega es requerida.'),
   deliveryTimeSlot: z.string().min(1, 'Debes seleccionar un horario.'),
   dedication: z.string().optional(),
@@ -45,6 +47,38 @@ const checkoutSchema = z.object({
   signature: z.string().optional(),
   couponCode: z.string().optional(),
   gateway: z.string().min(1, 'Debes seleccionar un método de pago.').default('stripe'),
+}).superRefine((values, ctx) => {
+  const phoneDigits = String(values.phone ?? '').replace(/\D/g, '');
+  if (!/^\d{10}$/.test(phoneDigits)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'El teléfono debe tener exactamente 10 dígitos.',
+      path: ['phone'],
+    });
+  }
+
+  const hasGuestIdentity = values.guestName || values.guestEmail;
+  if (hasGuestIdentity) {
+    const fullName = String(values.guestName ?? '').trim();
+    const email = String(values.guestEmail ?? '').trim().toLowerCase();
+
+    if (fullName.length < 3) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ingresa tu nombre completo.',
+        path: ['guestName'],
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ingresa un email válido.',
+        path: ['guestEmail'],
+      });
+    }
+  }
 });
 
 export type CheckoutFormValues = z.infer<typeof checkoutSchema>;
@@ -91,6 +125,8 @@ const CheckoutPageContent = () => {
   const form = useForm<CheckoutFormValues>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
+      guestName: '',
+      guestEmail: '',
       phone: '',
       addressId: 0,
       deliveryDate: '',
@@ -106,6 +142,8 @@ const CheckoutPageContent = () => {
 
   const { watch, handleSubmit, trigger, getValues, setValue } = form;
   
+  const watchedGuestName = watch('guestName');
+  const watchedGuestEmail = watch('guestEmail');
   const watchedPhone = watch('phone');
   const watchedAddressId = watch('addressId');
   const watchedDate = watch('deliveryDate');
@@ -153,12 +191,21 @@ const CheckoutPageContent = () => {
   }, [cart, validateCart]);
 
   const hasValidationIssues = useMemo(() => validationIssues.length > 0, [validationIssues]);
+  const isGuestCheckout = useMemo(() => !user?.id, [user?.id]);
 
   const isCurrentStepValid = useMemo(() => {
     if (!isDataSettled || isValidatingCart || hasValidationIssues || isProcessing) return false;
-    
-    const isStep1Valid = !!watchedPhone && watchedPhone.trim().length === 10;
-    const isStep2Valid = isStep1Valid && !!watchedAddressId && watchedAddressId > 0 && (shippingCost !== null || ctxShippingCost !== null);
+
+    const phoneDigits = String(watchedPhone ?? '').replace(/\D/g, '');
+    const isPhoneValid = /^\d{10}$/.test(phoneDigits);
+    const isGuestIdentityValid = !isGuestCheckout || (
+      String(watchedGuestName ?? '').trim().length >= 3 &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(watchedGuestEmail ?? '').trim().toLowerCase())
+    );
+    const isStep1Valid = isPhoneValid && isGuestIdentityValid;
+    const isStep2Valid = isGuestCheckout
+      ? isStep1Valid
+      : (isStep1Valid && !!watchedAddressId && watchedAddressId > 0 && (shippingCost !== null || ctxShippingCost !== null));
     const isStep3Valid = isStep2Valid && !!watchedDate && !!watchedSlot;
 
     switch (activeStep) {
@@ -169,7 +216,7 @@ const CheckoutPageContent = () => {
       case 5: return isStep3Valid;
       default: return false;
     }
-  }, [activeStep, watchedPhone, watchedAddressId, watchedDate, watchedSlot, isValidatingCart, hasValidationIssues, isProcessing, shippingCost, ctxShippingCost, isDataSettled]);
+  }, [activeStep, watchedGuestName, watchedGuestEmail, watchedPhone, watchedAddressId, watchedDate, watchedSlot, isValidatingCart, hasValidationIssues, isProcessing, shippingCost, ctxShippingCost, isDataSettled, isGuestCheckout]);
 
   const handleRemoveAndRevalidate = async (cartItemId: string) => {
     setIsValidatingCart(true); 
@@ -201,8 +248,12 @@ const CheckoutPageContent = () => {
         method: 'POST',
         body: JSON.stringify({
           addressId: data.addressId,
+          guestName: isGuestCheckout ? data.guestName : undefined,
+          guestEmail: isGuestCheckout ? data.guestEmail : undefined,
+          guestPhone: data.phone,
           recipientName: selectedAddress?.recipientName,
           recipientPhone: selectedAddress?.recipientPhone,
+          shippingAddressSnapshot: isGuestCheckout ? 'Compra como invitado - dirección por confirmar' : undefined,
           couponCode: data.couponCode,
           deliveryDate: data.deliveryDate,
           deliveryTimeSlot: data.deliveryTimeSlot,
@@ -312,7 +363,11 @@ const CheckoutPageContent = () => {
                           if (!isCurrentStepValid) return;
                           if (activeStep === 5) handleFinalizeOrder();
                           else {
-                              const stepFields: any = { 1: ['phone'], 2: ['addressId'], 3: ['deliveryDate', 'deliveryTimeSlot'] };
+                              const stepFields: any = {
+                                1: isGuestCheckout ? ['guestName', 'guestEmail', 'phone'] : ['phone'],
+                                2: isGuestCheckout ? [] : ['addressId'],
+                                3: ['deliveryDate', 'deliveryTimeSlot']
+                              };
                               const valid = await trigger(stepFields[activeStep]);
                               if (valid) setActiveStep(prev => prev + 1);
                           }

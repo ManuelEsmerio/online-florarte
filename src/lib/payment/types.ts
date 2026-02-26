@@ -2,7 +2,7 @@ export interface CreateCheckoutParams {
   orderId: number;
   /** Amount in MXN major units (e.g. 150.00) */
   amount: number;
-  userId: number;
+  userId?: number;
   successUrl: string;
   cancelUrl: string;
   pendingUrl?: string;

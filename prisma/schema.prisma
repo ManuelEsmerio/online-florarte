@@ -353,8 +353,13 @@ model ProductOccasion {
 
 model Order {
   id                      Int         @id @default(autoincrement())
-  userId                  Int
-  user                    User        @relation("CustomerOrders", fields: [userId], references: [id])
+  userId                  Int?
+  user                    User?       @relation("CustomerOrders", fields: [userId], references: [id])
+  isGuest                 Boolean     @default(false)
+  guestName               String?     @db.VarChar(150)
+  guestEmail              String?     @db.VarChar(255)
+  guestPhone              String?     @db.VarChar(20)
+  sessionId               String?     @db.VarChar(128)
   /// Saved address selected at checkout. Nullable to support guest orders.
   addressId               Int?
   address                 Address?    @relation(fields: [addressId], references: [id])
@@ -392,6 +397,7 @@ model Order {
   testimonial    Testimonial?
 
   @@index([userId, createdAt])
+  @@index([sessionId, createdAt])
   @@index([status, createdAt])
   @@index([deliveryDate, status])
   @@map("orders")

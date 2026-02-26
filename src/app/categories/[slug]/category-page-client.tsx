@@ -47,7 +47,7 @@ import { useSearchParams } from 'next/navigation';
 
 
 type SortOption = 'recommended' | 'price-asc' | 'price-desc';
-const PRODUCT_LIMIT = 999; 
+const PRODUCT_LIMIT = 200;
 const ITEMS_PER_PAGE = 16;
 
 type HomeDataCache = {

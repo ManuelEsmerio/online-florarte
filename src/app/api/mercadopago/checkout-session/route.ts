@@ -8,19 +8,22 @@ import { mercadoPagoService } from '@/services/mercadoPagoService';
 export async function POST(req: NextRequest) {
   try {
     const session: UserSession | null = await getDecodedToken(req);
-    if (!session?.dbId) {
-      return errorHandler(new Error('Acceso denegado. Se requiere autenticación.'), 401);
-    }
-
     const body = await req.json();
     const sessionId = getSessionId(req);
 
+    if (!session?.dbId && !sessionId) {
+      return errorHandler(new Error('No se pudo identificar la sesión para checkout.'), 401);
+    }
+
     const { orderId, total } = await orderService.initializeCheckout({
-      userId: session.dbId,
+      userId: session?.dbId ?? null,
       sessionId,
       addressId: body.addressId,
       recipientName: body.recipientName,
       recipientPhone: body.recipientPhone,
+      guestName: body.guestName,
+      guestEmail: body.guestEmail,
+      guestPhone: body.guestPhone,
       couponCode: body.couponCode,
       deliveryDate: body.deliveryDate,
       deliveryTimeSlot: body.deliveryTimeSlot,
@@ -35,17 +38,14 @@ export async function POST(req: NextRequest) {
       return errorHandler(new Error('Monto inválido para procesar pago.'), 400);
     }
 
-    // TODO (producción): Reemplazar por process.env.NEXT_PUBLIC_APP_URL cuando el dominio
-    // definitivo esté configurado. Mercado Pago requiere HTTPS y dominio público.
-    // const origin = process.env.NEXT_PUBLIC_APP_URL!;
-    const origin = 'https://dour-natalee-irenically.ngrok-free.dev';
+    const origin = process.env.NEXT_PUBLIC_APP_URL || req.headers.get('origin') || '';
 
     const isPublicUrl = origin.startsWith('https://') && !origin.includes('localhost');
 
     const result = await mercadoPagoService.createCheckoutSession({
       orderId,
       amount,
-      userId: session.dbId,
+      userId: session?.dbId,
       successUrl: `${origin}/checkout/success?order_id=${orderId}`,
       cancelUrl: `${origin}/checkout/cancel?order_id=${orderId}`,
       pendingUrl: `${origin}/checkout/pending?order_id=${orderId}`,

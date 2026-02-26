@@ -8,19 +8,22 @@ import { stripeService } from '@/services/stripeService';
 export async function POST(req: NextRequest) {
   try {
     const session: UserSession | null = await getDecodedToken(req);
-    if (!session?.dbId) {
-      return errorHandler(new Error('Acceso denegado. Se requiere autenticación.'), 401);
-    }
-
     const body = await req.json();
     const sessionId = getSessionId(req);
 
+    if (!session?.dbId && !sessionId) {
+      return errorHandler(new Error('No se pudo identificar la sesión para checkout.'), 401);
+    }
+
     const { orderId, total } = await orderService.initializeCheckout({
-      userId: session.dbId,
+      userId: session?.dbId ?? null,
       sessionId,
       addressId: body.addressId,
       recipientName: body.recipientName,
       recipientPhone: body.recipientPhone,
+      guestName: body.guestName,
+      guestEmail: body.guestEmail,
+      guestPhone: body.guestPhone,
       couponCode: body.couponCode,
       deliveryDate: body.deliveryDate,
       deliveryTimeSlot: body.deliveryTimeSlot,
@@ -44,7 +47,7 @@ export async function POST(req: NextRequest) {
       amountInCents,
       successUrl: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`,
       cancelUrl: `${origin}/checkout/cancel?order_id=${orderId}`,
-      userId: session.dbId,
+      userId: session?.dbId,
     });
 
     return successResponse(

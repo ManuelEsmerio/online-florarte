@@ -74,7 +74,7 @@ export const dashboardService = {
     // Recent orders
     const recentOrders: RecentOrder[] = recentOrdersRaw.map(o => ({
       id: o.id,
-      customer_name: o.user.name,
+      customer_name: o.user?.name ?? o.guestName ?? 'Cliente invitado',
       total: Number(o.total),
       status: ORDER_STATUS_MAP[o.status] as OrderStatus,
     }));
@@ -84,7 +84,7 @@ export const dashboardService = {
       type: 'new_order' as const,
       entity_id: o.id,
       timestamp: o.createdAt.toISOString(),
-      details: { customer_name: o.user.name },
+      details: { customer_name: o.user?.name ?? o.guestName ?? 'Cliente invitado' },
     }));
     const userActivities = recentUsersRaw.map(u => ({
       type: 'new_user' as const,

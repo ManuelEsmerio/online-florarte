@@ -22,6 +22,28 @@ function mapStatus(status: string): string {
   return ORDER_STATUS_MAP[status] ?? status.toLowerCase();
 }
 
+function normalizeGuestName(value: unknown): string | null {
+  const normalized = String(value ?? '').trim().replace(/\s+/g, ' ');
+  if (!normalized) return null;
+  return normalized;
+}
+
+function normalizeGuestEmail(value: unknown): string | null {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized) return null;
+  return normalized;
+}
+
+function normalizeGuestPhone(value: unknown): string | null {
+  const normalized = String(value ?? '').replace(/\D/g, '').slice(0, 10);
+  if (!normalized) return null;
+  return normalized;
+}
+
+function isValidGuestEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 const getPaymentTransactionModel = (dbClient: any) => {
   return (dbClient as {
     paymentTransaction: {
@@ -51,22 +73,31 @@ export const orderService = {
 
     if (filters?.userId) where.userId = filters.userId;
 
-    const orders = await prisma.order.findMany({
-      where,
-      include: {
-        user: { select: { name: true, email: true } },
-        deliveryDriver: { select: { name: true } },
-        items: { include: { product: true, variant: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const page = Math.max(1, Number(filters?.page ?? 1));
+    const limit = Math.min(100, Math.max(1, Number(filters?.limit ?? 50)));
+    const skip = (page - 1) * limit;
+
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        include: {
+          user: { select: { name: true, email: true } },
+          deliveryDriver: { select: { name: true } },
+          items: { include: { product: true, variant: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.order.count({ where }),
+    ]);
 
     return {
       orders: orders.map((o: any) => ({
         ...o,
         status: mapStatus(o.status),
-        customerName: o.user.name,
-        customerEmail: o.user.email,
+        customerName: o.user?.name ?? o.guestName ?? 'Cliente invitado',
+        customerEmail: o.user?.email ?? o.guestEmail ?? '',
         deliveryDriverName: o.deliveryDriver?.name ?? null,
         total: Number(o.total),
         subtotal: Number(o.subtotal),
@@ -78,7 +109,9 @@ export const orderService = {
         created_at: o.createdAt.toISOString(),
         updated_at: o.updatedAt.toISOString(),
       })),
-      total: orders.length,
+      total,
+      page,
+      limit,
     };
   },
 
@@ -154,8 +187,8 @@ export const orderService = {
     return {
       id: order.id,
       user_id: order.userId,
-      customerName: order.user.name,
-      customerEmail: order.user.email,
+      customerName: order.user?.name ?? order.guestName ?? 'Cliente invitado',
+      customerEmail: order.user?.email ?? order.guestEmail ?? '',
       status: mapStatus(order.status) as OrderStatus,
       subtotal: Number(order.subtotal),
       total: Number(order.total),
@@ -188,7 +221,33 @@ export const orderService = {
   },
 
   async initializeCheckout(params: any) {
-    const cartData = await cartService.getCartContents({ userId: params.userId, sessionId: params.sessionId });
+    const normalizedUserId = Number.isFinite(Number(params.userId))
+      ? Number(params.userId)
+      : null;
+    const normalizedSessionId = String(params.sessionId ?? '').trim() || null;
+    const isGuest = !normalizedUserId;
+
+    if (!normalizedUserId && !normalizedSessionId) {
+      throw new Error('No se pudo identificar la sesión del carrito.');
+    }
+
+    const guestName = normalizeGuestName(params.guestName);
+    const guestEmail = normalizeGuestEmail(params.guestEmail);
+    const guestPhone = normalizeGuestPhone(params.guestPhone ?? params.recipientPhone);
+
+    if (isGuest) {
+      if (!guestName) {
+        throw new Error('El nombre completo es obligatorio para compras como invitado.');
+      }
+      if (!guestEmail || !isValidGuestEmail(guestEmail)) {
+        throw new Error('El email es obligatorio y debe tener un formato válido para compras como invitado.');
+      }
+      if (!guestPhone || guestPhone.length !== 10) {
+        throw new Error('El teléfono debe contener 10 dígitos para compras como invitado.');
+      }
+    }
+
+    const cartData = await cartService.getCartContents({ userId: normalizedUserId, sessionId: normalizedSessionId });
 
     if (!cartData.items || cartData.items.length === 0) {
       throw new Error('El carrito está vacío.');
@@ -202,19 +261,19 @@ export const orderService = {
       ? await prisma.address.findFirst({
           where: {
             id: Number(params.addressId),
-            userId: params.userId,
+            ...(normalizedUserId ? { userId: normalizedUserId } : {}),
             isDeleted: false,
           },
         })
       : null;
 
-    const recipientName = params.recipientName ?? selectedAddress?.recipientName ?? null;
-    const recipientPhone = params.recipientPhone ?? selectedAddress?.recipientPhone ?? null;
+    const recipientName = params.recipientName ?? selectedAddress?.recipientName ?? guestName ?? null;
+    const recipientPhone = params.recipientPhone ?? selectedAddress?.recipientPhone ?? guestPhone ?? null;
     const shippingAddressSnapshot =
       params.shippingAddressSnapshot
       ?? (selectedAddress
         ? `${selectedAddress.streetName} ${selectedAddress.streetNumber}${selectedAddress.interiorNumber ? ` Int. ${selectedAddress.interiorNumber}` : ''}, ${selectedAddress.neighborhood}, ${selectedAddress.city}, ${selectedAddress.state}, CP ${selectedAddress.postalCode}`
-        : null);
+        : (isGuest ? 'Compra como invitado - dirección por confirmar' : null));
 
     const orderItemsToCreate = cartData.items.map((item: DbCartItem, index: number) => {
       if (!Number.isFinite(item.product_id) || !Number.isFinite(item.unit_price) || !Number.isFinite(item.quantity) || item.quantity < 1) {
@@ -234,7 +293,12 @@ export const orderService = {
 
     const newOrder = await prisma.order.create({
       data: {
-        userId: params.userId,
+        userId: normalizedUserId,
+        isGuest,
+        guestName: isGuest ? guestName : null,
+        guestEmail: isGuest ? guestEmail : null,
+        guestPhone: isGuest ? guestPhone : null,
+        sessionId: normalizedSessionId,
         addressId: params.addressId ?? null,
         shippingAddressSnapshot,
         recipientName,
@@ -257,7 +321,7 @@ export const orderService = {
     return {
       orderId: newOrder.id,
       total,
-      customerEmail: '',
+      customerEmail: isGuest ? (guestEmail ?? '') : '',
       orderToken: `token_${newOrder.id}`,
     };
   },

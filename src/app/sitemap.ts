@@ -1,12 +1,12 @@
 // src/app/sitemap.ts
 import { MetadataRoute } from 'next';
 import { blogPosts } from '@/lib/blog-data';
-import { productService } from '@/services/productService';
+import { prisma } from '@/lib/prisma';
 import { categoryService } from '@/services/categoryService';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://floreriaflorarte.com';
-  
+
   const staticPages: MetadataRoute.Sitemap = [
     { url: siteUrl, lastModified: new Date(), changeFrequency: 'yearly', priority: 1 },
     { url: `${siteUrl}/products/all`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
@@ -16,12 +16,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    const { products } = await productService.getAdminProductList();
-    const categories = await categoryService.getAllCategories();
-    
+    const [products, categories] = await Promise.all([
+      prisma.product.findMany({
+        where: { status: 'PUBLISHED', isDeleted: false },
+        select: { slug: true, updatedAt: true },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      categoryService.getAllCategories(),
+    ]);
+
     const productPages: MetadataRoute.Sitemap = products.map((product) => ({
       url: `${siteUrl}/products/${product.slug}`,
-      lastModified: new Date(product.updated_at || new Date()),
+      lastModified: product.updatedAt,
       priority: 0.9,
     }));
 

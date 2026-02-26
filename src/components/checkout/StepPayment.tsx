@@ -52,6 +52,8 @@ export function StepPayment({
     return user?.addresses?.find(a => a.id === values.addressId);
   }, [user, values.addressId]);
 
+    const recipientDisplay = selectedAddress?.recipientName || values.guestName || 'Cliente invitado';
+
   const formattedDate = useMemo(() => {
     if (!values.deliveryDate) return 'No seleccionada';
     try {
@@ -96,7 +98,7 @@ export function StepPayment({
                     </div>
                     <div className="min-w-0">
                         <p className="text-sm font-bold truncate">{selectedAddress?.alias || 'Ubicación'}</p>
-                        <p className="text-xs text-muted-foreground truncate">Recibe: {selectedAddress?.recipientName}</p>
+                        <p className="text-xs text-muted-foreground truncate">Recibe: {recipientDisplay}</p>
                     </div>
                 </div>
 

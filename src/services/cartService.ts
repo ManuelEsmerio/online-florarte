@@ -32,7 +32,15 @@ async function getOrCreateActiveCart(identity: Identity) {
 }
 
 async function getCartContentsRaw(identity: Identity) {
-  const cart = await getActiveCart(identity);
+  const { userId, sessionId } = identity;
+  if (!userId && !sessionId) return { items: [], totals: { totalItems: 0, subtotal: 0 }, coupon: null };
+
+  // Single query: cart + coupon included, no separate findUnique for coupon
+  const cart = await prisma.cart.findFirst({
+    where: { status: 'ACTIVE', ...(userId ? { userId } : { sessionId: sessionId! }) },
+    include: { coupon: true },
+  });
+
   if (!cart) return { items: [], totals: { totalItems: 0, subtotal: 0 }, coupon: null };
 
   const dbItems = await prisma.cartItem.findMany({
@@ -78,9 +86,7 @@ async function getCartContentsRaw(identity: Identity) {
   const subtotal = items.reduce((acc: number, item: DbCartItem) => acc + item.unit_price * item.quantity, 0);
   const totalItems = items.reduce((acc: number, item: DbCartItem) => acc + item.quantity, 0);
 
-  const coupon = cart.couponId
-    ? await prisma.coupon.findUnique({ where: { id: cart.couponId } })
-    : null;
+  const coupon = cart.coupon ?? null;
 
   const mappedCoupon = coupon
     ? { id: coupon.id, code: coupon.code, discount_type: normalizeDiscountType(coupon.discountType), discount_value: toNumber(coupon.discountValue) }
@@ -250,14 +256,26 @@ export const cartService = {
         userCart = await tx.cart.create({ data: { userId, sessionId: null, status: 'ACTIVE' } });
       }
 
-      for (const guestItem of guestItems) {
-        const existing = await tx.cartItem.findFirst({ where: { cartId: userCart.id, productId: guestItem.productId, variantId: guestItem.variantId, parentCartItemId: guestItem.parentCartItemId, isComplement: guestItem.isComplement } });
-        if (existing) {
-          await tx.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + guestItem.quantity, unitPrice: guestItem.unitPrice, customPhotoUrl: guestItem.customPhotoUrl ?? existing.customPhotoUrl, deliveryDate: guestItem.deliveryDate ?? existing.deliveryDate, deliveryTimeSlot: guestItem.deliveryTimeSlot ?? existing.deliveryTimeSlot } });
-        } else {
-          await tx.cartItem.create({ data: { cartId: userCart.id, productId: guestItem.productId, variantId: guestItem.variantId, quantity: guestItem.quantity, unitPrice: guestItem.unitPrice, isComplement: guestItem.isComplement, parentCartItemId: guestItem.parentCartItemId, customPhotoUrl: guestItem.customPhotoUrl, deliveryDate: guestItem.deliveryDate, deliveryTimeSlot: guestItem.deliveryTimeSlot } });
-        }
+      // Batch lookup: 1 query instead of N findFirst calls
+      const existingUserItems = await tx.cartItem.findMany({
+        where: { cartId: userCart.id },
+        select: { id: true, quantity: true, productId: true, variantId: true, parentCartItemId: true, isComplement: true, customPhotoUrl: true, deliveryDate: true, deliveryTimeSlot: true },
+      });
+      const userItemMap = new Map<string, typeof existingUserItems[0]>();
+      for (const item of existingUserItems) {
+        const key = `${item.productId}-${item.variantId ?? ''}-${item.parentCartItemId ?? ''}-${item.isComplement}`;
+        userItemMap.set(key, item);
       }
+
+      // Parallel updates/creates instead of sequential await in loop
+      await Promise.all(guestItems.map((guestItem: any) => {
+        const key = `${guestItem.productId}-${guestItem.variantId ?? ''}-${guestItem.parentCartItemId ?? ''}-${guestItem.isComplement}`;
+        const existing = userItemMap.get(key);
+        if (existing) {
+          return tx.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + guestItem.quantity, unitPrice: guestItem.unitPrice, customPhotoUrl: guestItem.customPhotoUrl ?? existing.customPhotoUrl, deliveryDate: guestItem.deliveryDate ?? existing.deliveryDate, deliveryTimeSlot: guestItem.deliveryTimeSlot ?? existing.deliveryTimeSlot } });
+        }
+        return tx.cartItem.create({ data: { cartId: userCart.id, productId: guestItem.productId, variantId: guestItem.variantId, quantity: guestItem.quantity, unitPrice: guestItem.unitPrice, isComplement: guestItem.isComplement, parentCartItemId: guestItem.parentCartItemId, customPhotoUrl: guestItem.customPhotoUrl, deliveryDate: guestItem.deliveryDate, deliveryTimeSlot: guestItem.deliveryTimeSlot } });
+      }));
 
       await tx.cartItem.deleteMany({ where: { cartId: guestCart.id } });
       await tx.cart.delete({ where: { id: guestCart.id } });

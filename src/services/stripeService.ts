@@ -6,8 +6,15 @@ export const stripeService = {
     amountInCents: number;
     successUrl: string;
     cancelUrl: string;
-    userId: number;
+    userId?: number;
   }) {
+    const baseMetadata: Record<string, string> = {
+      orderId: String(params.orderId),
+    };
+    if (params.userId) {
+      baseMetadata.userId = String(params.userId);
+    }
+
     return stripe.checkout.sessions.create({
       mode: 'payment',
       success_url: params.successUrl,
@@ -25,15 +32,9 @@ export const stripeService = {
           quantity: 1,
         },
       ],
-      metadata: {
-        orderId: String(params.orderId),
-        userId: String(params.userId),
-      },
+      metadata: baseMetadata,
       payment_intent_data: {
-        metadata: {
-          orderId: String(params.orderId),
-          userId: String(params.userId),
-        },
+        metadata: baseMetadata,
       },
     });
   },
@@ -41,16 +42,20 @@ export const stripeService = {
   async createPaymentIntent(params: {
     orderId: number;
     amountInCents: number;
-    userId: number;
+    userId?: number;
   }) {
+    const metadata: Record<string, string> = {
+      orderId: String(params.orderId),
+    };
+    if (params.userId) {
+      metadata.userId = String(params.userId);
+    }
+
     return stripe.paymentIntents.create({
       amount: params.amountInCents,
       currency: 'mxn',
       automatic_payment_methods: { enabled: true },
-      metadata: {
-        orderId: String(params.orderId),
-        userId: String(params.userId),
-      },
+      metadata,
     });
   },
 };

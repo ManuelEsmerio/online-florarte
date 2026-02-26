@@ -290,7 +290,12 @@ export interface ProductOccasion {
 
 export interface Order {
   id: number;
-  userId: number;
+  userId: number | null;
+  isGuest?: boolean;
+  guestName?: string | null;
+  guestEmail?: string | null;
+  guestPhone?: string | null;
+  sessionId?: string | null;
   addressId?: number | null;
   shippingAddressSnapshot?: string | null;
   recipientName?: string | null;

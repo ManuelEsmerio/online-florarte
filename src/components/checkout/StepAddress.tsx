@@ -57,6 +57,7 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
   const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const isGuestCheckout = !user?.id;
   
   const addressId = watch('addressId');
   const selectedAddress = user?.addresses?.find(a => a.id === addressId);
@@ -65,16 +66,23 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
       ?? shippingZones.find(z => z.locality === selectedAddress.city)
     : null;
   const shippingCostValue = currentZone?.shippingCost ?? null;
-  
-  const isCompleted = (!!selectedAddress && shippingCostValue !== null) || currentStep > 2;
+
+  const isCompleted = isGuestCheckout
+    ? currentStep > 2
+    : ((!!selectedAddress && shippingCostValue !== null) || currentStep > 2);
 
   useEffect(() => {
+    if (isGuestCheckout) {
+      setShippingCost(0);
+      return;
+    }
+
     if (selectedAddress) {
       const zone = shippingZones.find(z => z.postalCode === selectedAddress.postalCode)
         ?? shippingZones.find(z => z.locality === selectedAddress.city);
       setShippingCost(zone ? zone.shippingCost : null);
     }
-  }, [selectedAddress, shippingZones, setShippingCost]);
+  }, [isGuestCheckout, selectedAddress, shippingZones, setShippingCost]);
 
   const handleAddressSelect = useCallback((address: Address) => {
     setValue('addressId', address.id, { shouldValidate: true });
@@ -106,6 +114,11 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
   }
 
   const handleNext = async () => {
+    if (isGuestCheckout) {
+      setActiveStep(3);
+      return;
+    }
+
     const isValid = await trigger('addressId');
     if (isValid && selectedAddress) {
       setActiveStep(3);
@@ -154,7 +167,15 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
       
       {isActive && (
         <CardContent className="p-6 md:p-8 pt-0 space-y-6 animate-in fade-in slide-in-from-top-2 duration-500 w-full max-w-full overflow-hidden">
-          {authLoading ? (
+          {isGuestCheckout ? (
+            <Alert className="rounded-2xl border-primary/20 bg-primary/5">
+              <MapPin className="h-5 w-5 text-primary" />
+              <AlertTitle className="font-bold text-sm">Checkout como invitado</AlertTitle>
+              <AlertDescription className="text-xs font-medium mt-1">
+                Continuarás con costo de envío provisional de $0.00. Confirmaremos dirección y ruta contigo por teléfono.
+              </AlertDescription>
+            </Alert>
+          ) : authLoading ? (
             <Skeleton className="h-32 w-full rounded-2xl" />
           ) : selectedAddress ? (
             <div className="space-y-6 w-full max-w-full">
@@ -218,7 +239,7 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
             <Button 
                 type="button" 
                 onClick={handleNext} 
-                disabled={!selectedAddress || shippingCostValue === null}
+              disabled={isGuestCheckout ? false : (!selectedAddress || shippingCostValue === null)}
                 className="w-full sm:w-auto h-14 px-12 rounded-2xl font-bold shadow-lg shadow-primary/20 gap-2 transition-all active:scale-95 bg-primary hover:bg-[#E6286B]"
             >
                 Continuar
