@@ -183,13 +183,15 @@ const ReviewForm = ({ orderId, onReviewSubmit, onCancel, existingReview }: { ord
     );
 }
 
-export const DialogCell = ({ row, trigger }: { row: Order, trigger: React.ReactNode }) => {
+export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger: React.ReactNode, onDataChange?: () => void }) => {
     const { toast } = useToast();
     const { apiFetch } = useAuth();
     const [isCancelling, setIsCancelling] = useState(false);
+    const [isStartingPayment, setIsStartingPayment] = useState(false);
     const [cancellationInfo, setCancellationInfo] = useState<{canCancel: boolean, message: string}>({canCancel: false, message: ''});
     const [view, setView] = useState<'details' | 'review'>('details');
     const [paymentStatus, setPaymentStatus] = useState<string>(String((row as any).payment_status || 'PENDING'));
+    const [hasPaymentTransaction, setHasPaymentTransaction] = useState<boolean>(Boolean((row as any).has_payment_transaction));
 
      const fetchOrderDetails = useCallback(async () => {
         try {
@@ -201,10 +203,35 @@ export const DialogCell = ({ row, trigger }: { row: Order, trigger: React.ReactN
             if (data?.order?.payment_status) {
                 setPaymentStatus(String(data.order.payment_status));
             }
+            if (typeof data?.order?.has_payment_transaction === 'boolean') {
+                setHasPaymentTransaction(Boolean(data.order.has_payment_transaction));
+            }
         } catch (error: any) {
             console.error("Failed to fetch order details:", error.message);
         }
     }, [apiFetch, row.id]);
+
+    const handlePayNow = async () => {
+        setIsStartingPayment(true);
+        try {
+            const response = await apiFetch('/api/stripe/checkout-session/order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId: row.id }),
+            });
+
+            const result = await handleApiResponse<{ checkoutUrl?: string }>(response);
+
+            if (!result?.checkoutUrl) {
+                throw new Error('No se recibió una URL de pago válida.');
+            }
+
+            window.location.href = result.checkoutUrl;
+        } catch (error: any) {
+            toast({ title: 'No se pudo iniciar el pago', description: error.message, variant: 'destructive' });
+            setIsStartingPayment(false);
+        }
+    };
 
     const handleCancelOrder = async () => {
         setIsCancelling(true);
@@ -216,8 +243,11 @@ export const DialogCell = ({ row, trigger }: { row: Order, trigger: React.ReactN
     
     const onReviewSubmit = () => {
         setView('details');
-        window.location.reload();
+        if (onDataChange) onDataChange();
+        else window.location.reload();
     }
+
+    const isUnpaidOrder = !hasPaymentTransaction && paymentStatus !== 'SUCCEEDED';
     
     return (
         <Dialog onOpenChange={(open) => {
@@ -376,7 +406,17 @@ export const DialogCell = ({ row, trigger }: { row: Order, trigger: React.ReactN
                                 </Button>
                             )}
                             
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className={cn('grid gap-3', isUnpaidOrder ? 'grid-cols-1' : 'grid-cols-2')}>
+                                {isUnpaidOrder && row.status !== 'cancelado' && (
+                                    <Button
+                                        onClick={handlePayNow}
+                                        className="h-14 rounded-2xl font-bold bg-red-600 hover:bg-red-700 text-white border-none gap-2"
+                                        loading={isStartingPayment}
+                                    >
+                                        <CreditCard className="w-4 h-4" />
+                                        Pagar ahora
+                                    </Button>
+                                )}
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <Button 
@@ -388,7 +428,7 @@ export const DialogCell = ({ row, trigger }: { row: Order, trigger: React.ReactN
                                             Cancelar
                                         </Button>
                                     </AlertDialogTrigger>
-                                    <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl">
+                                    <AlertDialogContent className="z-[80] rounded-[2.5rem] border-none shadow-2xl">
                                         <AlertDialogHeader>
                                             <AlertDialogTitle className="font-headline text-2xl">¿Estás seguro?</AlertDialogTitle>
                                             <AlertDialogDescription className="text-sm leading-relaxed">

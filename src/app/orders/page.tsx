@@ -168,7 +168,11 @@ export default function OrdersPage() {
     'cancelado': 'Cancelado',
   };
 
-  const getStatusBadgeClass = (status: OrderStatus) => {
+  const getStatusBadgeClass = (status: OrderStatus, isUnpaidOrder: boolean) => {
+    if (isUnpaidOrder) {
+      return 'bg-red-100 text-red-700 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
+    }
+
     switch (status) {
       case 'completado': return 'bg-green-100 text-green-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
       case 'en_reparto': return 'bg-blue-100 text-blue-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
@@ -250,16 +254,20 @@ export default function OrdersPage() {
               <div className="grid grid-cols-1 gap-6 md:hidden">
                 {table.getRowModel().rows.map((row) => {
                   const order = row.original;
+                  const isUnpaidOrder = !(order as any).has_payment_transaction;
                   return (
-                    <Card key={order.id} className="rounded-[2rem] border-none shadow-sm bg-background overflow-hidden animate-fade-in-up">
+                    <Card key={order.id} className={cn(
+                      'rounded-[2rem] border-none shadow-sm bg-background overflow-hidden animate-fade-in-up',
+                      isUnpaidOrder && 'ring-1 ring-red-200/70'
+                    )}>
                       <CardContent className="p-6 space-y-6">
                         <div className="flex justify-between items-start">
                           <div>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pedido</p>
                             <h3 className="text-lg font-bold text-slate-900 dark:text-white">ORD#{String(order.id).padStart(4, '0')}</h3>
                           </div>
-                          <Badge className={cn("uppercase", getStatusBadgeClass(order.status))}>
-                            {statusTranslations[order.status]}
+                          <Badge className={cn('uppercase', getStatusBadgeClass(order.status, isUnpaidOrder))}>
+                            {isUnpaidOrder ? 'Sin pago' : statusTranslations[order.status]}
                           </Badge>
                         </div>
 
@@ -322,7 +330,10 @@ export default function OrdersPage() {
                   </TableHeader>
                   <TableBody>
                     {table.getRowModel().rows.map((row) => (
-                      <TableRow key={row.id} className="hover:bg-primary/5 transition-colors border-b-border/50 group">
+                      <TableRow key={row.id} className={cn(
+                        'hover:bg-primary/5 transition-colors border-b-border/50 group',
+                        !(row.original as any).has_payment_transaction && 'bg-red-50/35 hover:bg-red-50/55'
+                      )}>
                         {row.getVisibleCells().map((cell) => (
                           <TableCell key={cell.id} className="px-6 py-5">
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}

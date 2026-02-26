@@ -321,6 +321,8 @@ export interface Order {
   items?: OrderItem[];
   loyaltyHistory?: LoyaltyHistory[];
   testimonial?: Testimonial | null;
+  payment_status?: string;
+  has_payment_transaction?: boolean;
 }
 
 export interface OrderItem {

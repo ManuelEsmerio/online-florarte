@@ -101,7 +101,9 @@ export const orderService = {
       : [];
 
     const latestPaymentStatusByOrderId = new Map<number, string>();
+    const hasPaymentTransactionByOrderId = new Map<number, boolean>();
     for (const transaction of transactions) {
+      hasPaymentTransactionByOrderId.set(transaction.orderId, true);
       if (!latestPaymentStatusByOrderId.has(transaction.orderId)) {
         latestPaymentStatusByOrderId.set(transaction.orderId, transaction.status);
       }
@@ -119,6 +121,7 @@ export const orderService = {
       recipientName: o.recipientName,
       recipientPhone: o.recipientPhone,
       payment_status: latestPaymentStatusByOrderId.get(o.id) ?? 'PENDING',
+      has_payment_transaction: hasPaymentTransactionByOrderId.get(o.id) ?? false,
       shippingAddress: o.shippingAddressSnapshot ?? '',
       delivery_date: o.deliveryDate?.toISOString().slice(0, 10) ?? '',
       delivery_time_slot: o.deliveryTimeSlot,
@@ -160,6 +163,7 @@ export const orderService = {
       recipientName: order.recipientName,
       recipientPhone: order.recipientPhone,
       payment_status: latestPaymentTransaction?.status ?? 'PENDING',
+      has_payment_transaction: Boolean(latestPaymentTransaction),
       shippingAddress: order.shippingAddressSnapshot ?? '',
       delivery_date: order.deliveryDate?.toISOString().slice(0, 10) ?? '',
       delivery_time_slot: order.deliveryTimeSlot,

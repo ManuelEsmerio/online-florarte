@@ -76,12 +76,13 @@ export const columns = ({ onDataChange }: { onDataChange: () => void }): ColumnD
     header: 'Estado',
     cell: ({ row }) => {
       const status = row.getValue('status') as OrderStatus;
+      const isUnpaidOrder = !(row.original as any).has_payment_transaction;
       const trigger = (
         <Badge
-            variant={getStatusVariant(status)}
+            variant={isUnpaidOrder ? 'destructive' : getStatusVariant(status)}
             className="capitalize text-[10px] px-2 py-0 h-5 cursor-pointer hover:opacity-80 transition-opacity"
         >
-            {statusTranslations[status]}
+            {isUnpaidOrder ? 'Sin pago' : statusTranslations[status]}
         </Badge>
       );
        return <DialogCell row={row.original} trigger={trigger} />;
@@ -95,7 +96,7 @@ export const columns = ({ onDataChange }: { onDataChange: () => void }): ColumnD
     header: () => <div className="text-right">Detalle</div>,
     cell: ({ row }) => {
         const trigger = <Button variant="ghost" size="sm" className="h-8 text-primary font-bold hover:bg-primary/5">Ver más</Button>;
-        return <DialogCell row={row.original} trigger={trigger} />;
+        return <DialogCell row={row.original} trigger={trigger} onDataChange={onDataChange} />;
     }
   }
 ];
