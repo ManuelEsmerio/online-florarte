@@ -192,6 +192,8 @@ const OrderDetailsSkeleton = () => (
     </div>
 );
 
+type PaymentGateway = 'stripe' | 'mercadopago';
+
 const ReviewForm = ({ orderId, onReviewSubmit, onCancel, existingReview }: { orderId: number, onReviewSubmit: () => void, onCancel: () => void, existingReview?: Testimonial | null }) => {
     const { toast } = useToast();
     const { apiFetch } = useAuth();
@@ -302,10 +304,14 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
         }
     }, [apiFetch, row.id]);
 
-    const handlePayNow = async () => {
+    const handlePayNow = async (gateway: PaymentGateway) => {
         setIsStartingPayment(true);
         try {
-            const response = await apiFetch('/api/stripe/checkout-session/order', {
+            const endpoint = gateway === 'mercadopago'
+                ? '/api/mercadopago/checkout-session/order'
+                : '/api/stripe/checkout-session/order';
+
+            const response = await apiFetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ orderId: row.id }),
@@ -492,14 +498,49 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
                                             </div>
                                         </div>
                                         {isUnpaidOrder && row.status !== 'cancelado' ? (
-                                            <Button
-                                                onClick={handlePayNow}
-                                                className="h-10 rounded-xl font-bold bg-red-600 hover:bg-red-700 text-white border-none gap-2"
-                                                loading={isStartingPayment}
-                                            >
-                                                <CreditCard className="w-4 h-4" />
-                                                Pagar
-                                            </Button>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button
+                                                        className="h-10 rounded-xl font-bold bg-red-600 hover:bg-red-700 text-white border-none gap-2"
+                                                        loading={isStartingPayment}
+                                                        disabled={isStartingPayment}
+                                                    >
+                                                        <CreditCard className="w-4 h-4" />
+                                                        Pagar
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent className="z-[80] rounded-[2rem] border-border/50 shadow-2xl">
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle className="font-headline text-2xl">Selecciona método de pago</AlertDialogTitle>
+                                                        <AlertDialogDescription className="text-sm leading-relaxed">
+                                                            Elige cómo deseas pagar este pedido.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <div className="grid grid-cols-1 gap-3 py-2">
+                                                        <AlertDialogAction
+                                                            onClick={() => handlePayNow('stripe')}
+                                                            className="h-11 rounded-xl font-bold gap-2 bg-primary hover:bg-primary/90"
+                                                            loading={isStartingPayment}
+                                                            disabled={isStartingPayment}
+                                                        >
+                                                            <CreditCard className="w-4 h-4" />
+                                                            Pagar con Stripe
+                                                        </AlertDialogAction>
+                                                        <AlertDialogAction
+                                                            onClick={() => handlePayNow('mercadopago')}
+                                                            className="h-11 rounded-xl font-bold gap-2 bg-sky-600 hover:bg-sky-700"
+                                                            loading={isStartingPayment}
+                                                            disabled={isStartingPayment}
+                                                        >
+                                                            <CreditCard className="w-4 h-4" />
+                                                            Pagar con Mercado Pago
+                                                        </AlertDialogAction>
+                                                    </div>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel className="rounded-xl h-11 font-bold" disabled={isStartingPayment}>Cancelar</AlertDialogCancel>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
                                         ) : null}
                                     </div>
                                 </section>

@@ -28,6 +28,7 @@ interface AuthResult {
 interface ToggleWishlistResult {
   success: boolean;
   type?: 'added' | 'removed';
+  message?: string;
 }
 
 interface AuthContextType {
@@ -269,8 +270,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ─── logout ───────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    localStorage.removeItem('florarte_user_session');
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+      console.warn('[AUTH_LOGOUT_WARNING] No se pudo notificar logout al servidor.', error);
+    }
+
+    try {
+      localStorage.clear();
+    } catch (error) {
+      console.warn('[AUTH_LOGOUT_WARNING] No se pudo limpiar localStorage.', error);
+    }
+
     ordersCacheRef.current = null;
     ordersInFlightRef.current = null;
     setUser(null);
@@ -433,13 +444,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ─── toggleWishlist ───────────────────────────────────────────────────────
   const toggleWishlist = useCallback(async (productId: number, product: Product): Promise<ToggleWishlistResult> => {
-    const exists = wishlist.some(p => p.id === productId);
-
-    // Actualización optimista
-    if (exists) {
-      setWishlist(prev => prev.filter(p => p.id !== productId));
-    } else {
-      setWishlist(prev => [...prev, product]);
+    if (!userRef.current?.id) {
+      return { success: false, message: 'Debes iniciar sesión para guardar favoritos.' };
     }
 
     try {
@@ -450,25 +456,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!res.ok) {
-        // Revertir si falla
-        setWishlist(prev => exists
-          ? [...prev, product]
-          : prev.filter(p => p.id !== productId)
-        );
         return { success: false };
       }
 
       const data = await res.json();
-      return { success: true, type: data.data?.type as 'added' | 'removed' };
+      const type = data.data?.type as 'added' | 'removed' | undefined;
+
+      if (!type) {
+        return { success: false };
+      }
+
+      setWishlist(prev => {
+        if (type === 'removed') {
+          return prev.filter(p => p.id !== productId);
+        }
+
+        const alreadyInWishlist = prev.some(p => p.id === productId);
+        if (alreadyInWishlist) return prev;
+        return [...prev, product];
+      });
+
+      return { success: true, type };
 
     } catch {
-      setWishlist(prev => exists
-        ? [...prev, product]
-        : prev.filter(p => p.id !== productId)
-      );
       return { success: false };
     }
-  }, [apiFetch, wishlist]);
+  }, [apiFetch]);
 
   // ─── contextValue ────────────────────────────────────────────────────────
   // Todas las funciones son ahora useCallback, por lo que contextValue solo

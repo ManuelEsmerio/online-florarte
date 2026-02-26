@@ -59,6 +59,11 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
           description: `${product.name} ha sido ${result.type === 'added' ? 'añadido a' : 'eliminado de'} tu lista de deseos.`,
           action: <ToastAction altText="Ver Wishlist" asChild><Link href="/wishlist">Ver Wishlist</Link></ToastAction>,
       })
+        } else if (result.message) {
+            toast({
+                title: 'Inicia sesión para continuar',
+                description: result.message,
+            });
     }
   }
 
