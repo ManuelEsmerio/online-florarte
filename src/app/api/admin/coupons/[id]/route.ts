@@ -7,7 +7,7 @@ import { couponService } from '@/services/couponService';
 import { ZodError } from 'zod';
 
 interface RouteParams {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 
@@ -16,6 +16,8 @@ interface RouteParams {
  * Endpoint protegido para obtener un cupón por su ID con sus relaciones.
  */
 export async function GET(req: NextRequest, { params }: RouteParams) {
+  let routeCouponId = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
@@ -23,7 +25,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const adminUser = await userService.getUserById(session.dbId);
     if (adminUser?.role !== 'admin') return errorHandler(new Error('Acceso prohibido.'), 403);
     
-    const couponId = parseInt(params.id, 10);
+    const { id } = await params;
+    routeCouponId = id;
+
+    const couponId = parseInt(id, 10);
     const coupon = await couponService.getCouponById(couponId);
     
     if (!coupon) return errorHandler(new Error('Cupón no encontrado.'), 404);
@@ -31,7 +36,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     return successResponse(coupon);
 
   } catch (error) {
-    console.error(`[API_ADMIN_COUPON_GET_ERROR] ID: ${params.id}`, error);
+        console.error(`[API_ADMIN_COUPON_GET_ERROR] ID: ${routeCouponId}`, error);
     return errorHandler(error);
   }
 }
@@ -41,6 +46,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
  * Endpoint protegido para actualizar un cupón por su ID.
  */
 export async function PUT(req: NextRequest, { params }: RouteParams) {
+  let routeCouponId = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) {
@@ -51,7 +58,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 
-    const couponId = parseInt(params.id, 10);
+    const { id } = await params;
+    routeCouponId = id;
+
+    const couponId = parseInt(id, 10);
     const body = await req.json();
 
     const updatedCoupon = await couponService.updateCoupon(couponId, body, session.dbId);
@@ -65,7 +75,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (error instanceof Error && error.message.includes('Ya existe')) {
       return errorHandler(error, 409); // Conflict
     }
-    console.error(`[API_ADMIN_COUPON_UPDATE_ERROR] ID: ${params.id}`, error);
+    console.error(`[API_ADMIN_COUPON_UPDATE_ERROR] ID: ${routeCouponId}`, error);
     return errorHandler(error);
   }
 }
@@ -75,6 +85,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
  * Endpoint protegido para eliminar un cupón.
  */
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  let routeCouponId = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) {
@@ -85,7 +97,10 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
     
-    const couponId = parseInt(params.id, 10);
+    const { id } = await params;
+    routeCouponId = id;
+
+    const couponId = parseInt(id, 10);
     const success = await couponService.deleteCoupon(couponId, session.dbId);
     
     if(!success) {
@@ -94,7 +109,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     return successResponse({ message: 'Cupón eliminado correctamente.' });
   } catch (error) {
-    console.error(`[API_ADMIN_COUPON_DELETE_ERROR] ID: ${params.id}`, error);
+    console.error(`[API_ADMIN_COUPON_DELETE_ERROR] ID: ${routeCouponId}`, error);
     return errorHandler(error);
   }
 }

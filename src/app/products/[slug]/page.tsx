@@ -59,7 +59,7 @@ const ProductPageSkeleton = () => (
 );
 
 type ProductPageProps = {
-  params: { slug: string };
+    params: Promise<{ slug: string }>;
 };
 
 async function getProductData(slug: string): Promise<{ product: Product, complementProducts: Product[] } | null> {

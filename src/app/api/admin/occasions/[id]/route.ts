@@ -6,7 +6,7 @@ import { userService } from '@/services/userService';
 import { occasionService } from '@/services/occasionService';
 
 interface RouteParams {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /**
@@ -14,6 +14,8 @@ interface RouteParams {
  * Actualiza una ocasión existente.
  */
 export async function PUT(req: NextRequest, { params }: RouteParams) {
+  let routeOccasionId = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
@@ -21,7 +23,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const user = await userService.getUserById(session.dbId);
     if (user?.role !== 'admin') return errorHandler(new Error('Acceso prohibido.'), 403);
 
-    const occasionId = parseInt(params.id, 10);
+    const { id } = await params;
+    routeOccasionId = id;
+
+    const occasionId = parseInt(id, 10);
     
     const formData = await req.formData();
     const occasionDataString = formData.get('occasionData') as string;
@@ -36,7 +41,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     return successResponse(updatedOccasion);
   } catch (error) {
-    console.error(`[API_ADMIN_OCCASIONS_PUT_ERROR] ID: ${params.id}`, error);
+    console.error(`[API_ADMIN_OCCASIONS_PUT_ERROR] ID: ${routeOccasionId}`, error);
     return errorHandler(error);
   }
 }
@@ -46,6 +51,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
  * Elimina una ocasión.
  */
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  let routeOccasionId = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
@@ -53,12 +60,15 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const user = await userService.getUserById(session.dbId);
     if (user?.role !== 'admin') return errorHandler(new Error('Acceso prohibido.'), 403);
 
-    const occasionId = parseInt(params.id, 10);
+    const { id } = await params;
+    routeOccasionId = id;
+
+    const occasionId = parseInt(id, 10);
     await occasionService.deleteOccasion(occasionId, session.dbId);
 
     return successResponse({ message: 'Ocasión eliminada correctamente.' });
   } catch (error) {
-    console.error(`[API_ADMIN_OCCASions_DELETE_ERROR] ID: ${params.id}`, error);
+    console.error(`[API_ADMIN_OCCASions_DELETE_ERROR] ID: ${routeOccasionId}`, error);
     return errorHandler(error);
   }
 }

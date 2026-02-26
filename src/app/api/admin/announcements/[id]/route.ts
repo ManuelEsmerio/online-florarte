@@ -6,7 +6,7 @@ import { userService } from '@/services/userService';
 import { update, deleteAd } from '@/services/announcementService';
 
 interface RouteParams {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 // Para actualizar, usamos POST porque FormData con PUT no es directamente compatible en Next.js App Router
@@ -17,7 +17,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const user = await userService.getUserById(session.dbId);
     if (user?.role !== 'admin') return errorHandler(new Error('Acceso prohibido.'), 403);
 
-    const id = parseInt(params.id, 10);
+    const { id: routeAnnouncementId } = await params;
+    const id = parseInt(routeAnnouncementId, 10);
     const formData = await req.formData();
     const announcementData = JSON.parse(formData.get('announcementData') as string);
     const images = {
@@ -40,7 +41,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const user = await userService.getUserById(session.dbId);
     if (user?.role !== 'admin') return errorHandler(new Error('Acceso prohibido.'), 403);
 
-    const id = parseInt(params.id, 10);
+    const { id: routeAnnouncementId } = await params;
+    const id = parseInt(routeAnnouncementId, 10);
     await deleteAd(id, session.dbId);
     return successResponse({ message: 'Anuncio eliminado correctamente.' });
   } catch (error) {

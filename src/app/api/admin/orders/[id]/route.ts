@@ -9,7 +9,7 @@ import { OrderStatus } from '@/lib/definitions';
 
 
 interface RouteParams {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /**
@@ -17,6 +17,8 @@ interface RouteParams {
  * Obtiene los detalles completos de un pedido para el panel de administración.
  */
 export async function GET(req: NextRequest, { params }: RouteParams) {
+  let routeOrderId = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) {
@@ -27,7 +29,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 
-    const orderId = parseInt(params.id, 10);
+    const { id } = await params;
+    routeOrderId = id;
+
+    const orderId = parseInt(id, 10);
     const order = await orderService.getOrderDetails(orderId);
 
     if (!order) {
@@ -36,7 +41,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     return successResponse(order);
   } catch (error) {
-    console.error(`[API_ADMIN_ORDER_GET_ERROR] ID: ${params.id}`, error);
+    console.error(`[API_ADMIN_ORDER_GET_ERROR] ID: ${routeOrderId}`, error);
     return errorHandler(error);
   }
 }
@@ -46,6 +51,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
  * Actualiza el estado de un pedido.
  */
 export async function PUT(req: NextRequest, { params }: RouteParams) {
+  let routeOrderId = '';
+
     try {
         const session: UserSession | null = await getDecodedToken(req);
         if (!session?.dbId) {
@@ -56,7 +63,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
             return errorHandler(new Error('Acceso prohibido.'), 403);
         }
 
-        const orderId = parseInt(params.id, 10);
+        const { id } = await params;
+        routeOrderId = id;
+
+        const orderId = parseInt(id, 10);
         const body = await req.json();
 
         // Validar que el código de estado sea uno de los permitidos
@@ -82,7 +92,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         if (error instanceof ZodError) {
             return errorHandler(error, 400);
         }
-        console.error(`[API_ADMIN_ORDER_UPDATE_ERROR] ID: ${params.id}`, error);
+      console.error(`[API_ADMIN_ORDER_UPDATE_ERROR] ID: ${routeOrderId}`, error);
         return errorHandler(error);
   }
 }

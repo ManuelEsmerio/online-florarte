@@ -6,7 +6,7 @@ import { userService } from '@/services/userService';
 import { tagService } from '@/services/tagService';
 
 interface RouteParams {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /**
@@ -14,6 +14,8 @@ interface RouteParams {
  * Actualiza una etiqueta existente.
  */
 export async function PUT(req: NextRequest, { params }: RouteParams) {
+  let routeTagId = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
@@ -21,14 +23,17 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const user = await userService.getUserById(session.dbId);
     if (user?.role !== 'admin') return errorHandler(new Error('Acceso prohibido.'), 403);
 
-    const tagId = parseInt(params.id, 10);
+    const { id } = await params;
+    routeTagId = id;
+
+    const tagId = parseInt(id, 10);
     const body = await req.json();
 
     const updatedTag = await tagService.updateTag(tagId, body, session.dbId);
 
     return successResponse(updatedTag);
   } catch (error) {
-    console.error(`[API_ADMIN_TAGS_PUT_ERROR] ID: ${params.id}`, error);
+    console.error(`[API_ADMIN_TAGS_PUT_ERROR] ID: ${routeTagId}`, error);
     return errorHandler(error);
   }
 }
@@ -38,6 +43,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
  * Elimina una etiqueta.
  */
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  let routeTagId = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
@@ -45,12 +52,15 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const user = await userService.getUserById(session.dbId);
     if (user?.role !== 'admin') return errorHandler(new Error('Acceso prohibido.'), 403);
 
-    const tagId = parseInt(params.id, 10);
+    const { id } = await params;
+    routeTagId = id;
+
+    const tagId = parseInt(id, 10);
     await tagService.deleteTag(tagId, session.dbId);
 
     return successResponse({ message: 'Etiqueta eliminada correctamente.' });
   } catch (error) {
-    console.error(`[API_ADMIN_TAGS_DELETE_ERROR] ID: ${params.id}`, error);
+    console.error(`[API_ADMIN_TAGS_DELETE_ERROR] ID: ${routeTagId}`, error);
     return errorHandler(error);
   }
 }

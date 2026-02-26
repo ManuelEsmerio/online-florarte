@@ -29,7 +29,6 @@ import Link from 'next/link';
 import { 
   CheckCircle, 
   Package, 
-  PhoneCall, 
   Truck, 
   XCircle, 
   Ban, 
@@ -38,14 +37,14 @@ import {
   CreditCard, 
   Heart, 
   Headphones, 
-  ArrowRight,
-  ChevronRight,
+    CalendarDays,
+    MapPin,
+    UserRound,
   Edit
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useCallback } from 'react';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { Testimonial } from '@/lib/definitions';
 import { useAuth } from '@/context/AuthContext';
 import { handleApiResponse } from '@/utils/handleApiResponse';
@@ -248,6 +247,22 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
     }
 
     const isUnpaidOrder = !hasPaymentTransaction && paymentStatus !== 'SUCCEEDED';
+    const orderCode = `ORD$${String(row.id).padStart(4, '0')}`;
+    const createdAtValue = (row as any).created_at ?? row.createdAt;
+    const createdAtLabel = createdAtValue
+        ? new Date(createdAtValue).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+        : 'Fecha no disponible';
+    const deliveryDateValue = (row as any).delivery_date ?? row.deliveryDate;
+    const deliveryDateLabel = deliveryDateValue
+        ? new Date(deliveryDateValue).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+        : 'No disponible';
+    const deliveryTimeSlot = formatTimeSlotForUI((row as any).delivery_time_slot ?? row.deliveryTimeSlot);
+    const shippingAddress = (row as any).shippingAddress ?? row.shippingAddressSnapshot ?? (row as any).shipping_address_snapshot ?? 'No especificada';
+    const recipientName = (row as any).recipient_name ?? row.recipientName ?? 'No especificado';
+    const recipientPhone = (row as any).recipient_phone ?? row.recipientPhone ?? 'No especificado';
+    const couponDiscount = (row as any).coupon_discount ?? row.couponDiscount;
+    const shippingCost = (row as any).shipping_cost ?? row.shippingCost;
+    const couponCode = (row as any).couponCode ?? row.couponCodeSnap ?? (row as any).coupon_code ?? (row as any).coupon_code_snap;
     
     return (
         <Dialog onOpenChange={(open) => {
@@ -257,207 +272,224 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
             <DialogTrigger asChild>
                 {trigger}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md md:max-w-lg p-0 max-h-[90vh] overflow-y-auto border-none shadow-2xl rounded-[2.5rem] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                <DialogHeader className="p-8 pb-4 text-center">
-                    <DialogTitle className='font-headline text-2xl md:text-3xl font-bold'>
+            <DialogContent className="w-[96vw] max-w-6xl p-0 max-h-[92vh] overflow-hidden border-border/50 shadow-2xl rounded-[2rem] flex flex-col">
+                <DialogHeader className="px-6 md:px-10 pt-8 md:pt-10 pb-6 border-b border-border/50 text-left">
+                    <DialogTitle className='font-headline text-3xl md:text-5xl font-bold tracking-tight'>
                         {view === 'review' ? (row.testimonial ? 'Editar Reseña' : 'Califica tu Pedido') : (
-                            <>Detalles del Pedido: <span className="text-primary">ORD${String(row.id).padStart(4, '0')}</span></>
+                            <>Detalles del Pedido: <span className="text-primary italic">{orderCode}</span></>
                         )}
                     </DialogTitle>
+                    {view === 'details' && (
+                        <p className="text-muted-foreground mt-2 flex items-center gap-2 text-sm">
+                            <CalendarDays className="h-4 w-4" />
+                            Realizado el {createdAtLabel}
+                        </p>
+                    )}
                 </DialogHeader>
-                
-                <div className="px-6 md:px-8 pb-8 space-y-6">
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar px-6 md:px-10 py-6 md:py-8">
                     {view === 'review' ? (
                         <ReviewForm orderId={row.id} onReviewSubmit={onReviewSubmit} onCancel={() => setView('details')} existingReview={row.testimonial as any} />
                     ) : (
-                        <Tabs defaultValue="products" className="w-full">
-                            <TabsList className="grid w-full grid-cols-2 p-1 bg-muted/50 rounded-full h-12 md:h-14 mb-8">
-                                <TabsTrigger value="products" className="rounded-full data-[state=active]:bg-primary data-[state=active]:text-white font-bold transition-all h-full">Productos</TabsTrigger>
-                                <TabsTrigger value="shipping" className="rounded-full data-[state=active]:bg-primary data-[state=active]:text-white font-bold transition-all h-full">Envío y Pago</TabsTrigger>
-                            </TabsList>
-                            
-                            <TabsContent value="products" className="space-y-6 animate-in fade-in duration-200 pt-1">
-                                <div>
-                                    <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-4">Artículos</h4>
-                                    <div className="space-y-4 max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
+                            <div className="lg:col-span-7 space-y-8">
+                                <section>
+                                    <div className="flex items-center justify-between mb-6 gap-3">
+                                        <h4 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground">Artículos ({row.items?.length ?? 0})</h4>
+                                        <Badge variant={getStatusVariant(row.status)} className="h-6 text-[10px] px-3 uppercase tracking-wider font-bold">
+                                            {statusTranslations[row.status]}
+                                        </Badge>
+                                    </div>
+                                    <div className="space-y-4">
                                         {row.items?.map((item, index) => (
-                                            <div key={index} className="flex items-center justify-between group">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="relative h-14 w-14 shrink-0 rounded-full overflow-hidden border border-border/50 shadow-sm transition-transform group-hover:scale-105">
-                                                        <Image 
-                                                            src={item.image || '/placehold.webp'} 
-                                                            alt={item.product_name || 'Producto'} 
-                                                            fill 
-                                                            className="object-cover" 
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-bold text-sm leading-tight">{item.product_name}</p>
-                                                        <p className="text-xs text-muted-foreground mt-0.5">Cantidad: {item.quantity}</p>
+                                            <div key={index} className="flex items-center gap-4 md:gap-5 rounded-2xl p-3 border border-transparent hover:border-border/50 hover:bg-muted/20 transition-colors">
+                                                <div className="relative h-20 w-20 md:h-24 md:w-24 shrink-0 rounded-xl overflow-hidden bg-muted/40">
+                                                    <Image src={item.image || '/placehold.webp'} alt={item.product_name || 'Producto'} fill className="object-cover" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-semibold text-base md:text-xl leading-tight">{item.product_name}</p>
+                                                    {item.variant_name ? <p className="text-sm text-muted-foreground mt-1 truncate">{item.variant_name}</p> : null}
+                                                    <div className="mt-2 flex items-center gap-3">
+                                                        <span className="text-xs px-2 py-1 rounded-md bg-muted font-medium">Cant: {item.quantity}</span>
+                                                        <span className="text-primary font-bold text-lg">{formatCurrency(item.price * item.quantity)}</span>
                                                     </div>
                                                 </div>
-                                                <p className="font-bold text-sm">{formatCurrency(item.price * item.quantity)}</p>
                                             </div>
                                         ))}
                                     </div>
-                                </div>
+                                </section>
 
-                                <div className="bg-muted/30 p-6 rounded-[2rem] border border-border/50 space-y-4 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-4 opacity-5">
-                                        <Heart className="w-16 h-16 text-primary fill-primary" />
+                                <section>
+                                    <h4 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-4">Dedicatoria</h4>
+                                    <div className="bg-card/60 rounded-2xl p-6 md:p-7 border border-border/50 relative overflow-hidden">
+                                        <div className="absolute -right-5 -top-5 opacity-10">
+                                            <Heart className="w-24 h-24 text-primary fill-primary" />
+                                        </div>
+                                        <div className="relative z-10 space-y-4">
+                                            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                                <Heart className="w-3.5 h-3.5 text-primary fill-primary" />
+                                                <span>Mensaje Especial</span>
+                                            </div>
+                                            <p className="text-lg md:text-2xl font-headline italic leading-relaxed text-foreground/90">
+                                                "{row.dedication || 'No se incluyó dedicatoria.'}"
+                                            </p>
+                                            <Separator className="bg-border/60" />
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Firma</span>
+                                                <span className="text-sm font-semibold">{row.is_anonymous ? 'Anónimo' : (row.signature || 'No especificada')}</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    
-                                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                                        <Heart className="w-3 h-3 text-primary fill-primary" />
-                                        <span>Dedicatoria</span>
-                                    </div>
-                                    
-                                    <p className="text-sm italic text-foreground leading-relaxed">
-                                        "{row.dedication || 'No se incluyó dedicatoria.'}"
-                                    </p>
-                                    
-                                    <Separator className="bg-border/50" />
-                                    
-                                    <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
-                                        <span className="text-muted-foreground">Firma</span>
-                                        <span className="text-foreground">{row.is_anonymous ? 'Anónimo' : (row.signature || 'No especificada')}</span>
-                                    </div>
-                                </div>
-                            </TabsContent>
+                                </section>
+                            </div>
 
-                            <TabsContent value="shipping" className="space-y-6 animate-in fade-in duration-200 pt-1">
-                                <div className="space-y-4">
-                                    <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Información de Entrega</h4>
-                                    <div className="grid grid-cols-1 gap-4 bg-muted/30 p-5 rounded-3xl border border-border/50">
-                                        <div className="flex items-center gap-3 text-sm">
-                                            <div className="w-8 h-8 rounded-xl bg-background flex items-center justify-center shadow-sm">
+                            <div className="lg:col-span-5 space-y-6">
+                                <section>
+                                    <h4 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-4">Información de Entrega</h4>
+                                    <div className="bg-card/60 rounded-2xl p-5 md:p-6 border border-border/50 space-y-5">
+                                        <div className="flex gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                                                 <Clock className="w-4 h-4 text-primary" />
                                             </div>
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] font-bold text-muted-foreground uppercase">Fecha y Horario</span>
-                                                <span className="font-medium">{new Date(row.delivery_date).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })} – {formatTimeSlotForUI(row.delivery_time_slot)}</span>
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Fecha y horario</p>
+                                                <p className="font-semibold">{deliveryDateLabel}</p>
+                                                <p className="text-sm text-muted-foreground">Bloque: {deliveryTimeSlot}</p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-3 text-sm">
-                                            <div className="w-8 h-8 rounded-xl bg-background flex items-center justify-center shadow-sm">
-                                                <Truck className="w-4 h-4 text-primary" />
+
+                                        <div className="flex gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                                                <MapPin className="w-4 h-4 text-primary" />
                                             </div>
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] font-bold text-muted-foreground uppercase">Dirección</span>
-                                                <span className="font-medium truncate max-w-[200px]">{row.shippingAddress}</span>
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Dirección de envío</p>
+                                                <p className="font-semibold leading-snug">{shippingAddress}</p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-3 text-sm">
-                                            <div className="w-8 h-8 rounded-xl bg-background flex items-center justify-center shadow-sm">
-                                                {statusIcons[row.status]}
+
+                                        <div className="flex gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                                                <UserRound className="w-4 h-4 text-primary" />
                                             </div>
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] font-bold text-muted-foreground uppercase">Estado actual</span>
-                                                <Badge variant={getStatusVariant(row.status)} className="w-fit h-5 text-[9px] font-bold px-2 py-0 mt-0.5">
-                                                    {statusTranslations[row.status]}
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Receptor</p>
+                                                <p className="font-semibold">{recipientName}</p>
+                                                <p className="text-sm text-muted-foreground">{recipientPhone}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section>
+                                    <h4 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-4">Detalles del Pago</h4>
+                                    <div className="bg-card/60 rounded-2xl p-5 border border-border/50 flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                                                <CreditCard className="w-4 h-4 text-primary" />
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-sm">Pago del pedido</p>
+                                                <Badge className={cn('mt-1 h-6 text-[10px] font-bold px-2.5 uppercase', getPaymentStatusBadgeClass(paymentStatus))}>
+                                                    {paymentStatusTranslations[paymentStatus] ?? paymentStatus}
                                                 </Badge>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Resumen de Pago</h4>
-                                    <div className="space-y-2 text-sm px-1">
-                                        <div className="flex justify-between items-center text-muted-foreground">
-                                            <span>Estatus del pago</span>
-                                            <Badge className={cn('h-6 text-[10px] font-bold px-2.5 uppercase', getPaymentStatusBadgeClass(paymentStatus))}>
-                                                {paymentStatusTranslations[paymentStatus] ?? paymentStatus}
-                                            </Badge>
-                                        </div>
-                                        <div className="flex justify-between text-muted-foreground">
-                                            <span>Subtotal</span>
-                                            <span>{formatCurrency(row.subtotal)}</span>
-                                        </div>
-                                        {row.coupon_discount ? (
-                                            <div className="flex justify-between text-green-600 font-medium">
-                                                <span>Descuento ({row.couponCode})</span>
-                                                <span>-{formatCurrency(row.coupon_discount)}</span>
-                                            </div>
-                                        ): null}
-                                        <div className="flex justify-between text-muted-foreground">
-                                            <span>Envío</span>
-                                            <span>{formatCurrency(row.shipping_cost)}</span>
-                                        </div>
-                                        <div className="pt-2 flex justify-between font-bold text-base border-t border-border/50">
-                                            <span>Total</span>
-                                            <span className="text-primary">{formatCurrency(row.total)}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </TabsContent>
-                        </Tabs>
-                    )}
-
-                    {view === 'details' && (
-                        <div className="space-y-3 pt-4 border-t border-border/50">
-                            {row.status === 'completado' && (
-                                <Button 
-                                    variant="outline" 
-                                    className="w-full h-12 rounded-2xl border-primary text-primary font-bold hover:bg-primary hover:text-white transition-all gap-2"
-                                    onClick={() => setView('review')}
-                                >
-                                    {row.testimonial ? <><Edit className="w-4 h-4"/> Editar Reseña</> : <><Star className="w-4 h-4"/> Dejar una Reseña</>}
-                                </Button>
-                            )}
-                            
-                            <div className={cn('grid gap-3', isUnpaidOrder ? 'grid-cols-1' : 'grid-cols-2')}>
-                                {isUnpaidOrder && row.status !== 'cancelado' && (
-                                    <Button
-                                        onClick={handlePayNow}
-                                        className="h-14 rounded-2xl font-bold bg-red-600 hover:bg-red-700 text-white border-none gap-2"
-                                        loading={isStartingPayment}
-                                    >
-                                        <CreditCard className="w-4 h-4" />
-                                        Pagar ahora
-                                    </Button>
-                                )}
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button 
-                                            variant="secondary" 
-                                            disabled={!cancellationInfo.canCancel}
-                                            className="h-14 rounded-2xl font-bold bg-red-50 text-red-500 hover:bg-red-100 border-none gap-2"
-                                        >
-                                            <Ban className="w-4 h-4" />
-                                            Cancelar
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent className="z-[80] rounded-[2.5rem] border-none shadow-2xl">
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle className="font-headline text-2xl">¿Estás seguro?</AlertDialogTitle>
-                                            <AlertDialogDescription className="text-sm leading-relaxed">
-                                                {cancellationInfo.message}
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter className="gap-2">
-                                            <AlertDialogCancel className="rounded-2xl h-12 border-none bg-muted/50 font-bold">Volver</AlertDialogCancel>
-                                            <AlertDialogAction 
-                                                onClick={handleCancelOrder} 
-                                                className="bg-destructive hover:bg-destructive/90 rounded-2xl h-12 font-bold shadow-lg shadow-destructive/20"
-                                                loading={isCancelling}
+                                        {isUnpaidOrder && row.status !== 'cancelado' ? (
+                                            <Button
+                                                onClick={handlePayNow}
+                                                className="h-10 rounded-xl font-bold bg-red-600 hover:bg-red-700 text-white border-none gap-2"
+                                                loading={isStartingPayment}
                                             >
-                                                Sí, cancelar pedido
-                                            </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
+                                                <CreditCard className="w-4 h-4" />
+                                                Pagar
+                                            </Button>
+                                        ) : null}
+                                    </div>
+                                </section>
 
-                                <Button variant="secondary" asChild className="h-14 rounded-2xl font-bold bg-zinc-900 text-white hover:bg-zinc-800 border-none gap-2">
-                                    <Link href="/customer-service">
-                                        <Headphones className="w-4 h-4" />
-                                        Soporte
-                                    </Link>
-                                </Button>
+                                <section>
+                                    <div className="bg-card/60 rounded-2xl p-5 md:p-6 border border-border/50 space-y-3">
+                                        <h4 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-2">Resumen</h4>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">Subtotal de artículos</span>
+                                            <span className="font-medium">{formatCurrency(row.subtotal)}</span>
+                                        </div>
+                                        {couponDiscount ? (
+                                            <div className="flex justify-between text-sm text-green-600 font-medium">
+                                                <span>Descuento ({couponCode || 'Cupón'})</span>
+                                                <span>-{formatCurrency(couponDiscount)}</span>
+                                            </div>
+                                        ) : null}
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">Costo de envío</span>
+                                            <span className="font-medium">{formatCurrency(shippingCost)}</span>
+                                        </div>
+                                        <div className="pt-4 border-t border-border/60 flex justify-between items-end">
+                                            <div>
+                                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Total del pedido</p>
+                                                <p className="text-xs text-muted-foreground">IVA incluido</p>
+                                            </div>
+                                            <span className="text-3xl font-bold text-primary">{formatCurrency(row.total)}</span>
+                                        </div>
+                                    </div>
+                                </section>
                             </div>
                         </div>
                     )}
                 </div>
+
+                {view === 'details' && (
+                    <div className="px-6 md:px-10 py-5 border-t border-border/50 bg-background/80 flex flex-col sm:flex-row gap-3">
+                        {row.status === 'completado' && (
+                            <Button
+                                variant="outline"
+                                className="sm:w-auto h-12 rounded-xl border-primary text-primary font-bold hover:bg-primary hover:text-white transition-all gap-2"
+                                onClick={() => setView('review')}
+                            >
+                                {row.testimonial ? <><Edit className="w-4 h-4" /> Editar Reseña</> : <><Star className="w-4 h-4" /> Dejar una Reseña</>}
+                            </Button>
+                        )}
+
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button
+                                    variant="secondary"
+                                    disabled={!cancellationInfo.canCancel}
+                                    className="h-12 rounded-xl font-bold bg-red-50 text-red-500 hover:bg-red-100 border-none gap-2 flex-1"
+                                >
+                                    <Ban className="w-4 h-4" />
+                                    Cancelar Pedido
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent className="z-[80] rounded-[2rem] border-border/50 shadow-2xl">
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle className="font-headline text-2xl">¿Estás seguro?</AlertDialogTitle>
+                                    <AlertDialogDescription className="text-sm leading-relaxed">
+                                        {cancellationInfo.message}
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter className="gap-2">
+                                    <AlertDialogCancel className="rounded-xl h-11 font-bold">Volver</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={handleCancelOrder}
+                                        className="bg-destructive hover:bg-destructive/90 rounded-xl h-11 font-bold"
+                                        loading={isCancelling}
+                                    >
+                                        Sí, cancelar pedido
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+
+                        <Button variant="secondary" asChild className="h-12 rounded-xl font-bold bg-zinc-900 text-white hover:bg-zinc-800 border-none gap-2 flex-[1.3]">
+                            <Link href="/customer-service">
+                                <Headphones className="w-4 h-4" />
+                                Contactar Soporte Especializado
+                            </Link>
+                        </Button>
+                    </div>
+                )}
             </DialogContent>
         </Dialog>
     )

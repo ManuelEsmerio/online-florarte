@@ -6,7 +6,7 @@ import { addressService } from '@/services/addressService';
 import { ZodError } from 'zod';
 
 interface RouteParams {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /**
@@ -14,13 +14,18 @@ interface RouteParams {
  * Endpoint protegido para actualizar una dirección existente para el usuario autenticado.
  */
 export async function PUT(req: NextRequest, { params }: RouteParams) {
+  let routeAddressId = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
 
-    const addressId = parseInt(params.id, 10);
+    const { id } = await params;
+    routeAddressId = id;
+
+    const addressId = parseInt(id, 10);
     const body = await req.json();
     
     // Asegurarse de que el ID de la dirección en el cuerpo coincida o se use el de la URL
@@ -35,7 +40,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (error instanceof ZodError) {
       return errorHandler(error, 400);
     }
-    console.error(`[API_ADDRESS_PUT_ERROR] ID: ${params.id}`, error);
+    console.error(`[API_ADDRESS_PUT_ERROR] ID: ${routeAddressId}`, error);
     return errorHandler(error);
   }
 }
@@ -46,20 +51,25 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
  * Endpoint protegido para eliminar una dirección del usuario autenticado.
  */
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  let routeAddressId = '';
+
     try {
         const session: UserSession | null = await getDecodedToken(req);
         if (!session?.dbId) {
             return errorHandler(new Error('Acceso denegado.'), 401);
         }
         
-        const addressId = parseInt(params.id, 10);
+    const { id } = await params;
+    routeAddressId = id;
+
+    const addressId = parseInt(id, 10);
         
         await addressService.deleteAddress(session.dbId, addressId);
 
         return successResponse({ message: 'Address deleted successfully' });
 
     } catch (error) {
-        console.error(`[API_ADDRESS_DELETE_ERROR] ID: ${params.id}`, error);
+      console.error(`[API_ADDRESS_DELETE_ERROR] ID: ${routeAddressId}`, error);
         return errorHandler(error);
     }
 }

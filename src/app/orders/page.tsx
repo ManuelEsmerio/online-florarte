@@ -4,14 +4,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import Header from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-  TableHead,
-} from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -38,14 +30,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { SlidersHorizontal, Package, Search, Star, Eye, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { DataTablePagination } from '@/components/ui/data-table/data-table-pagination';
+import { SlidersHorizontal, Package, Search, Star, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { DialogCell } from '@/components/orders/DialogCell';
 import { useIsMobile } from '@/hooks/use-mobile';
+import Image from 'next/image';
 
 /**
  * Componente de carga adaptativo que muestra skeletons de tarjetas en móvil
@@ -99,6 +91,27 @@ const OrdersSkeleton = ({ isMobile }: { isMobile: boolean }) => {
       </div>
     </Card>
   );
+};
+
+const getOrderProgressStep = (status: OrderStatus, isUnpaidOrder: boolean) => {
+  if (isUnpaidOrder || status === 'cancelado') return 0;
+  if (status === 'completado') return 3;
+  if (status === 'en_reparto') return 2;
+  return 1;
+};
+
+const getOrderProgressWidth = (step: number) => {
+  if (step >= 3) return '100%';
+  if (step === 2) return '50%';
+  if (step === 1) return '2%';
+  return '0%';
+};
+
+const getOrderProgressColor = (status: OrderStatus, isUnpaidOrder: boolean) => {
+  if (isUnpaidOrder || status === 'cancelado') return 'bg-muted-foreground/30';
+  if (status === 'completado') return 'bg-emerald-500';
+  if (status === 'en_reparto') return 'bg-amber-500';
+  return 'bg-primary';
 };
 
 export default function OrdersPage() {
@@ -187,17 +200,28 @@ export default function OrdersPage() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
   };
+
+  const pageIndex = table.getState().pagination.pageIndex;
+  const pageSize = table.getState().pagination.pageSize;
+  const pageRows = table.getRowModel().rows;
+  const totalFilteredRows = table.getFilteredRowModel().rows.length;
+  const startItem = totalFilteredRows === 0 ? 0 : pageIndex * pageSize + 1;
+  const endItem = pageIndex * pageSize + pageRows.length;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
-      <main className="flex-grow flex flex-col bg-secondary/40 pb-20">
-        <div className="container mx-auto px-4 sm:px-6 py-8 md:py-12 max-w-5xl">
-          <h1 className="text-2xl md:text-4xl font-bold font-headline mb-8 text-slate-900 dark:text-white">Mis Pedidos</h1>
+      <main className="flex-grow flex flex-col bg-secondary/20 pb-20">
+        <div className="container mx-auto px-4 sm:px-6 py-8 md:py-12 max-w-6xl">
+          <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div>
+              <h1 className="text-4xl md:text-5xl font-bold font-headline text-foreground mb-1">Mis Pedidos</h1>
+              <p className="text-muted-foreground text-sm">Gestiona y rastrea tus compras recientes</p>
+            </div>
+          </header>
           
-          {/* Barra de Búsqueda y Filtros Premium */}
           <div className="flex items-center gap-3 mb-8">
             <div className="relative flex-1 group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
@@ -205,7 +229,7 @@ export default function OrdersPage() {
                 placeholder="Buscar por ID de pedido..."
                 value={(table.getColumn("id")?.getFilterValue() as string) ?? ""}
                 onChange={(event) => table.getColumn("id")?.setFilterValue(event.target.value)}
-                className="h-14 rounded-2xl pl-12 pr-4 bg-background border-none shadow-sm focus-visible:ring-primary/20 transition-all text-sm font-medium"
+                className="h-12 md:h-13 rounded-xl pl-12 pr-4 bg-background border-none shadow-sm focus-visible:ring-primary/20 transition-all text-sm font-medium"
               />
             </div>
             <DropdownMenu>
@@ -213,7 +237,7 @@ export default function OrdersPage() {
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-14 w-14 rounded-2xl bg-background border-none shadow-sm text-muted-foreground hover:text-primary hover:bg-primary/5 active:bg-primary/10 transition-all flex-shrink-0"
+                  className="h-12 w-12 rounded-xl bg-background border-none shadow-sm text-muted-foreground hover:text-primary hover:bg-primary/5 active:bg-primary/10 transition-all flex-shrink-0"
                 >
                   <SlidersHorizontal className="h-5 w-5" />
                 </Button>
@@ -250,60 +274,76 @@ export default function OrdersPage() {
             <OrdersSkeleton isMobile={isMobile} />
           ) : userOrders.length > 0 ? (
             <>
-              {/* VISTA MÓVIL: TARJETAS */}
               <div className="grid grid-cols-1 gap-6 md:hidden">
-                {table.getRowModel().rows.map((row) => {
+                {pageRows.map((row) => {
                   const order = row.original;
                   const isUnpaidOrder = !(order as any).has_payment_transaction;
+                  const progressStep = getOrderProgressStep(order.status, isUnpaidOrder);
+                  const progressColor = getOrderProgressColor(order.status, isUnpaidOrder);
                   return (
                     <Card key={order.id} className={cn(
-                      'rounded-[2rem] border-none shadow-sm bg-background overflow-hidden animate-fade-in-up',
-                      isUnpaidOrder && 'ring-1 ring-red-200/70'
+                      'rounded-2xl border border-border/60 shadow-sm bg-background overflow-hidden',
+                      isUnpaidOrder && 'ring-1 ring-red-200/40'
                     )}>
-                      <CardContent className="p-6 space-y-6">
-                        <div className="flex justify-between items-start">
+                      <CardContent className="p-5 space-y-5">
+                        <div className="flex justify-between items-center">
                           <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pedido</p>
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">ORD#{String(order.id).padStart(4, '0')}</h3>
+                            <h3 className="text-primary font-bold text-lg">#{String(order.id).padStart(4, '0')}</h3>
+                            <p className="text-xs text-muted-foreground">{formatDate(order.delivery_date)}</p>
                           </div>
                           <Badge className={cn('uppercase', getStatusBadgeClass(order.status, isUnpaidOrder))}>
                             {isUnpaidOrder ? 'Sin pago' : statusTranslations[order.status]}
                           </Badge>
                         </div>
 
-                        <div className="flex justify-between items-end border-t border-muted/30 pt-4">
-                          <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                              {order.status === 'cancelado' ? 'Fecha Programada' : 'Fecha de Entrega'}
-                            </p>
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{formatDate(order.delivery_date)}</p>
+                        <div className="flex items-center -space-x-2">
+                          {(order.items || []).slice(0, 3).map((item, idx) => (
+                            <div key={`${order.id}-${idx}`} className="relative h-11 w-11 rounded-lg overflow-hidden ring-2 ring-background bg-muted">
+                              <Image src={item.image || '/placehold.webp'} alt={item.product_name || 'Producto'} fill className="object-cover" />
+                            </div>
+                          ))}
+                          {(order.items?.length || 0) > 3 && (
+                            <div className="h-11 w-11 rounded-lg ring-2 ring-background bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">
+                              +{(order.items?.length || 0) - 3}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex justify-between items-end">
+                          <div className="text-sm text-muted-foreground">Total</div>
+                          <div className="text-xl font-bold text-foreground">{formatCurrency(order.total)}</div>
+                        </div>
+
+                        <div>
+                          <div className="relative w-full h-1 bg-muted rounded-full">
+                            <div className={cn('absolute top-0 left-0 h-full rounded-full transition-all duration-300', progressColor)} style={{ width: getOrderProgressWidth(progressStep) }} />
+                            <div className="absolute -top-1 left-0 right-0 flex justify-between">
+                              {[1, 2, 3].map((step) => (
+                                <span
+                                  key={step}
+                                  className={cn(
+                                    'h-2.5 w-2.5 rounded-full ring-2 ring-background transition-colors',
+                                    progressStep >= step ? progressColor.replace('bg-', 'bg-') : 'bg-muted-foreground/30'
+                                  )}
+                                />
+                              ))}
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total</p>
-                            <p className="text-xl font-bold text-primary">{formatCurrency(order.total)}</p>
+                          <div className="flex justify-between mt-2 text-[10px] font-medium uppercase tracking-tight text-muted-foreground">
+                            <span className={cn(progressStep >= 1 && 'text-primary font-bold')}>Preparado</span>
+                            <span className={cn(progressStep >= 2 && 'text-primary font-bold')}>Enviado</span>
+                            <span className={cn(progressStep >= 3 && 'text-primary font-bold')}>Entregado</span>
                           </div>
                         </div>
 
-                        <div className="flex gap-3 pt-2">
-                          {order.status === 'completado' && (
-                            <DialogCell 
-                              row={order} 
-                              onDataChange={fetchUserOrders}
-                              trigger={
-                                <Button variant="outline" className="flex-1 h-12 rounded-xl border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-slate-300 font-bold text-sm gap-2 active:scale-95 transition-all">
-                                  <Star className="w-4 h-4" />
-                                  Opinar
-                                </Button>
-                              }
-                            />
-                          )}
+                        <div className="flex justify-end">
                           <DialogCell 
                             row={order} 
                             onDataChange={fetchUserOrders}
                             trigger={
-                              <Button className="flex-1 h-12 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold text-sm gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20">
-                                <Eye className="w-4 h-4" />
-                                Ver Detalle
+                              <Button variant="ghost" className="h-9 px-3 text-primary font-semibold text-sm hover:bg-primary/5 gap-1">
+                                Ver más
+                                <ChevronRight className="w-4 h-4" />
                               </Button>
                             }
                           />
@@ -314,38 +354,124 @@ export default function OrdersPage() {
                 })}
               </div>
 
-              {/* VISTA ESCRITORIO: TABLA */}
-              <Card className="hidden md:block rounded-[2.5rem] border-none shadow-sm bg-background overflow-hidden">
-                <Table>
-                  <TableHeader className="bg-muted/30">
-                    {table.getHeaderGroups().map((headerGroup) => (
-                      <TableRow key={headerGroup.id} className="hover:bg-transparent border-b-border/50">
-                        {headerGroup.headers.map((header) => (
-                          <TableHead key={header.id} className="h-14 px-6 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">
-                            {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableHeader>
-                  <TableBody>
-                    {table.getRowModel().rows.map((row) => (
-                      <TableRow key={row.id} className={cn(
-                        'hover:bg-primary/5 transition-colors border-b-border/50 group',
-                        !(row.original as any).has_payment_transaction && 'bg-red-50/35 hover:bg-red-50/55'
-                      )}>
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id} className="px-6 py-5">
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <Card className="hidden md:block rounded-2xl border border-border/60 shadow-xl bg-background overflow-hidden">
+                <div className="grid grid-cols-12 gap-4 px-6 lg:px-8 py-4 bg-muted/30 border-b border-border/60 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                  <div className="col-span-2">ID & Fecha</div>
+                  <div className="col-span-4">Productos</div>
+                  <div className="col-span-2 text-center">Estado</div>
+                  <div className="col-span-2 text-right">Total</div>
+                  <div className="col-span-2 text-right">Acción</div>
+                </div>
+
+                <div className="divide-y divide-border/60">
+                  {pageRows.map((row) => {
+                    const order = row.original;
+                    const isUnpaidOrder = !(order as any).has_payment_transaction;
+                    const progressStep = getOrderProgressStep(order.status, isUnpaidOrder);
+                    const progressColor = getOrderProgressColor(order.status, isUnpaidOrder);
+
+                    return (
+                      <div key={order.id} className={cn('px-6 lg:px-8 py-6 transition-colors hover:bg-primary/5', isUnpaidOrder && 'opacity-85')}>
+                        <div className="grid grid-cols-12 gap-4 items-center">
+                          <div className="col-span-2">
+                            <span className="block text-primary font-bold text-2xl mb-0.5">#{String(order.id).padStart(4, '0')}</span>
+                            <span className="text-xs text-muted-foreground">{formatDate(order.delivery_date)}</span>
+                          </div>
+
+                          <div className="col-span-4 flex -space-x-2">
+                            {(order.items || []).slice(0, 3).map((item, idx) => (
+                              <div key={`${order.id}-desktop-${idx}`} className="relative inline-block h-12 w-12 rounded-lg ring-4 ring-background overflow-hidden bg-muted">
+                                <Image src={item.image || '/placehold.webp'} alt={item.product_name || 'Producto'} fill className="object-cover" />
+                              </div>
+                            ))}
+                            {(order.items?.length || 0) > 3 && (
+                              <div className="inline-flex h-12 w-12 rounded-lg ring-4 ring-background bg-muted items-center justify-center text-[10px] font-bold text-muted-foreground">
+                                +{(order.items?.length || 0) - 3}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="col-span-2 flex justify-center">
+                            <Badge className={cn('uppercase', getStatusBadgeClass(order.status, isUnpaidOrder))}>
+                              {isUnpaidOrder ? 'Sin pago' : statusTranslations[order.status]}
+                            </Badge>
+                          </div>
+
+                          <div className="col-span-2 text-right">
+                            <span className="text-2xl font-bold text-foreground">{formatCurrency(order.total)}</span>
+                          </div>
+
+                          <div className="col-span-2 flex justify-end">
+                            <DialogCell
+                              row={order}
+                              onDataChange={fetchUserOrders}
+                              trigger={
+                                <Button variant="ghost" className="text-primary font-semibold text-sm hover:bg-primary/5 gap-1">
+                                  Ver más
+                                  <ChevronRight className="w-4 h-4" />
+                                </Button>
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mt-5 px-2">
+                          <div className="relative w-full h-1 bg-muted rounded-full">
+                            <div className={cn('absolute top-0 left-0 h-full rounded-full transition-all duration-300', progressColor)} style={{ width: getOrderProgressWidth(progressStep) }} />
+                            <div className="absolute -top-1 left-0 right-0 flex justify-between">
+                              {[1, 2, 3].map((step) => (
+                                <span
+                                  key={step}
+                                  className={cn(
+                                    'h-2.5 w-2.5 rounded-full ring-4 ring-background',
+                                    progressStep >= step
+                                      ? progressColor.includes('emerald')
+                                        ? 'bg-emerald-500'
+                                        : progressColor.includes('amber')
+                                          ? 'bg-amber-500'
+                                          : progressColor.includes('primary')
+                                            ? 'bg-primary'
+                                            : 'bg-muted-foreground/40'
+                                      : 'bg-muted-foreground/30'
+                                  )}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex justify-between mt-2 text-[10px] font-medium uppercase tracking-tight text-muted-foreground">
+                            <span className={cn(progressStep >= 1 && (progressColor.includes('emerald') ? 'text-emerald-500' : progressColor.includes('amber') ? 'text-amber-500' : progressColor.includes('primary') ? 'text-primary' : ''), progressStep >= 1 && 'font-bold')}>Preparado</span>
+                            <span className={cn(progressStep >= 2 && (progressColor.includes('emerald') ? 'text-emerald-500' : progressColor.includes('amber') ? 'text-amber-500' : progressColor.includes('primary') ? 'text-primary' : ''), progressStep >= 2 && 'font-bold')}>Enviado</span>
+                            <span className={cn(progressStep >= 3 && (progressColor.includes('emerald') ? 'text-emerald-500' : progressColor.includes('amber') ? 'text-amber-500' : progressColor.includes('primary') ? 'text-primary' : ''), progressStep >= 3 && 'font-bold')}>Entregado</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="px-6 lg:px-8 py-4 bg-muted/30 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Mostrando {startItem}-{endItem} de {totalFilteredRows} pedidos</span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => table.previousPage()}
+                      disabled={!table.getCanPreviousPage()}
+                      className="h-8 px-3 rounded-lg border border-border/70 hover:bg-background"
+                    >
+                      Anterior
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => table.nextPage()}
+                      disabled={!table.getCanNextPage()}
+                      className="h-8 px-3 rounded-lg border border-border/70 hover:bg-background"
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                </div>
               </Card>
 
-              {/* PAGINACIÓN PERSONALIZADA PARA MÓVIL */}
               <div className="mt-10 flex items-center justify-between gap-4 md:hidden">
                 <Button 
                   variant="ghost" 
@@ -370,11 +496,6 @@ export default function OrdersPage() {
                   Siguiente
                   <ChevronRight className="w-4 h-4" />
                 </Button>
-              </div>
-
-              {/* PAGINACIÓN ESCRITORIO */}
-              <div className="hidden md:block mt-6">
-                <DataTablePagination table={table} />
               </div>
             </>
           ) : (

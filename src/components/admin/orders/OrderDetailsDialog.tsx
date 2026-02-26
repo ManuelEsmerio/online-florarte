@@ -16,17 +16,19 @@ import { formatTimeSlotForUI } from '@/lib/utils';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { 
+    CalendarDays,
+    Clock,
+    CreditCard,
+    Heart,
+    Phone,
+    UserRound,
     User, 
     Truck, 
-    Flower2, 
-    History, 
     MapPin, 
-    X, 
     Printer, 
     Mail, 
     RefreshCcw, 
     Ban, 
-    Check, 
     Package 
 } from 'lucide-react';
 
@@ -41,6 +43,14 @@ const statusColors: Record<OrderStatus, string> = {
     en_reparto: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800',
     completado: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800',
     cancelado: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/40 dark:text-rose-300 dark:border-rose-800',
+};
+
+const statusLabels: Record<OrderStatus, string> = {
+    pendiente: 'Pendiente',
+    procesando: 'Preparando envío',
+    en_reparto: 'En camino',
+    completado: 'Completado',
+    cancelado: 'Cancelado',
 };
 
 const normalizeOrder = (order: any): Order => ({
@@ -99,237 +109,176 @@ export const OrderDetailsDialog = ({ orderId, trigger }: { orderId: number, trig
             <DialogTrigger asChild>
                 {trigger}
             </DialogTrigger>
-            <DialogContent className="max-w-6xl p-0 gap-0 bg-background dark:bg-card border-primary/20 overflow-hidden flex flex-col max-h-[90vh]">
+            <DialogContent className="w-[96vw] max-w-6xl p-0 gap-0 bg-background border-border/50 overflow-hidden flex flex-col max-h-[92vh]">
                  <DialogTitle className="sr-only">Detalle del Pedido #{orderId}</DialogTitle>
                 
                 {order && (
                     <>
-                        {/* Header Section */}
-                        <header className="flex items-center justify-between px-8 py-6 border-b border-primary/10 bg-background dark:bg-card/50">
-                            <div className="flex items-center gap-6">
-                                <div className="flex flex-col">
-                                    <h1 className="font-serif text-3xl lg:text-4xl text-foreground tracking-tight font-bold">
-                                        Pedido #ORD-{String(order.id).padStart(4, '0')}
+                        <header className="px-6 md:px-10 py-8 border-b border-border/60 bg-background/95">
+                            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                                <div>
+                                    <h1 className="font-serif text-3xl lg:text-5xl text-foreground tracking-tight font-bold">
+                                        Detalles del Pedido: <span className="text-primary italic">ORD${String(order.id).padStart(4, '0')}</span>
                                     </h1>
-                                    <p className="text-primary/70 text-sm mt-1">
-                                        Realizado el {format(parseISO(order.created_at), "d 'de' MMMM, yyyy • HH:mm", { locale: es })}
+                                    <p className="text-muted-foreground text-sm mt-2 flex items-center gap-2">
+                                        <CalendarDays className="h-4 w-4" />
+                                        Realizado el {format(parseISO(order.created_at), "d 'de' MMMM, yyyy", { locale: es })}
                                     </p>
                                 </div>
-                                <span className={cn(
-                                    "px-4 py-1.5 rounded-full border text-sm font-bold tracking-wide uppercase",
-                                    statusColors[order.status]
-                                )}>
-                                    {order.status}
+                                <span className={cn("px-4 py-1.5 rounded-full border text-xs font-bold tracking-wide uppercase w-fit", statusColors[order.status])}>
+                                    {statusLabels[order.status]}
                                 </span>
                             </div>
-                            {/* <Button variant="ghost" className="text-muted-foreground hover:text-foreground transition-colors p-0 h-auto" onClick={() => setIsOpen(false)}>
-                                <X className="h-8 w-8" />
-                            </Button> */}
                         </header>
 
-                        {/* Content Area */}
-                        <div className="flex-1 overflow-y-auto p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
-                            {/* Left Column: Customer & Shipping */}
-                            <div className="lg:col-span-3 space-y-8">
-                                {/* Customer Section */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 md:px-10 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
+                            <div className="lg:col-span-7 space-y-8">
                                 <section>
-                                    <h2 className="font-serif text-xl text-foreground mb-4 flex items-center gap-2 font-bold">
-                                        <User className="h-5 w-5 text-primary" />
-                                        Datos del Cliente
-                                    </h2>
-                                    <div className="bg-card dark:bg-white/5 p-4 rounded-lg border border-border dark:border-white/5 shadow-sm">
-                                        <p className="text-foreground font-semibold">{order.customerName}</p>
-                                        <p className="text-muted-foreground text-sm mt-1">{order.customerEmail}</p>
-                                        <p className="text-muted-foreground text-sm">{order.customerPhone || 'Sin teléfono'}</p>
-                                        
-                                        {order.dedication && (
-                                             <div className="mt-4 pt-4 border-t border-border dark:border-white/5">
-                                                <p className="text-xs uppercase tracking-wider text-primary font-bold">Mensaje Dedicatoria</p>
-                                                <p className="text-sm italic text-muted-foreground mt-2">"{order.dedication}"</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </section>
-
-                                {/* Shipping Section */}
-                                <section>
-                                    <h2 className="font-serif text-xl text-foreground mb-4 flex items-center gap-2 font-bold">
-                                        <Truck className="h-5 w-5 text-primary" />
-                                        Envío
-                                    </h2>
-                                    <div className="bg-card dark:bg-white/5 rounded-lg border border-border dark:border-white/5 overflow-hidden shadow-sm">
-                                        <div className="p-4">
-                                            <p className="text-foreground text-sm font-medium">{order.recipientName || order.customerName}</p>
-                                            <p className="text-muted-foreground text-sm mt-1">{order.shippingAddress}</p>
-                                            {order.delivery_notes && (
-                                                <p className="text-muted-foreground text-xs mt-2 italic">Note: {order.delivery_notes}</p>
-                                            )}
-                                        </div>
-                                        {/* Map Placeholder */}
-                                        <div className="h-32 bg-muted relative group cursor-pointer">
-                                            <div className="absolute inset-0 flex items-center justify-center bg-muted">
-                                                 <MapPin className="h-8 w-8 text-primary drop-shadow-lg" />
-                                            </div>
-                                            <div className="absolute inset-0 bg-black/5 dark:bg-black/20"></div>
-                                        </div>
-                                        <div className="p-3 bg-primary/5 text-center border-t border-primary/10">
-                                            <p className="text-xs text-primary font-bold">
-                                                Entrega: {format(parseISO(order.delivery_date), 'd MMM', { locale: es })}, {formatTimeSlotForUI(order.delivery_time_slot)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </section>
-                            </div>
-
-                            {/* Center Column: Product List */}
-                            <div className="lg:col-span-6 space-y-6">
-                                <h2 className="font-serif text-xl text-foreground mb-4 flex items-center gap-2 font-bold">
-                                    <Flower2 className="h-5 w-5 text-primary" />
-                                    Resumen del Pedido
-                                </h2>
-                                <div className="space-y-4">
-                                    {order.items?.map((item, idx) => (
-                                        <div key={idx} className="flex items-center gap-4 p-4 bg-card dark:bg-white/5 rounded-lg border border-border dark:border-white/5 hover:border-primary/30 transition-all shadow-sm">
-                                            <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-muted relative">
-                                                <Image 
-                                                    src={item.image} 
-                                                    alt={item.product_name} 
-                                                    fill 
-                                                    className="object-cover"
-                                                />
-                                            </div>
-                                            <div className="flex-1">
-                                                <h3 className="text-foreground font-medium">{item.product_name}</h3>
-                                                {item.variant_name && (
-                                                     <p className="text-muted-foreground text-sm">Variante: {item.variant_name}</p>
-                                                )}
-                                                {item.customPhotoUrl && (
-                                                    <div className="flex items-center gap-1 mt-1 text-xs text-primary font-medium">
-                                                        <span className="material-symbols-outlined text-[14px]">image</span>
-                                                        Incluye foto personalizada
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-foreground font-bold">{formatCurrency(item.price)}</p>
-                                                <p className="text-muted-foreground text-xs">Cant: {item.quantity}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Financial Summary */}
-                                <div className="mt-8 pt-6 border-t border-border dark:border-white/10 space-y-3">
-                                    <div className="flex justify-between text-muted-foreground text-sm">
-                                        <span>Subtotal</span>
-                                        <span>{formatCurrency(order.subtotal)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-muted-foreground text-sm">
-                                        <span>Gastos de Envío</span>
-                                        <span className={order.shipping_cost === 0 ? "text-green-500 font-medium" : ""}>
-                                            {order.shipping_cost === 0 ? 'Gratis' : formatCurrency(order.shipping_cost)}
+                                    <div className="flex items-center justify-between mb-6 gap-3">
+                                        <h2 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground">Artículos ({order.items?.length ?? 0})</h2>
+                                        <span className={cn("px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider", statusColors[order.status])}>
+                                            {statusLabels[order.status]}
                                         </span>
                                     </div>
-                                    {/* Mock tax calculation just for display to match design if needed, or just standard summary */}
-                                    <div className="hidden flex justify-between text-muted-foreground text-sm">
-                                         <span>Impuestos (IVA 16%)</span>
-                                         <span>{formatCurrency(order.total * 0.16)}</span>
+                                    <div className="space-y-4">
+                                        {order.items?.map((item, idx) => (
+                                            <div key={idx} className="flex items-center gap-4 md:gap-5 rounded-2xl p-3 border border-transparent hover:border-border/60 hover:bg-muted/20 transition-colors">
+                                                <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden flex-shrink-0 bg-muted relative">
+                                                    <Image src={item.image || '/placehold.webp'} alt={item.product_name || 'Producto'} fill className="object-cover" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="font-semibold text-base md:text-xl leading-tight text-foreground">{item.product_name}</h3>
+                                                    {item.variant_name ? <p className="text-sm text-muted-foreground mt-1 truncate">{item.variant_name}</p> : null}
+                                                    {item.customPhotoUrl ? (
+                                                        <div className="mt-1 text-xs text-primary font-medium">Incluye foto personalizada</div>
+                                                    ) : null}
+                                                    <div className="mt-2 flex items-center gap-3">
+                                                        <span className="text-xs px-2 py-1 rounded-md bg-muted font-medium">Cant: {item.quantity}</span>
+                                                        <span className="text-primary font-bold text-lg">{formatCurrency((item.price ?? 0) * item.quantity)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
+                                </section>
 
-                                    <div className="flex justify-between items-center pt-4 mt-2 border-t border-primary/20">
-                                        <span className="font-serif text-2xl text-foreground font-bold">Total del Pedido</span>
-                                        <span className="font-serif text-3xl text-primary font-bold">{formatCurrency(order.total)}</span>
+                                <section>
+                                    <h2 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-4">Dedicatoria</h2>
+                                    <div className="bg-card/60 rounded-2xl p-6 md:p-7 border border-border/50 relative overflow-hidden">
+                                        <div className="absolute -right-5 -top-5 opacity-10">
+                                            <Heart className="w-24 h-24 text-primary fill-primary" />
+                                        </div>
+                                        <div className="relative z-10 space-y-4">
+                                            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                                <Heart className="w-3.5 h-3.5 text-primary fill-primary" />
+                                                <span>Mensaje Especial</span>
+                                            </div>
+                                            <p className="text-lg md:text-2xl font-serif italic leading-relaxed text-foreground/90">
+                                                "{order.dedication || 'No se incluyó dedicatoria.'}"
+                                            </p>
+                                            <div className="pt-3 border-t border-border/60 flex justify-between items-center">
+                                                <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Firma</span>
+                                                <span className="text-sm font-semibold">{order.is_anonymous ? 'Anónimo' : (order.signature || 'No especificada')}</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                </section>
                             </div>
 
-                            {/* Right Column: Timeline */}
-                            <div className="lg:col-span-3">
-                                <h2 className="font-serif text-xl text-foreground mb-6 flex items-center gap-2 font-bold">
-                                    <History className="h-5 w-5 text-primary" />
-                                    Seguimiento
-                                </h2>
-                                <div className="relative pl-2">
-                                    {/* Vertical Line */}
-                                    <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-border dark:bg-white/10"></div>
-                                    
-                                    <ul className="space-y-8 relative">
-                                        {/* Mock timeline steps based on mock status */}
-                                        <li className="flex gap-4 items-start">
-                                            <div className="z-10 h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white shrink-0 shadow-lg shadow-primary/20">
-                                                <Check className="h-4 w-4" />
+                            <div className="lg:col-span-5 space-y-6">
+                                <section>
+                                    <h2 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-4">Información de Entrega</h2>
+                                    <div className="bg-card/60 rounded-2xl p-5 md:p-6 border border-border/50 space-y-5">
+                                        <div className="flex gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                                                <Clock className="w-4 h-4 text-primary" />
                                             </div>
                                             <div>
-                                                <p className="text-foreground text-sm font-bold">Pedido Recibido</p>
-                                                <p className="text-muted-foreground text-xs">
-                                                     {format(parseISO(order.created_at), "d MMM, HH:mm", { locale: es })}
-                                                </p>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Fecha y horario</p>
+                                                <p className="font-semibold text-foreground">{format(parseISO(order.delivery_date), "d 'de' MMMM, yyyy", { locale: es })}</p>
+                                                <p className="text-sm text-muted-foreground">Bloque: {formatTimeSlotForUI(order.delivery_time_slot)}</p>
                                             </div>
-                                        </li>
-                                         
-                                        {['procesando', 'en_reparto', 'completado'].includes(order.status) && (
-                                             <li className="flex gap-4 items-start">
-                                                <div className="z-10 h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white shrink-0 shadow-lg shadow-primary/20">
-                                                    <Package className="h-4 w-4" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-foreground text-sm font-bold">En Preparación</p>
-                                                    <p className="text-muted-foreground text-xs">Procesado por Floristas</p>
-                                                </div>
-                                            </li>
-                                        )}
+                                        </div>
 
-                                        {['en_reparto', 'completado'].includes(order.status) && (
-                                            <li className="flex gap-4 items-start">
-                                                <div className={cn(
-                                                    "z-10 h-8 w-8 rounded-full flex items-center justify-center text-white shrink-0",
-                                                    order.status === 'en_reparto' ? "bg-primary border-4 border-background ring-4 ring-primary/20" : "bg-primary"
-                                                )}>
-                                                    <Truck className={cn("h-4 w-4", order.status === 'en_reparto' && "animate-pulse")} />
-                                                </div>
-                                                <div>
-                                                    <p className={cn("text-sm font-bold", order.status === 'en_reparto' ? "text-primary" : "text-foreground")}>
-                                                        En Camino
-                                                    </p>
-                                                    <p className="text-muted-foreground text-xs font-medium">Repartidor: {order.deliveryDriverName || 'Asignando...'}</p>
-                                                </div>
-                                            </li>
-                                        )}
+                                        <div className="flex gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                                                <MapPin className="w-4 h-4 text-primary" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Dirección de envío</p>
+                                                <p className="font-semibold text-foreground leading-snug">{order.shippingAddress}</p>
+                                                {order.delivery_notes ? <p className="text-sm text-muted-foreground mt-1">Notas: {order.delivery_notes}</p> : null}
+                                            </div>
+                                        </div>
 
-                                        {order.status === 'completado' && (
-                                             <li className="flex gap-4 items-start">
-                                                <div className="z-10 h-8 w-8 rounded-full bg-muted-foreground flex items-center justify-center text-white shrink-0">
-                                                    <Check className="h-4 w-4" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-foreground text-sm font-bold">Entregado</p>
-                                                    <p className="text-muted-foreground text-xs">Pedido finalizado</p>
-                                                </div>
-                                            </li>
-                                        )}
-                                    </ul>
-                                </div>
+                                        <div className="flex gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                                                <UserRound className="w-4 h-4 text-primary" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Receptor</p>
+                                                <p className="font-semibold text-foreground">{order.recipientName || order.customerName}</p>
+                                                <p className="text-sm text-muted-foreground">{order.recipientPhone || order.customerPhone || 'Sin teléfono'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
 
-                                {/* Internal Notes */}
-                                <div className="mt-12">
-                                    <h3 className="text-xs uppercase tracking-widest text-muted-foreground font-bold mb-3">Notas Internas</h3>
-                                    <textarea 
-                                        className="w-full bg-card dark:bg-white/5 border border-border dark:border-white/10 rounded-lg p-3 text-sm text-foreground focus:ring-primary focus:border-primary placeholder:text-muted-foreground focus-visible:outline-none focus:ring-1" 
-                                        placeholder="Añadir nota para el equipo..." 
-                                        rows={3}
-                                    ></textarea>
-                                </div>
+                                <section>
+                                    <h2 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-4">Detalles del Cliente</h2>
+                                    <div className="bg-card/60 rounded-2xl p-5 border border-border/50 space-y-2">
+                                        <p className="font-semibold text-foreground flex items-center gap-2"><User className="h-4 w-4 text-primary" />{order.customerName}</p>
+                                        <p className="text-sm text-muted-foreground flex items-center gap-2"><Mail className="h-4 w-4" />{order.customerEmail}</p>
+                                        <p className="text-sm text-muted-foreground flex items-center gap-2"><Phone className="h-4 w-4" />{order.customerPhone || 'Sin teléfono'}</p>
+                                        {order.deliveryDriverName ? (
+                                            <p className="text-sm text-muted-foreground flex items-center gap-2 pt-1"><Truck className="h-4 w-4" />Repartidor: {order.deliveryDriverName}</p>
+                                        ) : null}
+                                    </div>
+                                </section>
+
+                                <section>
+                                    <h2 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-4">Pago y Resumen</h2>
+                                    <div className="bg-card/60 rounded-2xl p-5 border border-border/50 space-y-3">
+                                        <div className="flex items-center justify-between border border-border/40 rounded-xl p-3 bg-background/40">
+                                            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                                                <CreditCard className="h-4 w-4 text-primary" />
+                                                Método de pago
+                                            </div>
+                                            <span className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground">No especificado</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">Subtotal de artículos</span>
+                                            <span className="font-medium">{formatCurrency(order.subtotal)}</span>
+                                        </div>
+                                        {order.coupon_discount ? (
+                                            <div className="flex justify-between text-sm text-green-600 font-medium">
+                                                <span>Descuento ({order.couponCode || 'Cupón'})</span>
+                                                <span>-{formatCurrency(order.coupon_discount)}</span>
+                                            </div>
+                                        ) : null}
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">Costo de envío</span>
+                                            <span className="font-medium">{order.shipping_cost === 0 ? 'Gratis' : formatCurrency(order.shipping_cost)}</span>
+                                        </div>
+                                        <div className="pt-4 border-t border-border/60 flex justify-between items-end">
+                                            <div>
+                                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Total del pedido</p>
+                                                <p className="text-xs text-muted-foreground">IVA incluido</p>
+                                            </div>
+                                            <span className="text-3xl font-bold text-primary">{formatCurrency(order.total)}</span>
+                                        </div>
+                                    </div>
+                                </section>
                             </div>
                         </div>
 
-                        {/* Footer Actions */}
-                        <footer className="px-8 py-6 bg-background dark:bg-card/50 border-t border-primary/10 flex flex-wrap gap-4 justify-between items-center sm:flex-row flex-col">
+                        <footer className="px-6 md:px-10 py-5 bg-background/80 border-t border-border/60 flex flex-wrap gap-3 justify-between items-center sm:flex-row flex-col">
                             <div className="flex gap-3 w-full sm:w-auto">
-                                <Button variant="outline" className="flex-1 sm:flex-none gap-2 border-border dark:border-white/10 text-muted-foreground hover:bg-primary hover:text-accent-foreground dark:hover:bg-white/10 dark:hover:text-white transition-all font-medium h-11">
+                                <Button variant="outline" className="flex-1 sm:flex-none gap-2 border-border text-muted-foreground hover:bg-primary hover:text-white transition-all font-medium h-11 rounded-xl">
                                     <Printer className="h-5 w-5" />
                                     Imprimir Ticket
                                 </Button>
-                                <Button variant="outline" className="flex-1 sm:flex-none gap-2 border-border dark:border-white/10 text-muted-foreground hover:bg-primary hover:text-accent-foreground dark:hover:bg-white/10 dark:hover:text-white transition-all font-medium h-11">
+                                <Button variant="outline" className="flex-1 sm:flex-none gap-2 border-border text-muted-foreground hover:bg-primary hover:text-white transition-all font-medium h-11 rounded-xl">
                                     <Mail className="h-5 w-5" />
                                     Reenviar Factura
                                 </Button>
@@ -337,12 +286,12 @@ export const OrderDetailsDialog = ({ orderId, trigger }: { orderId: number, trig
                             <div className="flex gap-3 w-full sm:w-auto">
                                
                                 {order.status !== 'cancelado' && order.status !== 'completado' && (
-                                     <Button variant="ghost" className="flex-1 sm:flex-none gap-2 border border-primary/30 text-primary hover:bg-primary/10 hover:text-primary transition-all font-medium h-11">
+                                     <Button variant="ghost" className="flex-1 sm:flex-none gap-2 border border-primary/30 text-primary hover:bg-primary/10 hover:text-primary transition-all font-medium h-11 rounded-xl">
                                         <Ban className="h-5 w-5" />
                                         Cancelar Pedido
                                     </Button>
                                 )}
-                                <Button className="flex-1 sm:flex-none gap-2 bg-primary text-white hover:bg-primary/90 transition-all font-bold shadow-lg shadow-primary/20 h-11 px-8 rounded-lg">
+                                <Button className="flex-1 sm:flex-none gap-2 bg-primary text-white hover:bg-primary/90 transition-all font-bold shadow-lg shadow-primary/20 h-11 px-8 rounded-xl">
                                     <RefreshCcw className="h-5 w-5" />
                                     Actualizar Estado
                                 </Button>
