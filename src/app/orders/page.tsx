@@ -30,7 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { SlidersHorizontal, Package, Search, Star, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { SlidersHorizontal, Package, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -48,24 +48,37 @@ const OrdersSkeleton = ({ isMobile }: { isMobile: boolean }) => {
     return (
       <div className="space-y-6">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Card key={i} className="rounded-[2rem] border-none shadow-sm p-6 space-y-6">
-            <div className="flex justify-between items-start">
+          <Card key={i} className="rounded-2xl border border-border/60 shadow-sm p-5 space-y-5 bg-background">
+            <div className="flex justify-between items-center">
               <div className="space-y-2">
-                <Skeleton className="h-3 w-12" />
-                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-6 w-20" />
+                <Skeleton className="h-3 w-24" />
               </div>
               <Skeleton className="h-6 w-20 rounded-full" />
             </div>
-            <div className="flex justify-between items-end">
-              <div className="space-y-2">
-                <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-5 w-28" />
-              </div>
-              <Skeleton className="h-8 w-24" />
+
+            <div className="flex -space-x-2">
+              {Array.from({ length: 3 }).map((__, j) => (
+                <Skeleton key={j} className="h-11 w-11 rounded-lg ring-2 ring-background" />
+              ))}
             </div>
-            <div className="flex gap-3">
-              <Skeleton className="h-12 flex-1 rounded-xl" />
-              <Skeleton className="h-12 flex-1 rounded-xl" />
+
+            <div className="flex justify-between items-end">
+              <Skeleton className="h-4 w-10" />
+              <Skeleton className="h-7 w-28" />
+            </div>
+
+            <div className="space-y-2">
+              <Skeleton className="h-1 w-full rounded-full" />
+              <div className="flex justify-between">
+                <Skeleton className="h-2 w-14" />
+                <Skeleton className="h-2 w-12" />
+                <Skeleton className="h-2 w-16" />
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Skeleton className="h-9 w-24 rounded-lg" />
             </div>
           </Card>
         ))}
@@ -74,20 +87,61 @@ const OrdersSkeleton = ({ isMobile }: { isMobile: boolean }) => {
   }
 
   return (
-    <Card className="rounded-[2.5rem] border-none shadow-sm overflow-hidden">
-      <div className="space-y-4 p-6">
-        <div className="flex gap-4 border-b pb-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-4 flex-1" />
-          ))}
-        </div>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex gap-4 items-center py-4 border-b last:border-0">
-            {Array.from({ length: 5 }).map((_, j) => (
-              <Skeleton key={j} className="h-6 flex-1" />
-            ))}
+    <Card className="rounded-2xl border border-border/60 shadow-xl overflow-hidden bg-background">
+      <div className="grid grid-cols-12 gap-4 px-6 lg:px-8 py-4 bg-muted/30 border-b border-border/60">
+        <Skeleton className="h-3 w-20 col-span-2" />
+        <Skeleton className="h-3 w-20 col-span-4" />
+        <Skeleton className="h-3 w-16 col-span-2 justify-self-center" />
+        <Skeleton className="h-3 w-14 col-span-2 justify-self-end" />
+        <Skeleton className="h-3 w-14 col-span-2 justify-self-end" />
+      </div>
+
+      <div className="divide-y divide-border/60">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="px-6 lg:px-8 py-6 space-y-5">
+            <div className="grid grid-cols-12 gap-4 items-center">
+              <div className="col-span-2 space-y-2">
+                <Skeleton className="h-7 w-16" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+
+              <div className="col-span-4 flex -space-x-2">
+                <Skeleton className="h-12 w-12 rounded-lg ring-4 ring-background" />
+                <Skeleton className="h-12 w-12 rounded-lg ring-4 ring-background" />
+                <Skeleton className="h-12 w-12 rounded-lg ring-4 ring-background" />
+              </div>
+
+              <div className="col-span-2 flex justify-center">
+                <Skeleton className="h-6 w-24 rounded-full" />
+              </div>
+
+              <div className="col-span-2 flex justify-end">
+                <Skeleton className="h-8 w-24" />
+              </div>
+
+              <div className="col-span-2 flex justify-end">
+                <Skeleton className="h-8 w-20" />
+              </div>
+            </div>
+
+            <div className="px-2 space-y-2">
+              <Skeleton className="h-1 w-full rounded-full" />
+              <div className="flex justify-between">
+                <Skeleton className="h-2 w-14" />
+                <Skeleton className="h-2 w-12" />
+                <Skeleton className="h-2 w-16" />
+              </div>
+            </div>
           </div>
         ))}
+
+        <div className="px-6 lg:px-8 py-4 bg-muted/30 border-t border-border/60 flex items-center justify-between">
+          <Skeleton className="h-3 w-40" />
+          <div className="flex gap-2">
+            <Skeleton className="h-8 w-20 rounded-lg" />
+            <Skeleton className="h-8 w-20 rounded-lg" />
+          </div>
+        </div>
       </div>
     </Card>
   );

@@ -23,6 +23,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Order, OrderStatus } from '@/lib/definitions';
 import Link from 'next/link';
@@ -103,6 +104,93 @@ const formatCurrency = (amount: number | undefined) => {
     if (amount === undefined) return 'N/A';
     return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount);
 };
+
+const OrderDetailsSkeleton = () => (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
+        <div className="lg:col-span-7 space-y-8">
+            <section>
+                <div className="flex items-center justify-between mb-6">
+                    <Skeleton className="h-3 w-28" />
+                    <Skeleton className="h-6 w-24 rounded-full" />
+                </div>
+                <div className="space-y-4">
+                    {Array.from({ length: 3 }).map((_, idx) => (
+                        <div key={idx} className="flex items-center gap-4 md:gap-5 rounded-2xl p-3 border border-border/40">
+                            <Skeleton className="h-20 w-20 md:h-24 md:w-24 rounded-xl shrink-0" />
+                            <div className="flex-1 space-y-2">
+                                <Skeleton className="h-5 w-2/3" />
+                                <Skeleton className="h-4 w-1/2" />
+                                <Skeleton className="h-4 w-1/3" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            <section>
+                <Skeleton className="h-3 w-24 mb-4" />
+                <div className="rounded-2xl p-6 border border-border/40 space-y-4">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-7 w-11/12" />
+                    <Skeleton className="h-px w-full" />
+                    <div className="flex justify-between items-center">
+                        <Skeleton className="h-3 w-14" />
+                        <Skeleton className="h-4 w-20" />
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div className="lg:col-span-5 space-y-6">
+            <section>
+                <Skeleton className="h-3 w-36 mb-4" />
+                <div className="rounded-2xl p-5 md:p-6 border border-border/40 space-y-5">
+                    {Array.from({ length: 3 }).map((_, idx) => (
+                        <div key={idx} className="flex gap-3">
+                            <Skeleton className="w-10 h-10 rounded-xl shrink-0" />
+                            <div className="space-y-2 flex-1">
+                                <Skeleton className="h-3 w-24" />
+                                <Skeleton className="h-4 w-3/4" />
+                                <Skeleton className="h-4 w-2/3" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            <section>
+                <Skeleton className="h-3 w-28 mb-4" />
+                <div className="rounded-2xl p-5 border border-border/40 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <Skeleton className="w-10 h-10 rounded-xl" />
+                        <div className="space-y-2">
+                            <Skeleton className="h-4 w-28" />
+                            <Skeleton className="h-5 w-20 rounded-full" />
+                        </div>
+                    </div>
+                    <Skeleton className="h-10 w-20 rounded-xl" />
+                </div>
+            </section>
+
+            <section>
+                <div className="rounded-2xl p-5 md:p-6 border border-border/40 space-y-3">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-px w-full" />
+                    <div className="flex justify-between items-end">
+                        <div className="space-y-2">
+                            <Skeleton className="h-3 w-20" />
+                            <Skeleton className="h-3 w-14" />
+                        </div>
+                        <Skeleton className="h-9 w-24" />
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+);
 
 const ReviewForm = ({ orderId, onReviewSubmit, onCancel, existingReview }: { orderId: number, onReviewSubmit: () => void, onCancel: () => void, existingReview?: Testimonial | null }) => {
     const { toast } = useToast();
@@ -187,12 +275,14 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
     const { apiFetch } = useAuth();
     const [isCancelling, setIsCancelling] = useState(false);
     const [isStartingPayment, setIsStartingPayment] = useState(false);
+    const [isFetchingDetails, setIsFetchingDetails] = useState(false);
     const [cancellationInfo, setCancellationInfo] = useState<{canCancel: boolean, message: string}>({canCancel: false, message: ''});
     const [view, setView] = useState<'details' | 'review'>('details');
     const [paymentStatus, setPaymentStatus] = useState<string>(String((row as any).payment_status || 'PENDING'));
     const [hasPaymentTransaction, setHasPaymentTransaction] = useState<boolean>(Boolean((row as any).has_payment_transaction));
 
      const fetchOrderDetails = useCallback(async () => {
+          setIsFetchingDetails(true);
         try {
             const res = await apiFetch(`/api/orders/${row.id}/details`);
             const data = await handleApiResponse(res);
@@ -207,6 +297,8 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
             }
         } catch (error: any) {
             console.error("Failed to fetch order details:", error.message);
+        } finally {
+            setIsFetchingDetails(false);
         }
     }, [apiFetch, row.id]);
 
@@ -266,7 +358,9 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
     
     return (
         <Dialog onOpenChange={(open) => {
-            if (open) fetchOrderDetails();
+            if (open) {
+                void fetchOrderDetails();
+            }
             else setTimeout(() => setView('details'), 300);
         }}>
             <DialogTrigger asChild>
@@ -290,6 +384,8 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
                 <div className="flex-1 overflow-y-auto custom-scrollbar px-6 md:px-10 py-6 md:py-8">
                     {view === 'review' ? (
                         <ReviewForm orderId={row.id} onReviewSubmit={onReviewSubmit} onCancel={() => setView('details')} existingReview={row.testimonial as any} />
+                    ) : isFetchingDetails ? (
+                        <OrderDetailsSkeleton />
                     ) : (
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
                             <div className="lg:col-span-7 space-y-8">
@@ -441,6 +537,14 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
 
                 {view === 'details' && (
                     <div className="px-6 md:px-10 py-5 border-t border-border/50 bg-background/80 flex flex-col sm:flex-row gap-3">
+                        {isFetchingDetails ? (
+                            <>
+                                <Skeleton className="h-12 sm:w-48 rounded-xl" />
+                                <Skeleton className="h-12 flex-1 rounded-xl" />
+                                <Skeleton className="h-12 flex-[1.3] rounded-xl" />
+                            </>
+                        ) : (
+                            <>
                         {row.status === 'completado' && (
                             <Button
                                 variant="outline"
@@ -488,6 +592,8 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
                                 Contactar Soporte Especializado
                             </Link>
                         </Button>
+                            </>
+                        )}
                     </div>
                 )}
             </DialogContent>
