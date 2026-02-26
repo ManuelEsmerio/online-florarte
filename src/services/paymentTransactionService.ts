@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 
 type PaymentTransactionStatus = 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';
+type PaymentGateway = 'stripe' | 'mercadopago';
 
 const paymentTransactionModel = (prisma as unknown as {
   paymentTransaction: {
@@ -12,15 +13,17 @@ const paymentTransactionModel = (prisma as unknown as {
 export const paymentTransactionService = {
   async upsertTransaction(params: {
     orderId: number;
-    stripePaymentId: string;
+    externalPaymentId: string;
+    gateway: PaymentGateway;
     amount: number;
     status: PaymentTransactionStatus;
   }) {
     return paymentTransactionModel.upsert({
-      where: { stripePaymentId: params.stripePaymentId },
+      where: { externalPaymentId: params.externalPaymentId },
       create: {
         orderId: params.orderId,
-        stripePaymentId: params.stripePaymentId,
+        externalPaymentId: params.externalPaymentId,
+        gateway: params.gateway,
         amount: params.amount,
         status: params.status,
       },
@@ -32,9 +35,9 @@ export const paymentTransactionService = {
     });
   },
 
-  async updateStatusByStripeId(stripePaymentId: string, status: PaymentTransactionStatus) {
+  async updateStatusByExternalId(externalPaymentId: string, status: PaymentTransactionStatus) {
     return paymentTransactionModel.updateMany({
-      where: { stripePaymentId },
+      where: { externalPaymentId },
       data: { status },
     });
   },

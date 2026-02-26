@@ -193,7 +193,11 @@ const CheckoutPageContent = () => {
     try {
       const data = getValues();
       const selectedAddress = user?.addresses?.find((address) => address.id === data.addressId);
-      const response = await apiFetch('/api/stripe/checkout-session', {
+      const endpoint = data.gateway === 'mercadopago'
+        ? '/api/mercadopago/checkout-session'
+        : '/api/stripe/checkout-session';
+
+      const response = await apiFetch(endpoint, {
         method: 'POST',
         body: JSON.stringify({
           addressId: data.addressId,

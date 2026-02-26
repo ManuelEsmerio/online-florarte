@@ -39,7 +39,8 @@ export async function POST(req: Request) {
           await orderService.finalizeSuccessfulPaymentFromWebhook({
             orderId,
             amount,
-            stripePaymentId: paymentIntentId,
+            externalPaymentId: paymentIntentId,
+            gateway: 'stripe',
           });
         }
         break;
@@ -54,7 +55,8 @@ export async function POST(req: Request) {
           await orderService.finalizeSuccessfulPaymentFromWebhook({
             orderId,
             amount,
-            stripePaymentId: paymentIntent.id,
+            externalPaymentId: paymentIntent.id,
+            gateway: 'stripe',
           });
         }
         break;
@@ -69,7 +71,8 @@ export async function POST(req: Request) {
           await orderService.registerFailedPaymentFromWebhook({
             orderId,
             amount,
-            stripePaymentId: paymentIntent.id,
+            externalPaymentId: paymentIntent.id,
+            gateway: 'stripe',
           });
         }
         break;

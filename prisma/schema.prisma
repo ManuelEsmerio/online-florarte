@@ -636,14 +636,15 @@ model NewsletterSubscriber {
 }
 
 model PaymentTransaction {
-  id              Int                      @id @default(autoincrement())
-  orderId         Int
-  order           Order                    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  stripePaymentId String                   @unique @db.VarChar(191)
-  amount          Decimal                  @db.Decimal(10, 2)
-  status          PaymentTransactionStatus @default(PENDING)
-  createdAt       DateTime                 @default(now())
-  updatedAt       DateTime                 @updatedAt
+  id                Int                      @id @default(autoincrement())
+  orderId           Int
+  order             Order                    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  externalPaymentId String                   @unique @db.VarChar(191)
+  gateway           String                   @default("stripe") @db.VarChar(50)
+  amount            Decimal                  @db.Decimal(10, 2)
+  status            PaymentTransactionStatus @default(PENDING)
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
 
   @@index([orderId])
   @@map("payment_transactions")

@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(node -e \":*)",
-      "Bash(npx tsx -e \":*)"
+      "Bash(npx tsx -e \":*)",
+      "Bash(node -e \"require\\(''mercadopago''\\); console.log\\(''MP SDK OK''\\)\")",
+      "Bash(npx prisma migrate dev --create-only --name rename_stripePaymentId_to_externalPaymentId)",
+      "Bash(npx prisma migrate deploy)",
+      "Bash(npx prisma generate)",
+      "Bash(npx tsc --noEmit)"
     ]
   }
 }

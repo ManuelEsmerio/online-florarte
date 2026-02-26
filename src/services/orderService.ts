@@ -269,7 +269,8 @@ export const orderService = {
 
   async finalizeSuccessfulPaymentFromWebhook(params: {
     orderId: number;
-    stripePaymentId: string;
+    externalPaymentId: string;
+    gateway: 'stripe' | 'mercadopago';
     amount: number;
   }) {
     await prisma.$transaction(async (tx: any) => {
@@ -281,10 +282,11 @@ export const orderService = {
       });
 
       await paymentTxModel.upsert({
-        where: { stripePaymentId: params.stripePaymentId },
+        where: { externalPaymentId: params.externalPaymentId },
         create: {
           orderId: params.orderId,
-          stripePaymentId: params.stripePaymentId,
+          externalPaymentId: params.externalPaymentId,
+          gateway: params.gateway,
           amount: params.amount,
           status: 'SUCCEEDED',
         },
@@ -301,17 +303,19 @@ export const orderService = {
 
   async registerFailedPaymentFromWebhook(params: {
     orderId: number;
-    stripePaymentId: string;
+    externalPaymentId: string;
+    gateway: 'stripe' | 'mercadopago';
     amount: number;
   }) {
     await prisma.$transaction(async (tx: any) => {
       const paymentTxModel = getPaymentTransactionModel(tx);
 
       await paymentTxModel.upsert({
-        where: { stripePaymentId: params.stripePaymentId },
+        where: { externalPaymentId: params.externalPaymentId },
         create: {
           orderId: params.orderId,
-          stripePaymentId: params.stripePaymentId,
+          externalPaymentId: params.externalPaymentId,
+          gateway: params.gateway,
           amount: params.amount,
           status: 'FAILED',
         },
