@@ -48,10 +48,8 @@ function mapProduct(p: PrismaProduct) {
     status: p.status,
     care: p.care,
     mainImage: p.mainImage,
-    main_image: p.mainImage,
     image: p.mainImage,       // alias para compatibilidad con enrichProducts
     badgeText: p.badgeText,
-    badge_text: p.badgeText,
     allowPhoto: p.allowPhoto,
     allow_photo: p.allowPhoto,
     photoPrice: p.photoPrice != null ? Number(p.photoPrice) : null,
@@ -72,13 +70,11 @@ function mapProduct(p: PrismaProduct) {
       isPrimary: img.isPrimary,
       is_primary: img.isPrimary,
       sortOrder: img.sortOrder,
-      sort_order: img.sortOrder,
     })),
     specifications: p.specifications.map(s => ({
       key: s.key,
       value: s.value,
       sortOrder: s.sortOrder,
-      sort_order: s.sortOrder,
     })),
     tags: p.tags.map(pt => pt.tag),
     occasions: p.occasions.map(po => po.occasion),
@@ -96,9 +92,7 @@ function mapProduct(p: PrismaProduct) {
       isDeleted: v.isDeleted,
       is_deleted: v.isDeleted,
       createdAt: v.createdAt,
-      created_at: v.createdAt,
       updatedAt: v.updatedAt,
-      updated_at: v.updatedAt,
       images: v.images.map(img => ({
         id: img.id,
         src: img.src,
@@ -106,13 +100,11 @@ function mapProduct(p: PrismaProduct) {
         isPrimary: img.isPrimary,
         is_primary: img.isPrimary,
         sortOrder: img.sortOrder,
-        sort_order: img.sortOrder,
       })),
       specifications: v.specifications.map(s => ({
         key: s.key,
         value: s.value,
         sortOrder: s.sortOrder,
-        sort_order: s.sortOrder,
       })),
     })),
   };
@@ -316,15 +308,16 @@ export const productService = {
   async getPublishedProductsByCategory(categorySlug: string, page = 1, limit = 25) {
     const offset = (page - 1) * limit;
 
-    const category = await prisma.productCategory.findUnique({ where: { slug: categorySlug } });
+    // Una sola query: trae la categoría con sus hijos (evita la segunda query secuencial)
+    const category = await prisma.productCategory.findUnique({
+      where: { slug: categorySlug },
+      select: { id: true, children: { where: { isDeleted: false }, select: { id: true } } },
+    });
     if (!category) return { products: [], total: 0 };
 
-    const subcategoryIds = await prisma.productCategory
-      .findMany({ where: { parentId: category.id, isDeleted: false }, select: { id: true } })
-      .then(subs => subs.map(s => s.id));
-
+    const categoryIds = [category.id, ...category.children.map(c => c.id)];
     const where: Prisma.ProductWhereInput = {
-      categoryId: { in: [category.id, ...subcategoryIds] },
+      categoryId: { in: categoryIds },
       status: ProductStatus.PUBLISHED,
       isDeleted: false,
     };
@@ -424,43 +417,30 @@ export const productService = {
       return [];
     }
 
-    const candidates = await prisma.product.findMany({
-      where: {
-        categoryId: { in: subcategoryIds },
-        status: ProductStatus.PUBLISHED,
-        isDeleted: false,
-      },
-      include: PRODUCT_INCLUDE,
-      orderBy: { createdAt: 'desc' },
-    });
+    // Una query por subcategoría con take:1 y skip aleatorio — evita cargar todo el catálogo en memoria
+    const selected = await Promise.all(
+      subcategoryIds.map(async (subId) => {
+        const where = { categoryId: subId, status: ProductStatus.PUBLISHED, isDeleted: false };
+        const count = await prisma.product.count({ where });
+        if (count === 0) return null;
+        const skip = Math.floor(Math.random() * count);
+        const [product] = await prisma.product.findMany({ where, include: PRODUCT_INCLUDE, take: 1, skip });
+        return product ?? null;
+      })
+    );
 
-    const bySubcategory = new Map<number, typeof candidates>();
-    for (const product of candidates) {
-      const list = bySubcategory.get(product.categoryId) ?? [];
-      list.push(product);
-      bySubcategory.set(product.categoryId, list);
-    }
+    const nonNull = selected.filter((p): p is NonNullable<typeof p> => p !== null);
 
-    const selected: typeof candidates = [];
-    for (const subId of subcategoryIds) {
-      const options = bySubcategory.get(subId) ?? [];
-      if (options.length === 0) continue;
-      const randomIndex = Math.floor(Math.random() * options.length);
-      selected.push(options[randomIndex]);
-    }
-
-    if (selected.length === 0) {
+    if (nonNull.length === 0) {
       const fallback = await prisma.product.findMany({
         where: { category: { parentId: COMPLEMENT_PARENT_ID }, status: ProductStatus.PUBLISHED, isDeleted: false },
         include: PRODUCT_INCLUDE,
-        orderBy: { createdAt: 'desc' },
         take: 10,
       });
       return enrichProducts(fallback.map(mapProduct));
     }
 
-    const shuffled = [...selected].sort(() => Math.random() - 0.5);
-    return enrichProducts(shuffled.map(mapProduct));
+    return enrichProducts(nonNull.map(mapProduct));
   },
 
   async getComplementProducts() {

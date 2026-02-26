@@ -39,12 +39,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
     
     const relatedProducts = await productService.findRelatedProducts(product.category.id, product.id);
-    const complementProducts = await productService.getComplementProducts();
 
     return successResponse({
       product,
       relatedProducts,
-      complementProducts
     });
   } catch (error) {
     console.error(`[API_PRODUCT_GET_ERROR] Slug: ${slug}`, error);

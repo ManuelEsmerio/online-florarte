@@ -178,6 +178,15 @@
     50% { transform: translate(-50%, -50%) scale(1.02); }
   }
 
+  @keyframes skeleton-soft-pulse {
+    0%, 100% {
+      opacity: 0.65;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
   .animate-shake {
     animation: shake 0.5s ease-in-out;
   }
@@ -192,5 +201,11 @@
 
   .animate-fade-in-up {
     animation: fade-in-up 0.4s ease-out forwards;
+  }
+}
+
+@layer utilities {
+  .animate-pulse {
+    animation: skeleton-soft-pulse 1.7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
 }

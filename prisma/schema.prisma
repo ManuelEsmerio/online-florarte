@@ -264,6 +264,9 @@ model Product {
   couponProducts CouponProduct[]
   cartItems      CartItem[]
 
+  @@index([status, isDeleted])
+  @@index([categoryId, status, isDeleted])
+  @@index([createdAt])
   @@map("products")
 }
 
@@ -388,6 +391,9 @@ model Order {
   loyaltyHistory LoyaltyHistory[]
   testimonial    Testimonial?
 
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([deliveryDate, status])
   @@map("orders")
 }
 

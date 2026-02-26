@@ -302,6 +302,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   const cartItemCount = useMemo(() => cart.reduce((count, item) => count + item.quantity, 0), [cart]);
 
+  const getCartTotal = useCallback(
+    () => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(subtotal),
+    [subtotal]
+  );
+
   const value = useMemo(() => ({
     cart,
     isLoading,
@@ -313,7 +318,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     clearCart,
     cartItemCount,
     subtotal,
-    getCartTotal: () => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(subtotal),
+    getCartTotal,
     appliedCoupon,
     applyCoupon,
     removeCoupon,
@@ -331,10 +336,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     deliveryDate,
     setDeliveryDate,
   }), [
-    cart, isLoading, fetchCart, addToCart, toggleComplement, removeFromCart, 
-    updateQuantity, clearCart, cartItemCount, subtotal, appliedCoupon, applyCoupon, 
-    removeCoupon, getDiscountAmount, getTotalWithDiscount, isCartOpen, updatingItemId, 
-    isAddingToCart, isTogglingComplement, selectedCity, shippingCost, deliveryDate
+    cart, isLoading, fetchCart, addToCart, toggleComplement, removeFromCart,
+    updateQuantity, clearCart, cartItemCount, subtotal, getCartTotal, appliedCoupon,
+    applyCoupon, removeCoupon, getDiscountAmount, getTotalWithDiscount, isCartOpen,
+    updatingItemId, isAddingToCart, isTogglingComplement, selectedCity, shippingCost,
+    deliveryDate,
   ]);
 
   return (
