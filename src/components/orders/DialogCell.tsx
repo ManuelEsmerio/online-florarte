@@ -25,7 +25,7 @@ import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { Order, OrderStatus } from '@/lib/definitions';
+import { Order } from '@/lib/definitions';
 import Link from 'next/link';
 import { 
   CheckCircle, 
@@ -51,7 +51,7 @@ import { useAuth } from '@/context/AuthContext';
 import { handleApiResponse } from '@/utils/handleApiResponse';
 import { formatTimeSlotForUI, cn } from '@/lib/utils';
 
-const getStatusVariant = (status: OrderStatus): 'default' | 'destructive' | 'secondary' | 'success' => {
+const getStatusVariant = (status: string): 'default' | 'destructive' | 'secondary' | 'success' => {
   switch (status) {
     case 'completado':
       return 'success';
@@ -64,7 +64,7 @@ const getStatusVariant = (status: OrderStatus): 'default' | 'destructive' | 'sec
   }
 };
 
-const statusIcons: { [key in OrderStatus]: React.ReactNode } = {
+const statusIcons: Record<string, React.ReactNode> = {
     'pendiente': <Clock className="mr-2 h-4 w-4" />,
     'completado': <CheckCircle className="mr-2 h-4 w-4" />,
     'en_reparto': <Truck className="mr-2 h-4 w-4" />,
@@ -72,7 +72,7 @@ const statusIcons: { [key in OrderStatus]: React.ReactNode } = {
     'cancelado': <XCircle className="mr-2 h-4 w-4" />,
 };
 
-const statusTranslations: { [key in OrderStatus]: string } = {
+const statusTranslations: Record<string, string> = {
     'pendiente': 'Pendiente',
     'procesando': 'En Proceso',
     'en_reparto': 'En Camino',
@@ -226,7 +226,7 @@ const ReviewForm = ({ orderId, onReviewSubmit, onCancel, existingReview }: { ord
                 }),
             });
 
-            const result = await handleApiResponse(response);
+            const result = await handleApiResponse<{ message?: string }>(response, {});
             toast({ title: isEditing ? '¡Reseña Actualizada!' : '¡Reseña Enviada!', description: result.message });
             onReviewSubmit();
         } catch (error: any) {
@@ -272,7 +272,7 @@ const ReviewForm = ({ orderId, onReviewSubmit, onCancel, existingReview }: { ord
     );
 }
 
-export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger: React.ReactNode, onDataChange?: () => void }) => {
+export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: React.ReactNode, onDataChange?: () => void }) => {
     const { toast } = useToast();
     const { apiFetch } = useAuth();
     const [isCancelling, setIsCancelling] = useState(false);
@@ -282,14 +282,18 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
     const [view, setView] = useState<'details' | 'review'>('details');
     const [paymentStatus, setPaymentStatus] = useState<string>(String((row as any).payment_status || 'PENDING'));
     const [hasPaymentTransaction, setHasPaymentTransaction] = useState<boolean>(Boolean((row as any).has_payment_transaction));
+    const [detailedOrder, setDetailedOrder] = useState<any | null>(null);
 
      const fetchOrderDetails = useCallback(async () => {
           setIsFetchingDetails(true);
         try {
             const res = await apiFetch(`/api/orders/${row.id}/details`);
-            const data = await handleApiResponse(res);
+            const data = await handleApiResponse<{ order?: any; cancellationInfo?: { canCancel: boolean; message: string } }>(res, {});
             if (data?.cancellationInfo) {
                 setCancellationInfo(data.cancellationInfo);
+            }
+            if (data?.order) {
+                setDetailedOrder(data.order);
             }
             if (data?.order?.payment_status) {
                 setPaymentStatus(String(data.order.payment_status));
@@ -344,23 +348,35 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
         else window.location.reload();
     }
 
+    const currentOrder = detailedOrder ?? row;
     const isUnpaidOrder = !hasPaymentTransaction && paymentStatus !== 'SUCCEEDED';
-    const orderCode = `ORD$${String(row.id).padStart(4, '0')}`;
-    const createdAtValue = (row as any).created_at ?? row.createdAt;
+    const orderCode = `ORD$${String(currentOrder.id).padStart(4, '0')}`;
+    const createdAtValue = (currentOrder as any).created_at ?? currentOrder.createdAt;
     const createdAtLabel = createdAtValue
         ? new Date(createdAtValue).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
         : 'Fecha no disponible';
-    const deliveryDateValue = (row as any).delivery_date ?? row.deliveryDate;
+    const deliveryDateValue = (currentOrder as any).delivery_date ?? currentOrder.deliveryDate;
     const deliveryDateLabel = deliveryDateValue
         ? new Date(deliveryDateValue).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
         : 'No disponible';
-    const deliveryTimeSlot = formatTimeSlotForUI((row as any).delivery_time_slot ?? row.deliveryTimeSlot);
-    const shippingAddress = (row as any).shippingAddress ?? row.shippingAddressSnapshot ?? (row as any).shipping_address_snapshot ?? 'No especificada';
-    const recipientName = (row as any).recipient_name ?? row.recipientName ?? 'No especificado';
-    const recipientPhone = (row as any).recipient_phone ?? row.recipientPhone ?? 'No especificado';
-    const couponDiscount = (row as any).coupon_discount ?? row.couponDiscount;
-    const shippingCost = (row as any).shipping_cost ?? row.shippingCost;
-    const couponCode = (row as any).couponCode ?? row.couponCodeSnap ?? (row as any).coupon_code ?? (row as any).coupon_code_snap;
+    const deliveryTimeSlot = formatTimeSlotForUI((currentOrder as any).delivery_time_slot ?? currentOrder.deliveryTimeSlot);
+    const shippingAddress = (currentOrder as any).shippingAddress ?? (currentOrder as any).shippingAddressSnapshot ?? (currentOrder as any).shipping_address_snapshot ?? 'No especificada';
+    const recipientName = (currentOrder as any).recipient_name ?? (currentOrder as any).recipientName ?? 'No especificado';
+    const recipientPhone = (currentOrder as any).recipient_phone ?? (currentOrder as any).recipientPhone ?? 'No especificado';
+    const couponDiscount = (currentOrder as any).coupon_discount ?? (currentOrder as any).couponDiscount;
+    const shippingCost = (currentOrder as any).shipping_cost ?? (currentOrder as any).shippingCost;
+    const couponCode = (currentOrder as any).couponCode ?? (currentOrder as any).couponCodeSnap ?? (currentOrder as any).coupon_code ?? (currentOrder as any).coupon_code_snap;
+    const couponTypeRaw = String((currentOrder as any).coupon_type ?? (currentOrder as any).couponType ?? '').toUpperCase();
+    const couponValue = (currentOrder as any).coupon_value ?? (currentOrder as any).couponValue ?? null;
+    const couponTypeLabel = couponTypeRaw === 'PERCENTAGE'
+        ? 'Porcentaje'
+        : couponTypeRaw === 'FIXED'
+            ? 'Monto fijo'
+            : null;
+    const isGuestOrder = Boolean((currentOrder as any).is_guest ?? (currentOrder as any).isGuest);
+    const guestName = (currentOrder as any).guest_name ?? (currentOrder as any).guestName ?? null;
+    const guestEmail = (currentOrder as any).guest_email ?? (currentOrder as any).guestEmail ?? null;
+    const guestPhone = (currentOrder as any).guest_phone ?? (currentOrder as any).guestPhone ?? null;
     
     return (
         <Dialog onOpenChange={(open) => {
@@ -389,7 +405,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar px-6 md:px-10 py-6 md:py-8">
                     {view === 'review' ? (
-                        <ReviewForm orderId={row.id} onReviewSubmit={onReviewSubmit} onCancel={() => setView('details')} existingReview={row.testimonial as any} />
+                        <ReviewForm orderId={currentOrder.id} onReviewSubmit={onReviewSubmit} onCancel={() => setView('details')} existingReview={(currentOrder as any).testimonial as any} />
                     ) : isFetchingDetails ? (
                         <OrderDetailsSkeleton />
                     ) : (
@@ -397,13 +413,13 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
                             <div className="lg:col-span-7 space-y-8">
                                 <section>
                                     <div className="flex items-center justify-between mb-6 gap-3">
-                                        <h4 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground">Artículos ({row.items?.length ?? 0})</h4>
-                                        <Badge variant={getStatusVariant(row.status)} className="h-6 text-[10px] px-3 uppercase tracking-wider font-bold">
-                                            {statusTranslations[row.status]}
+                                        <h4 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground">Artículos ({currentOrder.items?.length ?? 0})</h4>
+                                        <Badge variant={getStatusVariant(currentOrder.status)} className="h-6 text-[10px] px-3 uppercase tracking-wider font-bold">
+                                            {statusTranslations[currentOrder.status]}
                                         </Badge>
                                     </div>
                                     <div className="space-y-4">
-                                        {row.items?.map((item, index) => (
+                                        {currentOrder.items?.map((item: any, index: number) => (
                                             <div key={index} className="flex items-center gap-4 md:gap-5 rounded-2xl p-3 border border-transparent hover:border-border/50 hover:bg-muted/20 transition-colors">
                                                 <div className="relative h-20 w-20 md:h-24 md:w-24 shrink-0 rounded-xl overflow-hidden bg-muted/40">
                                                     <Image src={item.image || '/placehold.webp'} alt={item.product_name || 'Producto'} fill className="object-cover" />
@@ -438,7 +454,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
                                             <Separator className="bg-border/60" />
                                             <div className="flex justify-between items-center">
                                                 <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Firma</span>
-                                                <span className="text-sm font-semibold">{row.is_anonymous ? 'Anónimo' : (row.signature || 'No especificada')}</span>
+                                                <span className="text-sm font-semibold">{(currentOrder as any).is_anonymous ?? (currentOrder as any).isAnonymous ? 'Anónimo' : ((currentOrder as any).signature || 'No especificada')}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -484,6 +500,15 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
                                 </section>
 
                                 <section>
+                                    {isGuestOrder && (
+                                        <div className="bg-card/60 rounded-2xl p-5 border border-border/50 space-y-2 mb-6">
+                                            <h4 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-2">Compra como invitado</h4>
+                                            <p className="text-sm"><span className="font-semibold">Nombre:</span> {guestName || 'No disponible'}</p>
+                                            <p className="text-sm"><span className="font-semibold">Email:</span> {guestEmail || 'No disponible'}</p>
+                                            <p className="text-sm"><span className="font-semibold">Teléfono:</span> {guestPhone || recipientPhone || 'No disponible'}</p>
+                                        </div>
+                                    )}
+
                                     <h4 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-4">Detalles del Pago</h4>
                                     <div className="bg-card/60 rounded-2xl p-5 border border-border/50 flex items-center justify-between gap-3">
                                         <div className="flex items-center gap-3">
@@ -497,7 +522,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
                                                 </Badge>
                                             </div>
                                         </div>
-                                        {isUnpaidOrder && row.status !== 'cancelado' ? (
+                                        {isUnpaidOrder && currentOrder.status !== 'cancelado' ? (
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
                                                     <Button
@@ -550,13 +575,25 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
                                         <h4 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-2">Resumen</h4>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Subtotal de artículos</span>
-                                            <span className="font-medium">{formatCurrency(row.subtotal)}</span>
+                                            <span className="font-medium">{formatCurrency((currentOrder as any).subtotal)}</span>
                                         </div>
                                         {couponDiscount ? (
-                                            <div className="flex justify-between text-sm text-green-600 font-medium">
-                                                <span>Descuento ({couponCode || 'Cupón'})</span>
-                                                <span>-{formatCurrency(couponDiscount)}</span>
-                                            </div>
+                                            <>
+                                                <div className="flex justify-between text-sm text-green-600 font-medium">
+                                                    <span>Descuento ({couponCode || 'Cupón'})</span>
+                                                    <span>-{formatCurrency(couponDiscount)}</span>
+                                                </div>
+                                                {(couponTypeLabel || couponValue !== null) && (
+                                                    <div className="text-xs text-muted-foreground space-y-1">
+                                                        {couponTypeLabel ? <p>Tipo: <span className="font-semibold">{couponTypeLabel}</span></p> : null}
+                                                        {couponValue !== null ? (
+                                                            <p>
+                                                                Valor: <span className="font-semibold">{couponTypeRaw === 'PERCENTAGE' ? `${Number(couponValue)}%` : formatCurrency(Number(couponValue))}</span>
+                                                            </p>
+                                                        ) : null}
+                                                    </div>
+                                                )}
+                                            </>
                                         ) : null}
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Costo de envío</span>
@@ -567,7 +604,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
                                                 <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Total del pedido</p>
                                                 <p className="text-xs text-muted-foreground">IVA incluido</p>
                                             </div>
-                                            <span className="text-3xl font-bold text-primary">{formatCurrency(row.total)}</span>
+                                            <span className="text-3xl font-bold text-primary">{formatCurrency((currentOrder as any).total)}</span>
                                         </div>
                                     </div>
                                 </section>
@@ -586,13 +623,13 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: Order, trigger
                             </>
                         ) : (
                             <>
-                        {row.status === 'completado' && (
+                        {currentOrder.status === 'completado' && (
                             <Button
                                 variant="outline"
                                 className="sm:w-auto h-12 rounded-xl border-primary text-primary font-bold hover:bg-primary hover:text-white transition-all gap-2"
                                 onClick={() => setView('review')}
                             >
-                                {row.testimonial ? <><Edit className="w-4 h-4" /> Editar Reseña</> : <><Star className="w-4 h-4" /> Dejar una Reseña</>}
+                                {(currentOrder as any).testimonial ? <><Edit className="w-4 h-4" /> Editar Reseña</> : <><Star className="w-4 h-4" /> Dejar una Reseña</>}
                             </Button>
                         )}
 

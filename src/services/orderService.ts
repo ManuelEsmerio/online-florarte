@@ -211,7 +211,12 @@ export const orderService = {
   async getOrderDetails(orderId: number): Promise<Order | null> {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { user: { select: { name: true, email: true } }, orderAddress: true, items: { include: { product: true, variant: true } } },
+      include: {
+        user: { select: { name: true, email: true } },
+        coupon: { select: { code: true, discountType: true, discountValue: true } },
+        orderAddress: true,
+        items: { include: { product: true, variant: true } },
+      },
     });
     if (!order) return null;
 
@@ -223,10 +228,19 @@ export const orderService = {
     return {
       id: order.id,
       user_id: order.userId,
+      is_guest: order.isGuest,
+      guest_name: order.guestName,
+      guest_email: order.guestEmail,
+      guest_phone: order.guestPhone,
       customerName: order.user?.name ?? order.guestName ?? 'Cliente invitado',
       customerEmail: order.user?.email ?? order.guestEmail ?? '',
       status: mapStatus(order.status) as OrderStatus,
       subtotal: Number(order.subtotal),
+      coupon_id: order.couponId ?? null,
+      coupon_code: order.couponCodeSnap ?? order.coupon?.code ?? null,
+      coupon_type: order.coupon?.discountType ?? null,
+      coupon_value: order.coupon?.discountValue ? Number(order.coupon.discountValue) : null,
+      coupon_discount: Number(order.couponDiscount ?? 0),
       total: Number(order.total),
       shipping_cost: Number(order.shippingCost),
       recipientName: order.orderAddress?.recipientName ?? null,

@@ -60,6 +60,13 @@ const normalizeOrder = (order: any): Order => ({
     delivery_time_slot: order.delivery_time_slot ?? order.deliveryTimeSlot ?? '',
     shipping_cost: order.shipping_cost ?? order.shippingCost ?? 0,
     coupon_discount: order.coupon_discount ?? order.couponDiscount ?? 0,
+    coupon_code: order.coupon_code ?? order.couponCode ?? order.couponCodeSnap ?? null,
+    coupon_type: order.coupon_type ?? order.couponType ?? null,
+    coupon_value: order.coupon_value ?? order.couponValue ?? null,
+    is_guest: order.is_guest ?? order.isGuest ?? false,
+    guest_name: order.guest_name ?? order.guestName ?? null,
+    guest_email: order.guest_email ?? order.guestEmail ?? null,
+    guest_phone: order.guest_phone ?? order.guestPhone ?? null,
     delivery_notes: order.delivery_notes ?? order.deliveryNotes ?? '',
     deliveryDriverName: order.deliveryDriverName ?? order.deliveryDriver?.name ?? '',
     items: (order.items ?? []).map((item: any) => ({
@@ -103,6 +110,19 @@ export const OrderDetailsDialog = ({ orderId, trigger }: { orderId: number, trig
     }, [isOpen, orderId, toast]);
 
     if (!order && isOpen) return null;
+
+    const couponTypeRaw = String((order as any)?.coupon_type ?? '').toUpperCase();
+    const couponTypeLabel = couponTypeRaw === 'PERCENTAGE'
+        ? 'Porcentaje'
+        : couponTypeRaw === 'FIXED'
+            ? 'Monto fijo'
+            : null;
+    const couponValue = (order as any)?.coupon_value ?? null;
+    const couponCode = (order as any)?.coupon_code ?? null;
+    const isGuestOrder = Boolean((order as any)?.is_guest);
+    const guestName = (order as any)?.guest_name ?? null;
+    const guestEmail = (order as any)?.guest_email ?? null;
+    const guestPhone = (order as any)?.guest_phone ?? null;
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -227,9 +247,17 @@ export const OrderDetailsDialog = ({ orderId, trigger }: { orderId: number, trig
                                 <section>
                                     <h2 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground mb-4">Detalles del Cliente</h2>
                                     <div className="bg-card/60 rounded-2xl p-5 border border-border/50 space-y-2">
+                                        <p className="text-xs text-muted-foreground font-semibold">Tipo de compra: {isGuestOrder ? 'Invitado' : 'Usuario registrado'}</p>
                                         <p className="font-semibold text-foreground flex items-center gap-2"><User className="h-4 w-4 text-primary" />{order.customerName}</p>
                                         <p className="text-sm text-muted-foreground flex items-center gap-2"><Mail className="h-4 w-4" />{order.customerEmail}</p>
                                         <p className="text-sm text-muted-foreground flex items-center gap-2"><Phone className="h-4 w-4" />{order.customerPhone || 'Sin teléfono'}</p>
+                                        {isGuestOrder ? (
+                                            <div className="pt-2 mt-2 border-t border-border/50 space-y-1">
+                                                <p className="text-sm"><span className="font-semibold">Invitado:</span> {guestName || 'No disponible'}</p>
+                                                <p className="text-sm"><span className="font-semibold">Email invitado:</span> {guestEmail || 'No disponible'}</p>
+                                                <p className="text-sm"><span className="font-semibold">Tel. invitado:</span> {guestPhone || 'No disponible'}</p>
+                                            </div>
+                                        ) : null}
                                         {order.deliveryDriverName ? (
                                             <p className="text-sm text-muted-foreground flex items-center gap-2 pt-1"><Truck className="h-4 w-4" />Repartidor: {order.deliveryDriverName}</p>
                                         ) : null}
@@ -251,10 +279,22 @@ export const OrderDetailsDialog = ({ orderId, trigger }: { orderId: number, trig
                                             <span className="font-medium">{formatCurrency(order.subtotal)}</span>
                                         </div>
                                         {order.coupon_discount ? (
-                                            <div className="flex justify-between text-sm text-green-600 font-medium">
-                                                <span>Descuento ({order.couponCode || 'Cupón'})</span>
-                                                <span>-{formatCurrency(order.coupon_discount)}</span>
-                                            </div>
+                                            <>
+                                                <div className="flex justify-between text-sm text-green-600 font-medium">
+                                                    <span>Descuento ({couponCode || order.couponCode || 'Cupón'})</span>
+                                                    <span>-{formatCurrency(order.coupon_discount)}</span>
+                                                </div>
+                                                {(couponTypeLabel || couponValue !== null) && (
+                                                    <div className="text-xs text-muted-foreground space-y-1">
+                                                        {couponTypeLabel ? <p>Tipo: <span className="font-semibold">{couponTypeLabel}</span></p> : null}
+                                                        {couponValue !== null ? (
+                                                            <p>
+                                                                Valor: <span className="font-semibold">{couponTypeRaw === 'PERCENTAGE' ? `${Number(couponValue)}%` : formatCurrency(Number(couponValue))}</span>
+                                                            </p>
+                                                        ) : null}
+                                                    </div>
+                                                )}
+                                            </>
                                         ) : null}
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Costo de envío</span>
