@@ -2,7 +2,18 @@
 import { cookies, headers } from 'next/headers';
 import CheckoutClientPage, { type CheckoutBootstrapData } from './CheckoutClientPage';
 
-async function preloadCheckoutData(): Promise<CheckoutBootstrapData> {
+interface CartBootstrapSnapshot {
+  items: any[];
+  subtotal: number;
+  coupon: any | null;
+}
+
+interface CheckoutServerPayload {
+  bootstrap: CheckoutBootstrapData;
+  cartBootstrap: CartBootstrapSnapshot | null;
+}
+
+async function preloadCheckoutData(): Promise<CheckoutServerPayload> {
   const cookieHeader = (await cookies()).toString();
   const headersList = await headers();
   const host = headersList.get('x-forwarded-host') ?? headersList.get('host');
@@ -26,12 +37,18 @@ async function preloadCheckoutData(): Promise<CheckoutBootstrapData> {
   let addressId = 0;
   let deliveryDate = '';
   let couponCode = '';
+  let cartBootstrap: CartBootstrapSnapshot | null = null;
 
   if (cartRes.ok) {
     const cartJson = await cartRes.json();
     const cartData = cartJson?.data;
     deliveryDate = String(cartData?.deliveryDate ?? '');
     couponCode = String(cartData?.coupon?.code ?? '');
+    cartBootstrap = {
+      items: Array.isArray(cartData?.items) ? cartData.items : [],
+      subtotal: Number(cartData?.subtotal ?? 0),
+      coupon: cartData?.coupon ?? null,
+    };
   }
 
   if (profileRes.ok) {
@@ -45,14 +62,26 @@ async function preloadCheckoutData(): Promise<CheckoutBootstrapData> {
   }
 
   return {
-    phone,
-    addressId,
-    deliveryDate,
-    couponCode,
+    bootstrap: {
+      phone,
+      addressId,
+      deliveryDate,
+      couponCode,
+    },
+    cartBootstrap,
   };
 }
 
 export default async function CheckoutPage() {
-  const bootstrap = await preloadCheckoutData();
-  return <CheckoutClientPage bootstrap={bootstrap} />;
+  const { bootstrap, cartBootstrap } = await preloadCheckoutData();
+  const cartBootstrapScript = cartBootstrap
+    ? `window.__FLORARTE_CART_BOOTSTRAP__=${JSON.stringify(cartBootstrap).replace(/</g, '\\u003c')};`
+    : '';
+
+  return (
+    <>
+      {cartBootstrapScript ? <script dangerouslySetInnerHTML={{ __html: cartBootstrapScript }} /> : null}
+      <CheckoutClientPage bootstrap={bootstrap} />
+    </>
+  );
 }

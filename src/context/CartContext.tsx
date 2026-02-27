@@ -20,6 +20,23 @@ type CouponCompat = Coupon & {
   discount_value?: number;
 };
 
+type CartBootstrapSnapshot = {
+  items: CartItemCompat[];
+  subtotal: number;
+  coupon: CouponCompat | null;
+};
+
+declare global {
+  interface Window {
+    __FLORARTE_CART_BOOTSTRAP__?: CartBootstrapSnapshot;
+  }
+}
+
+function readCartBootstrapSnapshot(): CartBootstrapSnapshot | null {
+  if (typeof window === 'undefined') return null;
+  return window.__FLORARTE_CART_BOOTSTRAP__ ?? null;
+}
+
 interface AddToCartParams {
   product: Product;
   quantity: number;
@@ -63,10 +80,11 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const { user, apiFetch } = useAuth();
-  const [cart, setCart] = useState<CartItemCompat[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [subtotal, setSubtotal] = useState(0);
-  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const initialBootstrap = readCartBootstrapSnapshot();
+  const [cart, setCart] = useState<CartItemCompat[]>(initialBootstrap?.items ?? []);
+  const [isLoading, setIsLoading] = useState(!initialBootstrap);
+  const [subtotal, setSubtotal] = useState(initialBootstrap?.subtotal ?? 0);
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>((initialBootstrap?.coupon as Coupon) ?? null);
   
   const [isCartOpen, setCartOpen] = useState(false);
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
@@ -107,6 +125,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   // In-flight guard: evita llamadas duplicadas si fetchCart se invoca
   // varias veces antes de que la anterior complete (ej. Strict Mode, renders rápidos).
   const fetchCartInFlight = useRef<Promise<void> | null>(null);
+  const skipFirstFetchRef = useRef(Boolean(initialBootstrap));
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.__FLORARTE_CART_BOOTSTRAP__) {
+      delete window.__FLORARTE_CART_BOOTSTRAP__;
+    }
+  }, []);
 
   const fetchCart = useCallback(async () => {
     if (fetchCartInFlight.current) return fetchCartInFlight.current;
@@ -136,6 +161,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   // re-dispare cuando cambia la IDENTIDAD del usuario (login/logout),
   // no cuando se actualiza su perfil (updateUser crea un nuevo objeto).
   useEffect(() => {
+    if (skipFirstFetchRef.current) {
+      skipFirstFetchRef.current = false;
+      return;
+    }
     fetchCart();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchCart, user?.id]);

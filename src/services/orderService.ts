@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/prisma';
 import { cartService } from './cartService';
 import { orderAddressService } from './orderAddressService';
+import { orderEmailService } from './orderEmailService';
 import type { DbCartItem, Order, OrderStatus } from '@/lib/definitions';
 
 const paymentTransactionModel = (prisma as unknown as {
@@ -58,6 +59,7 @@ function asNumberOrNull(value: unknown): number | null {
 const getPaymentTransactionModel = (dbClient: any) => {
   return (dbClient as {
     paymentTransaction: {
+      findFirst: (args: any) => Promise<any | null>;
       upsert: (args: any) => Promise<any>;
     };
   }).paymentTransaction;
@@ -416,8 +418,12 @@ export const orderService = {
     gateway: 'stripe' | 'mercadopago';
     amount: number;
   }) {
-    await prisma.$transaction(async (tx: any) => {
+    const shouldSendEmails = await prisma.$transaction(async (tx: any) => {
       const paymentTxModel = getPaymentTransactionModel(tx);
+      const existingTransaction = await paymentTxModel.findFirst({
+        where: { externalPaymentId: params.externalPaymentId },
+        select: { status: true },
+      });
 
       await tx.order.update({
         where: { id: params.orderId },
@@ -439,7 +445,17 @@ export const orderService = {
           status: 'SUCCEEDED',
         },
       });
+
+      return existingTransaction?.status !== 'SUCCEEDED';
     });
+
+    if (shouldSendEmails) {
+      try {
+        await orderEmailService.sendOrderConfirmationAndAdminNotification(params.orderId);
+      } catch (error) {
+        console.error('[ORDER_EMAIL_SEND_ERROR]', error);
+      }
+    }
 
     return { success: true, orderId: params.orderId };
   },
@@ -450,8 +466,12 @@ export const orderService = {
     gateway: 'stripe' | 'mercadopago';
     amount: number;
   }) {
-    await prisma.$transaction(async (tx: any) => {
+    const shouldSendFailureEmail = await prisma.$transaction(async (tx: any) => {
       const paymentTxModel = getPaymentTransactionModel(tx);
+      const existingTransaction = await paymentTxModel.findFirst({
+        where: { externalPaymentId: params.externalPaymentId },
+        select: { status: true },
+      });
 
       await paymentTxModel.upsert({
         where: { externalPaymentId: params.externalPaymentId },
@@ -468,7 +488,17 @@ export const orderService = {
           status: 'FAILED',
         },
       });
+
+      return existingTransaction?.status !== 'FAILED';
     });
+
+    if (shouldSendFailureEmail) {
+      try {
+        await orderEmailService.sendFailedPaymentAdminNotification(params.orderId);
+      } catch (error) {
+        console.error('[ORDER_FAILED_PAYMENT_EMAIL_ERROR]', error);
+      }
+    }
 
     return { success: true, orderId: params.orderId };
   },

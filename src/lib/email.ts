@@ -6,6 +6,24 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.EMAIL_FROM ?? 'Florarte <no-reply@florarte.mx>';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:9002';
 
+export async function sendEmail(params: {
+  to: string | string[];
+  subject: string;
+  html: string;
+}) {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[EMAIL] RESEND_API_KEY no configurada. Se omite envío.');
+    return null;
+  }
+
+  return resend.emails.send({
+    from: FROM_EMAIL,
+    to: params.to,
+    subject: params.subject,
+    html: params.html,
+  });
+}
+
 export async function sendVerificationEmail(to: string, token: string) {
   const verifyUrl = `${APP_URL}/verify-email?token=${token}`;
 

@@ -54,6 +54,9 @@ La aplicación usa Prisma + MySQL y Stripe en modo prueba para checkout real.
    STRIPE_SECRET_KEY="sk_test_..."
    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_..."
    STRIPE_WEBHOOK_SECRET="whsec_..."
+   RESEND_API_KEY="re_..."
+   EMAIL_FROM="Florarte <no-reply@tudominio.com>"
+   ADMIN_EMAIL="admin@tudominio.com"
    ```
 
 3. Ejecuta migraciones de Prisma:
