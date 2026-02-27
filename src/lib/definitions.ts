@@ -296,10 +296,6 @@ export interface Order {
   guestEmail?: string | null;
   guestPhone?: string | null;
   sessionId?: string | null;
-  addressId?: number | null;
-  shippingAddressSnapshot?: string | null;
-  recipientName?: string | null;
-  recipientPhone?: string | null;
   deliveryDriverId?: number | null;
   couponId?: number | null;
   couponCodeSnap?: string | null;
@@ -320,7 +316,7 @@ export interface Order {
 
   // Relaciones
   user?: User;
-  address?: Address | null;
+  orderAddress?: OrderAddress | null;
   deliveryDriver?: User | null;
   coupon?: Coupon | null;
   items?: OrderItem[];
@@ -328,6 +324,34 @@ export interface Order {
   testimonial?: Testimonial | null;
   payment_status?: string;
   has_payment_transaction?: boolean;
+}
+
+export interface OrderAddress {
+  id: number;
+  orderId: number;
+  sourceAddressId?: number | null;
+  alias?: string | null;
+  recipientName: string;
+  recipientPhone?: string | null;
+  streetName?: string | null;
+  streetNumber?: string | null;
+  interiorNumber?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country: string;
+  postalCode?: string | null;
+  addressType?: AddressType | null;
+  referenceNotes?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  googlePlaceId?: string | null;
+  formattedAddress: string;
+  isGuestAddress: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+
+  order?: Order;
 }
 
 export interface OrderItem {

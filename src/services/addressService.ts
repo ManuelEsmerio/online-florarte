@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { AddressType } from "@prisma/client";
 
+const FIXED_STATE = 'Jalisco';
+
 interface AddressData {
   id?: number;
   userId?: number;
@@ -54,7 +56,7 @@ export const addressService = {
           interiorNumber: data.interiorNumber,
           neighborhood: data.neighborhood,
           city: data.city,
-          state: data.state,
+          state: FIXED_STATE,
           country: data.country || "México",
           postalCode: data.postalCode,
           addressType: data.addressType || "HOME",
@@ -68,6 +70,17 @@ export const addressService = {
       return updatedAddress;
 
     } else {
+      const activeAddressCount = await prisma.address.count({
+        where: {
+          userId,
+          isDeleted: false,
+        },
+      });
+
+      if (activeAddressCount >= 5) {
+        throw new Error('Solo puedes guardar hasta 5 direcciones. Elimina una antes de agregar otra.');
+      }
+
       // Create
       const newAddress = await prisma.address.create({
         data: {
@@ -80,7 +93,7 @@ export const addressService = {
           interiorNumber: data.interiorNumber,
           neighborhood: data.neighborhood,
           city: data.city,
-          state: data.state,
+          state: FIXED_STATE,
           country: data.country || "México",
           postalCode: data.postalCode,
           addressType: data.addressType || "HOME",

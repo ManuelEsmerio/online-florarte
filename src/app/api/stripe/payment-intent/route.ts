@@ -40,11 +40,13 @@ export async function POST(req: NextRequest) {
       orderId,
       amountInCents,
       userId: session.dbId,
+      sessionId,
     });
 
     await paymentTransactionService.upsertTransaction({
       orderId,
-      stripePaymentId: paymentIntent.id,
+      externalPaymentId: paymentIntent.id,
+      gateway: 'stripe',
       amount: amountMajor,
       status: 'PENDING',
     });

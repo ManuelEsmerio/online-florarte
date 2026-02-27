@@ -65,10 +65,17 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
         ...addressToEdit,
         recipientPhone: addressToEdit.recipientPhone || '',
         interiorNumber: addressToEdit.interiorNumber || '',
+                state: 'Jalisco',
         referenceNotes: addressToEdit.referenceNotes || '',
       });
     }
   }, [addressToEdit, form]);
+
+    useEffect(() => {
+        if (form.getValues('state') !== 'Jalisco') {
+            form.setValue('state', 'Jalisco', { shouldValidate: true });
+        }
+    }, [form]);
 
     const cityValue = useWatch({ control: form.control, name: 'city' });
     const postalCodeValue = useWatch({ control: form.control, name: 'postalCode' });
@@ -93,7 +100,13 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
     }, [postalCodeValue, shippingZones, cityValue, form]);
 
   const onSubmit = async (data: AddressFormValues) => {
-    const finalData = { ...data, id: addressToEdit?.id ?? 0, recipientPhone: data.recipientPhone, referenceNotes: data.referenceNotes };
+        const finalData = {
+            ...data,
+            state: 'Jalisco',
+            id: addressToEdit?.id ?? 0,
+            recipientPhone: data.recipientPhone,
+            referenceNotes: data.referenceNotes,
+        };
     await onSave(finalData as Address);
   };
 
@@ -236,11 +249,11 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
                 <FormField
                     control={form.control}
                     name="state"
-                    render={({ field }) => (
+                    render={() => (
                         <FormItem className="space-y-2">
                             <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Estado *</FormLabel>
                             <FormControl>
-                                <Input {...field} className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium" />
+                                <Input value="Jalisco" readOnly disabled className="h-14 rounded-xl bg-muted/30 border-none font-medium opacity-100" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>

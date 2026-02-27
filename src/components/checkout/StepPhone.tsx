@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { useFormContext } from 'react-hook-form';
-import { CheckoutFormValues } from '@/app/checkout/page';
+import { CheckoutFormValues } from '@/app/checkout/CheckoutClientPage';
 import { cn } from '@/lib/utils';
 import { CheckCircle, ArrowRight, BookOpenText } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';

@@ -7,12 +7,16 @@ export const stripeService = {
     successUrl: string;
     cancelUrl: string;
     userId?: number;
+    sessionId?: string | null;
   }) {
     const baseMetadata: Record<string, string> = {
       orderId: String(params.orderId),
     };
     if (params.userId) {
       baseMetadata.userId = String(params.userId);
+    }
+    if (params.sessionId) {
+      baseMetadata.sessionId = String(params.sessionId);
     }
 
     return stripe.checkout.sessions.create({
@@ -43,12 +47,16 @@ export const stripeService = {
     orderId: number;
     amountInCents: number;
     userId?: number;
+    sessionId?: string | null;
   }) {
     const metadata: Record<string, string> = {
       orderId: String(params.orderId),
     };
     if (params.userId) {
       metadata.userId = String(params.userId);
+    }
+    if (params.sessionId) {
+      metadata.sessionId = String(params.sessionId);
     }
 
     return stripe.paymentIntents.create({

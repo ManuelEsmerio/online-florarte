@@ -169,8 +169,6 @@ model Address {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  orders Order[]
-
   @@map("addresses")
 }
 
@@ -360,15 +358,6 @@ model Order {
   guestEmail              String?     @db.VarChar(255)
   guestPhone              String?     @db.VarChar(20)
   sessionId               String?     @db.VarChar(128)
-  /// Saved address selected at checkout. Nullable to support guest orders.
-  addressId               Int?
-  address                 Address?    @relation(fields: [addressId], references: [id])
-  /// Denormalized shipping address text — required when addressId is null (guests)
-  /// or as an immutable snapshot so historical orders are not affected by address edits.
-  shippingAddressSnapshot String?     @db.Text
-  /// Name of the person who will receive the order (may differ from buyer)
-  recipientName           String?     @db.VarChar(150)
-  recipientPhone          String?     @db.VarChar(20)
   deliveryDriverId        Int?
   deliveryDriver          User?       @relation("DeliveryDriverOrders", fields: [deliveryDriverId], references: [id])
   couponId                Int?
@@ -392,15 +381,48 @@ model Order {
   updatedAt               DateTime    @updatedAt
 
   items          OrderItem[]
+  orderAddress   OrderAddress?
   paymentTransactions PaymentTransaction[]
   loyaltyHistory LoyaltyHistory[]
   testimonial    Testimonial?
 
   @@index([userId, createdAt])
+  @@index([isGuest, createdAt])
   @@index([sessionId, createdAt])
   @@index([status, createdAt])
   @@index([deliveryDate, status])
   @@map("orders")
+}
+
+model OrderAddress {
+  id             Int         @id @default(autoincrement())
+  orderId         Int         @unique
+  order           Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sourceAddressId Int?
+  alias           String?     @db.VarChar(100)
+  recipientName   String      @db.VarChar(150)
+  recipientPhone  String?     @db.VarChar(20)
+  streetName      String?     @db.VarChar(255)
+  streetNumber    String?     @db.VarChar(20)
+  interiorNumber  String?     @db.VarChar(20)
+  neighborhood    String?     @db.VarChar(150)
+  city            String?     @db.VarChar(100)
+  state           String?     @db.VarChar(100)
+  country         String      @default("México") @db.VarChar(60)
+  postalCode      String?     @db.VarChar(10)
+  addressType     AddressType?
+  referenceNotes  String?     @db.Text
+  latitude        Decimal?    @db.Decimal(10, 8)
+  longitude       Decimal?    @db.Decimal(11, 8)
+  googlePlaceId   String?     @db.VarChar(255)
+  formattedAddress String     @db.Text
+  isGuestAddress  Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([sourceAddressId])
+  @@index([postalCode, city])
+  @@map("order_addresses")
 }
 
 model OrderItem {

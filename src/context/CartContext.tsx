@@ -62,7 +62,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
-  const { user, loading: authLoading, apiFetch } = useAuth();
+  const { user, apiFetch } = useAuth();
   const [cart, setCart] = useState<CartItemCompat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [subtotal, setSubtotal] = useState(0);
@@ -136,11 +136,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   // re-dispare cuando cambia la IDENTIDAD del usuario (login/logout),
   // no cuando se actualiza su perfil (updateUser crea un nuevo objeto).
   useEffect(() => {
-    if (!authLoading) {
-      fetchCart();
-    }
+    fetchCart();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchCart, authLoading, user?.id]);
+  }, [fetchCart, user?.id]);
 
   const addToCart = useCallback(async (params: AddToCartParams): Promise<string | null> => {
     setIsAddingToCart(true);

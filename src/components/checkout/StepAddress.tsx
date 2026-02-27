@@ -1,12 +1,12 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AddressModal } from '@/components/AddressModal';
 import { useFormContext } from 'react-hook-form';
-import { CheckoutFormValues } from '@/app/checkout/page';
+import { CheckoutFormValues } from '@/app/checkout/CheckoutClientPage';
 import { useAuth } from '@/context/AuthContext';
 import { MapPin, AlertCircle, CheckCircle, Home, ArrowRight, Map, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -14,6 +14,10 @@ import type { Address } from '@/lib/definitions';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const GoogleMapEmbed = ({ address }: { address: Address }) => {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -52,7 +56,7 @@ interface StepAddressProps {
 }
 
 export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled = false, currentStep }: StepAddressProps) {
-  const { watch, setValue, trigger } = useFormContext<CheckoutFormValues>();
+  const { control, watch, setValue, trigger, setError, clearErrors } = useFormContext<CheckoutFormValues>();
   const { user, shippingZones, addAddress, updateAddress, deleteAddress, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,6 +64,26 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
   const isGuestCheckout = !user?.id;
   
   const addressId = watch('addressId');
+  const guestStreetName = watch('guestStreetName');
+  const guestStreetNumber = watch('guestStreetNumber');
+  const guestNeighborhood = watch('guestNeighborhood');
+  const guestCity = watch('guestCity');
+  const guestState = watch('guestState');
+  const guestPostalCode = watch('guestPostalCode');
+
+  const cityOptions = useMemo(
+    () => Array.from(new Set((shippingZones || []).map(zone => zone.locality).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [shippingZones]
+  );
+
+  const guestAddressIsComplete =
+    String(guestStreetName ?? '').trim().length >= 3 &&
+    String(guestStreetNumber ?? '').trim().length >= 1 &&
+    String(guestNeighborhood ?? '').trim().length >= 2 &&
+    String(guestCity ?? '').trim().length >= 2 &&
+    String(guestState ?? '').trim().length >= 2 &&
+    /^\d{5}$/.test(String(guestPostalCode ?? '').trim());
+
   const selectedAddress = user?.addresses?.find(a => a.id === addressId);
   const currentZone = selectedAddress
     ? shippingZones.find(z => z.postalCode === selectedAddress.postalCode)
@@ -68,12 +92,23 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
   const shippingCostValue = currentZone?.shippingCost ?? null;
 
   const isCompleted = isGuestCheckout
-    ? currentStep > 2
+    ? (guestAddressIsComplete || currentStep > 2)
     : ((!!selectedAddress && shippingCostValue !== null) || currentStep > 2);
 
   useEffect(() => {
     if (isGuestCheckout) {
-      setShippingCost(0);
+      const postalCode = String(guestPostalCode ?? '').trim();
+      const city = String(guestCity ?? '').trim();
+
+      if (!postalCode && !city) {
+        setShippingCost(null);
+        return;
+      }
+
+      const guestZone = shippingZones.find(z => z.postalCode === postalCode)
+        ?? shippingZones.find(z => z.locality === city);
+
+      setShippingCost(guestZone ? Number(guestZone.shippingCost) : null);
       return;
     }
 
@@ -82,23 +117,56 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
         ?? shippingZones.find(z => z.locality === selectedAddress.city);
       setShippingCost(zone ? zone.shippingCost : null);
     }
-  }, [isGuestCheckout, selectedAddress, shippingZones, setShippingCost]);
+  }, [isGuestCheckout, selectedAddress, shippingZones, setShippingCost, guestPostalCode, guestCity]);
+
+  useEffect(() => {
+    if (!isGuestCheckout) return;
+    if (!guestCity && cityOptions.length > 0) {
+      setValue('guestCity', cityOptions[0], { shouldValidate: true });
+    }
+  }, [isGuestCheckout, guestCity, cityOptions, setValue]);
+
+  useEffect(() => {
+    if (!isGuestCheckout) return;
+    const postalCode = String(guestPostalCode ?? '').trim();
+    if (!postalCode) return;
+
+    const matchedZone = shippingZones.find(zone => zone.postalCode === postalCode);
+    if (matchedZone?.locality && matchedZone.locality !== guestCity) {
+      setValue('guestCity', matchedZone.locality, { shouldValidate: true });
+    }
+  }, [isGuestCheckout, guestPostalCode, shippingZones, guestCity, setValue]);
+
+  useEffect(() => {
+    if (!isGuestCheckout) return;
+    if (guestState !== 'Jalisco') {
+      setValue('guestState', 'Jalisco', { shouldValidate: true });
+    }
+  }, [isGuestCheckout, guestState, setValue]);
 
   const handleAddressSelect = useCallback((address: Address) => {
     setValue('addressId', address.id, { shouldValidate: true });
     setIsModalOpen(false);
   }, [setValue]);
 
-  const handleSaveAddress = async (address: Address) => {
+  const handleSaveAddress = async (address: Address | Omit<Address, 'id'>) => {
     setIsSaving(true);
-    const action = address.id && address.id > 0 ? updateAddress : addAddress;
-    if (action) {
-      const result = await action(address);
+    const isExistingAddress = 'id' in address && address.id > 0;
+
+    if (isExistingAddress && updateAddress) {
+      const result = await updateAddress(address as Address);
       if (result.success && result.data?.addresses) {
-        if (!address.id || address.id === 0) {
-          const newAddress = result.data.addresses.at(-1);
-          if (newAddress) setValue('addressId', newAddress.id, { shouldValidate: true });
-        }
+        setIsModalOpen(false);
+        setIsSaving(false);
+        return true;
+      }
+    }
+
+    if (!isExistingAddress && addAddress) {
+      const result = await addAddress(address as Omit<Address, 'id'>);
+      if (result.success && result.data?.addresses) {
+        const newAddress = result.data.addresses.at(-1);
+        if (newAddress) setValue('addressId', newAddress.id, { shouldValidate: true });
         setIsModalOpen(false);
         setIsSaving(false);
         return true;
@@ -115,6 +183,27 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
 
   const handleNext = async () => {
     if (isGuestCheckout) {
+      const checks: Array<{ field: keyof CheckoutFormValues; valid: boolean; message: string }> = [
+        { field: 'guestStreetName', valid: String(guestStreetName ?? '').trim().length >= 3, message: 'Ingresa la calle.' },
+        { field: 'guestStreetNumber', valid: String(guestStreetNumber ?? '').trim().length >= 1, message: 'Ingresa el número exterior.' },
+        { field: 'guestNeighborhood', valid: String(guestNeighborhood ?? '').trim().length >= 2, message: 'Ingresa la colonia.' },
+        { field: 'guestCity', valid: String(guestCity ?? '').trim().length >= 2, message: 'Ingresa la ciudad.' },
+        { field: 'guestState', valid: String(guestState ?? '').trim().length >= 2, message: 'Ingresa el estado.' },
+        { field: 'guestPostalCode', valid: /^\d{5}$/.test(String(guestPostalCode ?? '').trim()), message: 'Ingresa un código postal de 5 dígitos.' },
+      ];
+
+      let hasErrors = false;
+      for (const check of checks) {
+        if (!check.valid) {
+          setError(check.field, { type: 'manual', message: check.message });
+          hasErrors = true;
+        } else {
+          clearErrors(check.field);
+        }
+      }
+
+      if (hasErrors) return;
+
       setActiveStep(3);
       return;
     }
@@ -168,13 +257,176 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
       {isActive && (
         <CardContent className="p-6 md:p-8 pt-0 space-y-6 animate-in fade-in slide-in-from-top-2 duration-500 w-full max-w-full overflow-hidden">
           {isGuestCheckout ? (
-            <Alert className="rounded-2xl border-primary/20 bg-primary/5">
-              <MapPin className="h-5 w-5 text-primary" />
-              <AlertTitle className="font-bold text-sm">Checkout como invitado</AlertTitle>
-              <AlertDescription className="text-xs font-medium mt-1">
-                Continuarás con costo de envío provisional de $0.00. Confirmaremos dirección y ruta contigo por teléfono.
-              </AlertDescription>
-            </Alert>
+            <div className="space-y-5">
+              <Alert className="rounded-2xl border-primary/20 bg-primary/5">
+                <MapPin className="h-5 w-5 text-primary" />
+                <AlertTitle className="font-bold text-sm">Dirección de envío (invitado)</AlertTitle>
+                <AlertDescription className="text-xs font-medium mt-1">
+                  Captura la dirección completa. Esta información se guardará como snapshot en tu orden.
+                </AlertDescription>
+              </Alert>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={control}
+                  name="guestAddressAlias"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Alias (opcional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Casa, Oficina, etc." {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={control}
+                  name="guestPostalCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Código postal</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="46400"
+                          inputMode="numeric"
+                          maxLength={5}
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                          className="h-12 rounded-xl bg-muted/30 border-none"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={control}
+                  name="guestStreetName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Calle</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nombre de la calle" {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={control}
+                  name="guestStreetNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Número exterior</FormLabel>
+                      <FormControl>
+                        <Input placeholder="123" {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={control}
+                  name="guestInteriorNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Número interior (opcional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="A-3" {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={control}
+                  name="guestNeighborhood"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Colonia</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Colonia" {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={control}
+                  name="guestCity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Municipio</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ''}>
+                        <FormControl>
+                          <SelectTrigger className="h-12 rounded-xl bg-muted/30 border-none">
+                            <SelectValue placeholder="Selecciona municipio" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {cityOptions.length > 0 ? (
+                            cityOptions.map((city) => (
+                              <SelectItem key={city} value={city}>
+                                {city}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="sin-localidades" disabled>
+                              Sin municipios disponibles
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={control}
+                  name="guestState"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Estado</FormLabel>
+                      <FormControl>
+                        <Input
+                          value="Jalisco"
+                          readOnly
+                          disabled
+                          className="h-12 rounded-xl bg-muted/30 border-none opacity-100"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={control}
+                name="guestReferenceNotes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Referencias (opcional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Punto de referencia para facilitar la entrega"
+                        {...field}
+                        className="min-h-[90px] rounded-xl bg-muted/30 border-none"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           ) : authLoading ? (
             <Skeleton className="h-32 w-full rounded-2xl" />
           ) : selectedAddress ? (
@@ -255,7 +507,7 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
         addresses={user?.addresses || []}
         onAddressSelect={handleAddressSelect}
         selectedAddressId={addressId}
-        onSaveAddress={handleSaveAddress}
+        onSaveAddress={handleSaveAddress as (address: Address | Omit<Address, 'id'>) => Promise<boolean>}
         onDeleteAddress={handleDeleteAddress}
         isSaving={isSaving}
       />

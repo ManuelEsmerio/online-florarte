@@ -24,6 +24,15 @@ export async function POST(req: NextRequest) {
       guestName: body.guestName,
       guestEmail: body.guestEmail,
       guestPhone: body.guestPhone,
+      guestAddressAlias: body.guestAddressAlias,
+      guestStreetName: body.guestStreetName,
+      guestStreetNumber: body.guestStreetNumber,
+      guestInteriorNumber: body.guestInteriorNumber,
+      guestNeighborhood: body.guestNeighborhood,
+      guestCity: body.guestCity,
+      guestState: body.guestState,
+      guestPostalCode: body.guestPostalCode,
+      guestReferenceNotes: body.guestReferenceNotes,
       couponCode: body.couponCode,
       deliveryDate: body.deliveryDate,
       deliveryTimeSlot: body.deliveryTimeSlot,
@@ -48,6 +57,7 @@ export async function POST(req: NextRequest) {
       successUrl: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`,
       cancelUrl: `${origin}/checkout/cancel?order_id=${orderId}`,
       userId: session?.dbId,
+      sessionId,
     });
 
     return successResponse(

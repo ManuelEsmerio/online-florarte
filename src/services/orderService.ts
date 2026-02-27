@@ -1,6 +1,7 @@
 // src/services/orderService.ts
 import { prisma } from '@/lib/prisma';
 import { cartService } from './cartService';
+import { orderAddressService } from './orderAddressService';
 import type { DbCartItem, Order, OrderStatus } from '@/lib/definitions';
 
 const paymentTransactionModel = (prisma as unknown as {
@@ -40,8 +41,18 @@ function normalizeGuestPhone(value: unknown): string | null {
   return normalized;
 }
 
+function normalizeGuestText(value: unknown): string | null {
+  const normalized = String(value ?? '').trim().replace(/\s+/g, ' ');
+  return normalized || null;
+}
+
 function isValidGuestEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function asNumberOrNull(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 const getPaymentTransactionModel = (dbClient: any) => {
@@ -68,6 +79,8 @@ export const orderService = {
         { id: Number.isNaN(Number(filters.search)) ? undefined : Number(filters.search) },
         { user: { name: { contains: filters.search } } },
         { user: { email: { contains: filters.search } } },
+        { guestName: { contains: filters.search } },
+        { guestEmail: { contains: filters.search } },
       ].filter(Boolean);
     }
 
@@ -82,6 +95,7 @@ export const orderService = {
         where,
         include: {
           user: { select: { name: true, email: true } },
+          orderAddress: true,
           deliveryDriver: { select: { name: true } },
           items: { include: { product: true, variant: true } },
         },
@@ -103,6 +117,9 @@ export const orderService = {
         subtotal: Number(o.subtotal),
         coupon_discount: Number(o.couponDiscount),
         shipping_cost: Number(o.shippingCost),
+        recipientName: o.orderAddress?.recipientName ?? null,
+        recipientPhone: o.orderAddress?.recipientPhone ?? null,
+        shippingAddress: o.orderAddress?.formattedAddress ?? 'Dirección por confirmar',
         delivery_date: o.deliveryDate?.toISOString().slice(0, 10) ?? '',
         delivery_time_slot: o.deliveryTimeSlot,
         delivery_notes: o.deliveryNotes,
@@ -120,6 +137,7 @@ export const orderService = {
       where: { userId },
       include: {
         user: { select: { name: true, email: true } },
+        orderAddress: true,
         items: { include: { product: { include: { images: { where: { isPrimary: true, variantId: null }, take: 1 } } }, variant: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -151,11 +169,11 @@ export const orderService = {
       subtotal: Number(o.subtotal),
       total: Number(o.total),
       shipping_cost: Number(o.shippingCost),
-      recipientName: o.recipientName,
-      recipientPhone: o.recipientPhone,
+      recipientName: o.orderAddress?.recipientName ?? null,
+      recipientPhone: o.orderAddress?.recipientPhone ?? null,
       payment_status: latestPaymentStatusByOrderId.get(o.id) ?? 'PENDING',
       has_payment_transaction: hasPaymentTransactionByOrderId.get(o.id) ?? false,
-      shippingAddress: o.shippingAddressSnapshot ?? '',
+      shippingAddress: o.orderAddress?.formattedAddress ?? '',
       delivery_date: o.deliveryDate?.toISOString().slice(0, 10) ?? '',
       delivery_time_slot: o.deliveryTimeSlot,
       dedication: o.dedication,
@@ -175,7 +193,7 @@ export const orderService = {
   async getOrderDetails(orderId: number): Promise<Order | null> {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { user: { select: { name: true, email: true } }, items: { include: { product: true, variant: true } } },
+      include: { user: { select: { name: true, email: true } }, orderAddress: true, items: { include: { product: true, variant: true } } },
     });
     if (!order) return null;
 
@@ -193,11 +211,11 @@ export const orderService = {
       subtotal: Number(order.subtotal),
       total: Number(order.total),
       shipping_cost: Number(order.shippingCost),
-      recipientName: order.recipientName,
-      recipientPhone: order.recipientPhone,
+      recipientName: order.orderAddress?.recipientName ?? null,
+      recipientPhone: order.orderAddress?.recipientPhone ?? null,
       payment_status: latestPaymentTransaction?.status ?? 'PENDING',
       has_payment_transaction: Boolean(latestPaymentTransaction),
-      shippingAddress: order.shippingAddressSnapshot ?? '',
+      shippingAddress: order.orderAddress?.formattedAddress ?? '',
       delivery_date: order.deliveryDate?.toISOString().slice(0, 10) ?? '',
       delivery_time_slot: order.deliveryTimeSlot,
       dedication: order.dedication,
@@ -221,10 +239,14 @@ export const orderService = {
   },
 
   async initializeCheckout(params: any) {
-    const normalizedUserId = Number.isFinite(Number(params.userId))
+    const requestedUserId = Number.isFinite(Number(params.userId))
       ? Number(params.userId)
       : null;
     const normalizedSessionId = String(params.sessionId ?? '').trim() || null;
+    const validUser = requestedUserId
+      ? await prisma.user.findUnique({ where: { id: requestedUserId }, select: { id: true } })
+      : null;
+    const normalizedUserId = validUser?.id ?? null;
     const isGuest = !normalizedUserId;
 
     if (!normalizedUserId && !normalizedSessionId) {
@@ -234,6 +256,15 @@ export const orderService = {
     const guestName = normalizeGuestName(params.guestName);
     const guestEmail = normalizeGuestEmail(params.guestEmail);
     const guestPhone = normalizeGuestPhone(params.guestPhone ?? params.recipientPhone);
+    const guestAddressAlias = normalizeGuestText(params.guestAddressAlias);
+    const guestStreetName = normalizeGuestText(params.guestStreetName);
+    const guestStreetNumber = normalizeGuestText(params.guestStreetNumber);
+    const guestInteriorNumber = normalizeGuestText(params.guestInteriorNumber);
+    const guestNeighborhood = normalizeGuestText(params.guestNeighborhood);
+    const guestCity = normalizeGuestText(params.guestCity);
+    const guestState = normalizeGuestText(params.guestState) ?? 'Jalisco';
+    const guestPostalCode = normalizeGuestText(params.guestPostalCode);
+    const guestReferenceNotes = normalizeGuestText(params.guestReferenceNotes);
 
     if (isGuest) {
       if (!guestName) {
@@ -244,6 +275,9 @@ export const orderService = {
       }
       if (!guestPhone || guestPhone.length !== 10) {
         throw new Error('El teléfono debe contener 10 dígitos para compras como invitado.');
+      }
+      if (!guestStreetName || !guestStreetNumber || !guestNeighborhood || !guestCity || !guestPostalCode) {
+        throw new Error('La dirección de envío es obligatoria para compras como invitado.');
       }
     }
 
@@ -257,23 +291,61 @@ export const orderService = {
     const shippingCost = params.shippingCost ?? 0;
     const total = subtotal + shippingCost;
 
-    const selectedAddress = params.addressId
+    if (normalizedUserId && !params.addressId) {
+      throw new Error('Debes seleccionar una dirección guardada para completar tu compra.');
+    }
+
+    const selectedAddress = normalizedUserId && params.addressId
       ? await prisma.address.findFirst({
           where: {
             id: Number(params.addressId),
-            ...(normalizedUserId ? { userId: normalizedUserId } : {}),
+            userId: normalizedUserId,
             isDeleted: false,
           },
         })
       : null;
 
-    const recipientName = params.recipientName ?? selectedAddress?.recipientName ?? guestName ?? null;
-    const recipientPhone = params.recipientPhone ?? selectedAddress?.recipientPhone ?? guestPhone ?? null;
-    const shippingAddressSnapshot =
-      params.shippingAddressSnapshot
-      ?? (selectedAddress
-        ? `${selectedAddress.streetName} ${selectedAddress.streetNumber}${selectedAddress.interiorNumber ? ` Int. ${selectedAddress.interiorNumber}` : ''}, ${selectedAddress.neighborhood}, ${selectedAddress.city}, ${selectedAddress.state}, CP ${selectedAddress.postalCode}`
-        : (isGuest ? 'Compra como invitado - dirección por confirmar' : null));
+    if (normalizedUserId && params.addressId && !selectedAddress) {
+      throw new Error('La dirección seleccionada no existe o no pertenece al usuario.');
+    }
+
+    const snapshotData = selectedAddress
+      ? orderAddressService.normalizeSnapshot({
+          sourceAddressId: selectedAddress.id,
+          alias: selectedAddress.alias,
+          recipientName: params.recipientName ?? selectedAddress.recipientName,
+          recipientPhone: params.recipientPhone ?? selectedAddress.recipientPhone,
+          streetName: selectedAddress.streetName,
+          streetNumber: selectedAddress.streetNumber,
+          interiorNumber: selectedAddress.interiorNumber,
+          neighborhood: selectedAddress.neighborhood,
+          city: selectedAddress.city,
+          state: selectedAddress.state,
+          country: selectedAddress.country,
+          postalCode: selectedAddress.postalCode,
+          addressType: selectedAddress.addressType,
+          referenceNotes: selectedAddress.referenceNotes,
+          latitude: asNumberOrNull(selectedAddress.latitude),
+          longitude: asNumberOrNull(selectedAddress.longitude),
+          googlePlaceId: selectedAddress.googlePlaceId,
+          isGuestAddress: false,
+        })
+      : orderAddressService.normalizeSnapshot({
+          alias: guestAddressAlias,
+          recipientName: params.recipientName ?? guestName ?? 'Cliente invitado',
+          recipientPhone: params.recipientPhone ?? guestPhone,
+          streetName: guestStreetName,
+          streetNumber: guestStreetNumber,
+          interiorNumber: guestInteriorNumber,
+          neighborhood: guestNeighborhood,
+          city: guestCity,
+          state: guestState,
+          country: 'México',
+          postalCode: guestPostalCode,
+          referenceNotes: guestReferenceNotes,
+          formattedAddress: params.shippingAddressSnapshot ?? null,
+          isGuestAddress: true,
+        });
 
     const orderItemsToCreate = cartData.items.map((item: DbCartItem, index: number) => {
       if (!Number.isFinite(item.product_id) || !Number.isFinite(item.unit_price) || !Number.isFinite(item.quantity) || item.quantity < 1) {
@@ -291,31 +363,38 @@ export const orderService = {
       };
     });
 
-    const newOrder = await prisma.order.create({
-      data: {
-        userId: normalizedUserId,
-        isGuest,
-        guestName: isGuest ? guestName : null,
-        guestEmail: isGuest ? guestEmail : null,
-        guestPhone: isGuest ? guestPhone : null,
-        sessionId: normalizedSessionId,
-        addressId: params.addressId ?? null,
-        shippingAddressSnapshot,
-        recipientName,
-        recipientPhone,
-        status: 'PENDING',
-        subtotal,
-        shippingCost,
-        total,
-        deliveryDate: new Date(params.deliveryDate ?? params.p_delivery_date),
-        deliveryTimeSlot: params.deliveryTimeSlot ?? params.p_delivery_time_slot ?? '',
-        dedication: params.dedication ?? null,
-        isAnonymous: params.isAnonymous ?? false,
-        signature: params.signature ?? null,
-        items: {
-          create: orderItemsToCreate,
+    const newOrder = await prisma.$transaction(async (tx: any) => {
+      const createdOrder = await tx.order.create({
+        data: {
+          userId: normalizedUserId,
+          isGuest,
+          guestName: isGuest ? guestName : null,
+          guestEmail: isGuest ? guestEmail : null,
+          guestPhone: isGuest ? guestPhone : null,
+          sessionId: normalizedSessionId,
+          status: 'PENDING',
+          subtotal,
+          shippingCost,
+          total,
+          deliveryDate: new Date(params.deliveryDate ?? params.p_delivery_date),
+          deliveryTimeSlot: params.deliveryTimeSlot ?? params.p_delivery_time_slot ?? '',
+          dedication: params.dedication ?? null,
+          isAnonymous: params.isAnonymous ?? false,
+          signature: params.signature ?? null,
+          items: {
+            create: orderItemsToCreate,
+          },
         },
-      },
+      });
+
+      await tx.orderAddress.create({
+        data: {
+          orderId: createdOrder.id,
+          ...snapshotData,
+        },
+      });
+
+      return createdOrder;
     });
 
     return {
