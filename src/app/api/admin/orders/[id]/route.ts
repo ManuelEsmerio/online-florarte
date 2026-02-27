@@ -70,7 +70,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         const body = await req.json();
 
         // Validar que el código de estado sea uno de los permitidos
-        const validStatusCodes: OrderStatus[] = ['pendiente', 'procesando', 'en_reparto', 'completado', 'cancelado'];
+        const validStatusCodes: OrderStatus[] = ['PENDING', 'PROCESSING', 'DELIVERED', 'SHIPPED', 'CANCELLED'];
         if (!body.status || !validStatusCodes.includes(body.status)) {
             return errorHandler(new Error('Código de estado no válido.'), 400);
         }

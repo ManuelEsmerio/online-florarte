@@ -574,6 +574,58 @@ export interface PeakDate {
   updatedAt: Date;
 }
 
+export interface AdminOrderItemDTO {
+  productId: number;
+  quantity: number;
+  unitPrice: number;
+  productNameSnap: string;
+  variantNameSnap?: string | null;
+  imageSnap?: string | null;
+  customPhotoUrl?: string | null;
+}
+
+export interface AdminOrderListDTO {
+  id: number;
+  userId: number | null;
+  isGuest: boolean;
+  guestName?: string | null;
+  guestEmail?: string | null;
+  guestPhone?: string | null;
+  deliveryDriverId?: number | null;
+  status: OrderStatus;
+  subtotal: number;
+  couponDiscount: number;
+  shippingCost: number;
+  total: number;
+  deliveryDate: string;
+  deliveryTimeSlot: string;
+  deliveryNotes?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string | null;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  shippingAddress: string;
+  deliveryDriverName?: string | null;
+  paymentGateway?: string | null;
+  items?: AdminOrderItemDTO[];
+}
+
+export interface AdminOrderDetailsDTO extends AdminOrderListDTO {
+  couponId?: number | null;
+  couponCodeSnap?: string | null;
+  couponType?: DiscountType | null;
+  couponValue?: number | null;
+  dedication?: string | null;
+  isAnonymous: boolean;
+  signature?: string | null;
+  paymentStatus?: string;
+  paymentGateway?: string | null;
+  hasPaymentTransaction?: boolean;
+}
+
 // ============================================================
 // API DTOs (Data Transfer Objects) & UTILS
 // ============================================================

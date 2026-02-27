@@ -49,57 +49,56 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Order, OrderStatus } from '@/lib/definitions';
+import type { AdminOrderListDTO, OrderStatus } from '@/lib/definitions';
 import { getCancellationInfo } from '@/lib/business-logic/order-logic';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import type { User as DeliveryUser } from '@/lib/definitions';
-import { OrderDetailsDialog } from './OrderDetailsDialog';
 import type { OrderColumnsProps } from '@/app/admin/orders/columns';
 
 const availableTransitions: { [key in OrderStatus]?: OrderStatus[] } = {
-  pendiente: ['procesando', 'cancelado'],
-  procesando: ['en_reparto', 'cancelado'],
-  en_reparto: ['completado'],
+  PENDING: ['PROCESSING', 'CANCELLED'],
+  PROCESSING: ['SHIPPED', 'CANCELLED'],
+  SHIPPED: ['DELIVERED'],
 };
 
 const statusTranslations: { [key in OrderStatus]: string } = {
-  pendiente: 'Pendiente',
-  procesando: 'En Proceso',
-  en_reparto: 'En Reparto',
-  completado: 'Completado',
-  cancelado: 'Cancelado',
+  PENDING: 'Pendiente',
+  PROCESSING: 'En Proceso',
+  SHIPPED: 'En Reparto',
+  DELIVERED: 'Completado',
+  CANCELLED: 'Cancelado',
 };
 
 export const OrderActionsCell = ({
   row,
   onUpdateStatus,
   onCancelOrder,
+  onViewDetails,
   deliveryDrivers,
   onSendUpdate,
   isSendingUpdateFor,
 }: { row: any } & OrderColumnsProps) => {
-  const order = row.original as Order;
+  const order = row.original as AdminOrderListDTO;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<OrderStatus>(order.status);
   const [deliveryDriverId, setDeliveryDriverId] = useState<string | undefined>(
-    order.delivery_driver_id?.toString() || undefined
+    order.deliveryDriverId?.toString() || undefined
   );
   const [deliveryNotes, setDeliveryNotes] = useState<string>(
-    order.delivery_notes || ''
+    order.deliveryNotes || ''
   );
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const { canCancel, message: cancelMessage } = getCancellationInfo(order);
+  const { canCancel, message: cancelMessage } = getCancellationInfo(order as any);
   const isActionable =
-    order.status !== 'completado' && order.status !== 'cancelado';
+    order.status !== 'DELIVERED' && order.status !== 'CANCELLED';
   const possibleNextStatuses = availableTransitions[order.status] || [];
   const isSendingUpdate = isSendingUpdateFor === order.id;
 
   useEffect(() => {
     if (isEditOpen) {
       setNewStatus(order.status);
-      setDeliveryDriverId(order.delivery_driver_id?.toString() || undefined);
-      setDeliveryNotes(order.delivery_notes || '');
+      setDeliveryDriverId(order.deliveryDriverId?.toString() || undefined);
+      setDeliveryNotes(order.deliveryNotes || '');
     }
   }, [isEditOpen, order]);
 
@@ -107,7 +106,7 @@ export const OrderActionsCell = ({
     setIsSaving(true);
     const payload: { deliveryDriverId?: number; deliveryNotes?: string } = {};
 
-    if (newStatus === 'en_reparto') {
+    if (newStatus === 'SHIPPED') {
       if (deliveryDriverId) {
         payload.deliveryDriverId = Number(deliveryDriverId);
       }
@@ -127,7 +126,7 @@ export const OrderActionsCell = ({
 
   const getStatusAlert = (status: OrderStatus) => {
     switch (status) {
-      case 'procesando':
+      case 'PROCESSING':
         return (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
@@ -138,7 +137,7 @@ export const OrderActionsCell = ({
             </AlertDescription>
           </Alert>
         );
-      case 'en_reparto':
+      case 'SHIPPED':
         return (
           <Alert>
             <Truck className="h-4 w-4" />
@@ -149,7 +148,7 @@ export const OrderActionsCell = ({
             </AlertDescription>
           </Alert>
         );
-      case 'completado':
+      case 'DELIVERED':
         return (
           <Alert>
             <AlertTitle>Confirmación de Entrega</AlertTitle>
@@ -165,8 +164,10 @@ export const OrderActionsCell = ({
 
   const isSaveDisabled =
     isSaving ||
-    (newStatus === 'en_reparto' && !deliveryDriverId) ||
+    (newStatus === 'SHIPPED' && !deliveryDriverId) ||
     newStatus === order.status;
+
+  const customerName = order.customerName || 'Cliente invitado';
 
   return (
     <div className="text-right">
@@ -180,14 +181,15 @@ export const OrderActionsCell = ({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-          <OrderDetailsDialog
-            orderId={order.id}
-            trigger={
-              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                Ver Detalles
-              </DropdownMenuItem>
-            }
-          />
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              onViewDetails(order.id);
+              setIsMenuOpen(false);
+            }}
+          >
+            Ver Detalles
+          </DropdownMenuItem>
           <Dialog open={isEditOpen} onOpenChange={(open) => setIsEditOpen(open)}>
             <DialogTrigger asChild>
               <DropdownMenuItem
@@ -228,7 +230,7 @@ export const OrderActionsCell = ({
                   </Label>
                   <Input
                     id="cliente"
-                    value={order.customerName}
+                    value={customerName}
                     disabled
                     className="col-span-3"
                   />
@@ -256,7 +258,7 @@ export const OrderActionsCell = ({
                     </SelectContent>
                   </Select>
                 </div>
-                {newStatus === 'en_reparto' && (
+                {newStatus === 'SHIPPED' && (
                   <>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="driver" className="text-right">

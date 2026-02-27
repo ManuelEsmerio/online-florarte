@@ -5,7 +5,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Order, OrderStatus } from '@/lib/definitions';
+import type { AdminOrderListDTO, OrderStatus } from '@/lib/definitions';
 import type { User as DeliveryUser } from '@/lib/definitions';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -14,19 +14,47 @@ import { OrderActionsCell } from '@/components/admin/orders/OrderActionsCell';
 
 
 const statusStyles: { [key in OrderStatus]: string } = {
-  pendiente: 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800/50 dark:text-gray-300 dark:border-gray-700',
-  completado: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800',
-  en_reparto: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-800',
-  procesando: 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-300 dark:border-yellow-800',
-  cancelado: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/50 dark:text-red-300 dark:border-red-800',
+  PENDING: 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800/50 dark:text-gray-300 dark:border-gray-700',
+  DELIVERED: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800',
+  SHIPPED: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-800',
+  PROCESSING: 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-300 dark:border-yellow-800',
+  CANCELLED: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/50 dark:text-red-300 dark:border-red-800',
 };
 
 const statusTranslations: { [key in OrderStatus]: string } = {
-  pendiente: 'Pendiente',
-  procesando: 'En Proceso',
-  en_reparto: 'En Reparto',
-  completado: 'Completado',
-  cancelado: 'Cancelado',
+  PENDING: 'Pendiente',
+  PROCESSING: 'En Proceso',
+  SHIPPED: 'En Reparto',
+  DELIVERED: 'Completado',
+  CANCELLED: 'Cancelado',
+};
+
+const normalizeOrderStatus = (value: unknown): OrderStatus | null => {
+  const raw = String(value ?? '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, ''); // quita acentos
+
+  const map: Record<string, OrderStatus> = {
+    // Prisma enum
+    PENDING: 'PENDING',
+    PROCESSING: 'PROCESSING',
+    SHIPPED: 'SHIPPED',
+    DELIVERED: 'DELIVERED',
+    CANCELLED: 'CANCELLED',
+
+    // etiquetas ES que te pueden llegar desde mapper/backend
+    PENDIENTE: 'PENDING',
+    PROCESANDO: 'PROCESSING',
+    'EN PROCESO': 'PROCESSING',
+    EN_REPARTO: 'SHIPPED',
+    'EN CAMINO': 'SHIPPED',
+    COMPLETADO: 'DELIVERED',
+    CANCELADO: 'CANCELLED',
+  };
+
+  return map[raw] ?? null;
 };
 
 const formatCurrency = (amount: number | null | undefined) => {
@@ -37,14 +65,15 @@ const formatCurrency = (amount: number | null | undefined) => {
 
 export type OrderColumnsProps = {
   onUpdateStatus: (orderId: number, status: OrderStatus, payload: { deliveryDriverId?: number, deliveryNotes?: string }) => Promise<void>;
-  onCancelOrder: (orderId: number) => Promise<void>;
-  onSendUpdate: (order: Order) => void;
+  onCancelOrder: (orderId: number) => Promise<void> | void;
+  onViewDetails: (orderId: number) => void;
+  onSendUpdate: (order: AdminOrderListDTO) => void;
   isSendingUpdateFor: number | null;
   deliveryDrivers: DeliveryUser[];
 };
 
 
-export const columns = ({ onUpdateStatus, onCancelOrder, deliveryDrivers, onSendUpdate, isSendingUpdateFor }: OrderColumnsProps): ColumnDef<Order>[] => [
+export const columns = ({ onUpdateStatus, onCancelOrder, onViewDetails, deliveryDrivers, onSendUpdate, isSendingUpdateFor }: OrderColumnsProps): ColumnDef<AdminOrderListDTO>[] => [
   {
     accessorKey: 'id',
     header: ({ column }) => {
@@ -81,14 +110,14 @@ export const columns = ({ onUpdateStatus, onCancelOrder, deliveryDrivers, onSend
     cell: ({ row }) => row.original.deliveryDriverName || <span className="text-muted-foreground">No asignado</span>,
   },
   {
-    accessorKey: 'delivery_date',
+    accessorKey: 'deliveryDate',
     header: 'Entrega',
     cell: ({ row }) => {
         const order = row.original;
         return (
             <div>
-                <p>{format(parseISO(order.delivery_date), 'dd MMM yyyy')}</p>
-                <p className="text-xs text-muted-foreground">{formatTimeSlotForUI(order.delivery_time_slot)}</p>
+          <p>{format(parseISO(order.deliveryDate), 'dd MMM yyyy')}</p>
+          <p className="text-xs text-muted-foreground">{formatTimeSlotForUI(order.deliveryTimeSlot)}</p>
             </div>
         )
     },
@@ -102,7 +131,7 @@ export const columns = ({ onUpdateStatus, onCancelOrder, deliveryDrivers, onSend
             <div className="text-right">
                 <p className="font-medium">{formatCurrency(order.total)}</p>
                 <p className="text-xs text-muted-foreground">Subtotal: {formatCurrency(order.subtotal)}</p>
-                 {order.coupon_discount && order.coupon_discount > 0 && <p className="text-xs text-green-600">Desc: -{formatCurrency(order.coupon_discount)}</p>}
+                 {order.couponDiscount && order.couponDiscount > 0 && <p className="text-xs text-green-600">Desc: -{formatCurrency(order.couponDiscount)}</p>}
             </div>
         )
     },
@@ -111,20 +140,26 @@ export const columns = ({ onUpdateStatus, onCancelOrder, deliveryDrivers, onSend
     accessorKey: 'status',
     header: 'Estado',
     cell: ({ row }) => {
-      const status = row.getValue('status') as OrderStatus;
+      const normalized = normalizeOrderStatus(row.getValue('status'));
+      if (!normalized) return <span className="text-muted-foreground">Sin estado</span>;
+
       return (
-        <Badge
-          variant="outline"
-          className={`capitalize ${statusStyles[status]}`}
-        >
-          {statusTranslations[status]}
+        <Badge variant="outline" className={`capitalize ${statusStyles[normalized]}`}>
+          {statusTranslations[normalized]}
         </Badge>
       );
     },
     filterFn: (row, id, value) => {
-        if (!value || (Array.isArray(value) && value.length === 0)) return true;
-        return (value as string[]).includes(row.getValue(id));
-    }
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const rowStatus = normalizeOrderStatus(row.getValue(id));
+      if (!rowStatus) return false;
+
+      const selected = (value as string[])
+        .map(v => normalizeOrderStatus(v))
+        .filter(Boolean) as OrderStatus[];
+
+      return selected.includes(rowStatus);
+    },
   },
   {
     id: 'actions',
@@ -132,6 +167,7 @@ export const columns = ({ onUpdateStatus, onCancelOrder, deliveryDrivers, onSend
         row={row} 
         onUpdateStatus={onUpdateStatus} 
         onCancelOrder={onCancelOrder} 
+      onViewDetails={onViewDetails}
         deliveryDrivers={deliveryDrivers} 
         onSendUpdate={onSendUpdate} 
         isSendingUpdateFor={isSendingUpdateFor} 

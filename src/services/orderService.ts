@@ -124,6 +124,21 @@ export const orderService = {
       prisma.order.count({ where }),
     ]);
 
+    const orderIds = orders.map((order: any) => order.id);
+    const transactions = orderIds.length > 0
+      ? await paymentTransactionModel.findMany({
+          where: { orderId: { in: orderIds } },
+          orderBy: { createdAt: 'desc' },
+        })
+      : [];
+
+    const latestPaymentGatewayByOrderId = new Map<number, string>();
+    for (const transaction of transactions) {
+      if (!latestPaymentGatewayByOrderId.has(transaction.orderId)) {
+        latestPaymentGatewayByOrderId.set(transaction.orderId, String(transaction.gateway ?? '').toLowerCase());
+      }
+    }
+
     return {
       orders: orders.map((o: any) => ({
         ...o,
@@ -143,6 +158,7 @@ export const orderService = {
         delivery_notes: o.deliveryNotes,
         created_at: o.createdAt.toISOString(),
         updated_at: o.updatedAt.toISOString(),
+        payment_gateway: latestPaymentGatewayByOrderId.get(o.id) ?? null,
       })),
       total,
       page,
@@ -246,6 +262,7 @@ export const orderService = {
       recipientName: order.orderAddress?.recipientName ?? null,
       recipientPhone: order.orderAddress?.recipientPhone ?? null,
       payment_status: latestPaymentTransaction?.status ?? 'PENDING',
+      payment_gateway: latestPaymentTransaction?.gateway ?? null,
       has_payment_transaction: Boolean(latestPaymentTransaction),
       shippingAddress: order.orderAddress?.formattedAddress ?? '',
       delivery_date: order.deliveryDate?.toISOString().slice(0, 10) ?? '',
