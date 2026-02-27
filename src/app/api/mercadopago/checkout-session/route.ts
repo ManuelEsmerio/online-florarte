@@ -55,9 +55,9 @@ export async function POST(req: NextRequest) {
       orderId,
       amount,
       userId: session?.dbId,
-      successUrl: `${origin}/checkout/success?order_id=${orderId}`,
-      cancelUrl: `${origin}/checkout/cancel?order_id=${orderId}`,
-      pendingUrl: `${origin}/checkout/pending?order_id=${orderId}`,
+      successUrl: `${origin}/order/processing?orderId=${orderId}`,
+      cancelUrl: `${origin}/order/error?orderId=${orderId}&reason=payment_failed`,
+      pendingUrl: `${origin}/order/processing?orderId=${orderId}`,
       notificationUrl: isPublicUrl ? `${origin}/api/mercadopago/webhook` : undefined,
     });
 
