@@ -8,10 +8,12 @@ import { Footer } from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, Package, Home } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
+import { useAuth } from '@/context/AuthContext';
 
 export default function CheckoutSuccessPage() {
   const searchParams = useSearchParams();
   const { clearCart } = useCart();
+  const { user } = useAuth();
   const hasClearedRef = useRef(false);
 
   const orderId = useMemo(() => searchParams.get('order_id'), [searchParams]);
@@ -43,9 +45,11 @@ export default function CheckoutSuccessPage() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Button asChild className="h-12 rounded-xl font-bold">
-                <Link href="/orders"><Package className="w-4 h-4 mr-2" /> Ver mis pedidos</Link>
-              </Button>
+              {user?.id && (
+                <Button asChild className="h-12 rounded-xl font-bold">
+                  <Link href="/orders"><Package className="w-4 h-4 mr-2" /> Ver mis pedidos</Link>
+                </Button>
+              )}
               <Button asChild variant="outline" className="h-12 rounded-xl font-bold">
                 <Link href="/"><Home className="w-4 h-4 mr-2" /> Ir al inicio</Link>
               </Button>

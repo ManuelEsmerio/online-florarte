@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { mapDbCartItemToCartItem } from '../mappers/cartMapper';
 import type { DbCartItem } from '@/lib/definitions';
 import { productService } from './productService';
+import { couponService } from './couponService';
 
 type Identity = { userId: number | null; sessionId: string | null };
 
@@ -220,10 +221,48 @@ export const cartService = {
   async revalidateCoupons(identity: Identity) {
     const cart = await getActiveCart(identity);
     if (!cart || !cart.couponId) return;
-    const coupon = await prisma.coupon.findUnique({ where: { id: cart.couponId } });
-    if (!coupon || coupon.status !== 'ACTIVE' || coupon.isDeleted) {
+
+    if (!identity.userId) {
+      await prisma.cart.update({ where: { id: cart.id }, data: { couponId: null, couponCode: null } });
+      return;
+    }
+
+    try {
+      await couponService.validateCoupon({
+        couponCode: cart.couponCode ?? '',
+        userId: identity.userId,
+        sessionId: identity.sessionId,
+        deliveryDate: null,
+      });
+    } catch {
       await prisma.cart.update({ where: { id: cart.id }, data: { couponId: null, couponCode: null } });
     }
+  },
+
+  async applyCouponToCart(params: { userId: number | null; sessionId: string | null; couponCode: string; deliveryDate?: string | null }) {
+    const { userId, sessionId, couponCode, deliveryDate = null } = params;
+
+    if (!userId) {
+      throw new Error('Debes iniciar sesión para aplicar cupones.');
+    }
+
+    const validatedCoupon = await couponService.validateCoupon({
+      couponCode,
+      userId,
+      sessionId,
+      deliveryDate,
+    });
+
+    const cart = await getOrCreateActiveCart({ userId, sessionId });
+    await prisma.cart.update({
+      where: { id: cart.id },
+      data: {
+        couponId: validatedCoupon.id,
+        couponCode: validatedCoupon.code,
+      },
+    });
+
+    return validatedCoupon;
   },
 
   async removeCartCoupon(identity: Identity) {

@@ -56,6 +56,22 @@ function asNumberOrNull(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function calculateCouponDiscount(
+  subtotal: number,
+  coupon: { discountType?: string; discount_type?: string; discountValue?: number; discount_value?: number } | null,
+): number {
+  if (!coupon) return 0;
+  const discountType = String(coupon.discountType ?? coupon.discount_type ?? '').toUpperCase();
+  const discountValue = Number(coupon.discountValue ?? coupon.discount_value ?? 0);
+  if (!Number.isFinite(discountValue) || discountValue <= 0) return 0;
+
+  if (discountType === 'PERCENTAGE') {
+    return Math.min(subtotal, subtotal * (discountValue / 100));
+  }
+
+  return Math.min(subtotal, discountValue);
+}
+
 const getPaymentTransactionModel = (dbClient: any) => {
   return (dbClient as {
     paymentTransaction: {
@@ -283,15 +299,51 @@ export const orderService = {
       }
     }
 
-    const cartData = await cartService.getCartContents({ userId: normalizedUserId, sessionId: normalizedSessionId });
+    let cartData = await cartService.getCartContents({ userId: normalizedUserId, sessionId: normalizedSessionId });
 
     if (!cartData.items || cartData.items.length === 0) {
       throw new Error('El carrito está vacío.');
     }
 
+    const couponCodeFromPayload = String(params.couponCode ?? '').trim().toUpperCase();
+    let appliedCoupon: {
+      id: number;
+      code: string;
+      discountType?: string;
+      discountValue?: number;
+      maxUses?: number | null;
+      usesCount?: number;
+    } | null = null;
+
+    if (normalizedUserId) {
+      const couponCodeFromCart = String(cartData.coupon?.code ?? '').trim().toUpperCase();
+      const couponCode = couponCodeFromPayload || couponCodeFromCart;
+
+      if (couponCode) {
+        const validatedCoupon = await cartService.applyCouponToCart({
+          userId: normalizedUserId,
+          sessionId: normalizedSessionId,
+          couponCode,
+          deliveryDate: params.deliveryDate ?? params.p_delivery_date ?? null,
+        });
+
+        appliedCoupon = {
+          id: validatedCoupon.id,
+          code: validatedCoupon.code,
+          discountType: validatedCoupon.discountType,
+          discountValue: Number(validatedCoupon.discountValue ?? 0),
+          maxUses: validatedCoupon.maxUses,
+          usesCount: validatedCoupon.usesCount,
+        };
+
+        cartData = await cartService.getCartContents({ userId: normalizedUserId, sessionId: normalizedSessionId });
+      }
+    }
+
     const subtotal = cartData.subtotal;
     const shippingCost = params.shippingCost ?? 0;
-    const total = subtotal + shippingCost;
+    const couponDiscount = calculateCouponDiscount(subtotal, appliedCoupon ?? (cartData.coupon ?? null));
+    const total = Math.max(0, subtotal - couponDiscount + shippingCost);
 
     if (normalizedUserId && !params.addressId) {
       throw new Error('Debes seleccionar una dirección guardada para completar tu compra.');
@@ -366,6 +418,21 @@ export const orderService = {
     });
 
     const newOrder = await prisma.$transaction(async (tx: any) => {
+      if (appliedCoupon && normalizedUserId) {
+        const alreadyUsedByUser = await tx.order.findFirst({
+          where: {
+            userId: normalizedUserId,
+            couponId: appliedCoupon.id,
+            status: { not: 'CANCELLED' },
+          },
+          select: { id: true },
+        });
+
+        if (alreadyUsedByUser) {
+          throw new Error('Este cupón ya fue utilizado por tu cuenta.');
+        }
+      }
+
       const createdOrder = await tx.order.create({
         data: {
           userId: normalizedUserId,
@@ -374,8 +441,11 @@ export const orderService = {
           guestEmail: isGuest ? guestEmail : null,
           guestPhone: isGuest ? guestPhone : null,
           sessionId: normalizedSessionId,
+          couponId: appliedCoupon?.id ?? null,
+          couponCodeSnap: appliedCoupon?.code ?? null,
           status: 'PENDING',
           subtotal,
+          couponDiscount,
           shippingCost,
           total,
           deliveryDate: new Date(params.deliveryDate ?? params.p_delivery_date),
@@ -395,6 +465,44 @@ export const orderService = {
           ...snapshotData,
         },
       });
+
+      if (appliedCoupon) {
+        const couponUpdateWhere: any = {
+          id: appliedCoupon.id,
+          isDeleted: false,
+          status: 'ACTIVE',
+        };
+
+        if (Number.isFinite(Number(appliedCoupon.maxUses)) && appliedCoupon.maxUses !== null) {
+          couponUpdateWhere.usesCount = { lt: Number(appliedCoupon.maxUses) };
+        }
+
+        const couponUpdateResult = await tx.coupon.updateMany({
+          where: couponUpdateWhere,
+          data: {
+            usesCount: { increment: 1 },
+          },
+        });
+
+        if (couponUpdateResult.count !== 1) {
+          throw new Error('No se pudo reservar el cupón para este pedido. Intenta nuevamente.');
+        }
+      }
+
+      const activeCart = await tx.cart.findFirst({
+        where: {
+          status: 'ACTIVE',
+          ...(normalizedUserId ? { userId: normalizedUserId } : { sessionId: normalizedSessionId }),
+        },
+        select: { id: true },
+      });
+
+      if (activeCart?.id) {
+        await tx.cart.update({
+          where: { id: activeCart.id },
+          data: { couponId: null, couponCode: null },
+        });
+      }
 
       return createdOrder;
     });

@@ -18,6 +18,10 @@ type ValidateCouponParams = {
   deliveryDate: string | null;
 };
 
+function normalizeCouponCode(value: unknown): string {
+  return String(value ?? '').trim().toUpperCase();
+}
+
 const dbWithAudit = async <T>(userId: number, fn: () => Promise<T>): Promise<T> => fn();
 
 function mapPrismaCoupon(row: {
@@ -123,18 +127,93 @@ export const couponService = {
     return rows.map(mapPrismaCoupon);
   },
 
-  async validateCoupon({ couponCode, userId }: ValidateCouponParams): Promise<Coupon> {
-    const coupon = await prisma.coupon.findUnique({ where: { code: couponCode, isDeleted: false } });
+  async validateCoupon({ couponCode, userId, sessionId }: ValidateCouponParams): Promise<Coupon> {
+    const normalizedCode = normalizeCouponCode(couponCode);
+    if (!normalizedCode) {
+      throw new Error('El código de cupón es requerido.');
+    }
+
+    const coupon = await prisma.coupon.findFirst({
+      where: {
+        code: normalizedCode,
+        isDeleted: false,
+      },
+      include: {
+        couponUsers: { select: { userId: true } },
+        couponProducts: { select: { productId: true } },
+        couponCategories: { select: { categoryId: true } },
+      },
+    });
 
     if (!coupon) throw new Error('El código de cupón no existe.');
+
+    const now = new Date();
     if (coupon.status !== 'ACTIVE') throw new Error('Este cupón no está activo.');
-    if (coupon.validUntil && new Date() > coupon.validUntil) throw new Error('Este cupón ha expirado o aún no está activo.');
+    if (coupon.isDeleted) throw new Error('Este cupón no está disponible.');
+    if (coupon.validFrom && now < coupon.validFrom) throw new Error('Este cupón aún no está vigente.');
+    if (coupon.validUntil && now > coupon.validUntil) throw new Error('Este cupón ha expirado.');
     if (coupon.maxUses !== null && coupon.usesCount >= coupon.maxUses) throw new Error('Este cupón ha alcanzado su límite de usos.');
 
+    const activeCart = await prisma.cart.findFirst({
+      where: {
+        status: 'ACTIVE',
+        ...(userId ? { userId } : { sessionId: sessionId ?? undefined }),
+      },
+      include: {
+        items: {
+          select: {
+            productId: true,
+            product: {
+              select: {
+                categoryId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const cartItems = activeCart?.items ?? [];
+    if (cartItems.length === 0) {
+      throw new Error('Tu carrito está vacío. Agrega productos antes de aplicar un cupón.');
+    }
+
     if (coupon.scope === 'USERS' || coupon.scope === 'SPECIFIC') {
-      if (!userId) throw new Error('Este cupón no es válido para tu cuenta.');
-      const linked = await prisma.couponUser.findUnique({ where: { couponId_userId: { couponId: coupon.id, userId } } });
-      if (!linked) throw new Error('Este cupón no es válido para tu cuenta.');
+      if (!userId) throw new Error('Debes iniciar sesión para usar este cupón.');
+
+      const isLinkedToUser = coupon.couponUsers.some((link) => link.userId === userId);
+      if (!isLinkedToUser) {
+        throw new Error('Este cupón no es válido para tu cuenta.');
+      }
+
+      const alreadyUsedByUser = await prisma.order.findFirst({
+        where: {
+          userId,
+          couponId: coupon.id,
+          status: { not: 'CANCELLED' },
+        },
+        select: { id: true },
+      });
+
+      if (alreadyUsedByUser) {
+        throw new Error('Este cupón ya fue utilizado por tu cuenta.');
+      }
+    }
+
+    if (coupon.scope === 'PRODUCTS') {
+      const allowedProductIds = new Set(coupon.couponProducts.map((row) => row.productId));
+      const hasEligibleProduct = cartItems.some((item) => allowedProductIds.has(item.productId));
+      if (!hasEligibleProduct) {
+        throw new Error('Este cupón solo aplica para productos específicos de tu carrito.');
+      }
+    }
+
+    if (coupon.scope === 'CATEGORIES') {
+      const allowedCategoryIds = new Set(coupon.couponCategories.map((row) => row.categoryId));
+      const hasEligibleCategory = cartItems.some((item) => item.product?.categoryId && allowedCategoryIds.has(item.product.categoryId));
+      if (!hasEligibleCategory) {
+        throw new Error('Este cupón solo aplica para categorías específicas de tu carrito.');
+      }
     }
 
     return mapPrismaCoupon(coupon);

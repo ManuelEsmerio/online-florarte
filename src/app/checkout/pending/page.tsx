@@ -7,9 +7,11 @@ import Header from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { Clock, Package, Home } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 export default function CheckoutPendingPage() {
   const searchParams = useSearchParams();
+  const { user } = useAuth();
   const orderId = useMemo(() => searchParams.get('order_id'), [searchParams]);
 
   return (
@@ -34,9 +36,11 @@ export default function CheckoutPendingPage() {
             )}
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Button asChild className="h-12 rounded-xl font-bold">
-                <Link href="/orders"><Package className="w-4 h-4 mr-2" /> Ver mis pedidos</Link>
-              </Button>
+              {user?.id && (
+                <Button asChild className="h-12 rounded-xl font-bold">
+                  <Link href="/orders"><Package className="w-4 h-4 mr-2" /> Ver mis pedidos</Link>
+                </Button>
+              )}
               <Button asChild variant="outline" className="h-12 rounded-xl font-bold">
                 <Link href="/"><Home className="w-4 h-4 mr-2" /> Ir al inicio</Link>
               </Button>

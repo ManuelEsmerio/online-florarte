@@ -321,7 +321,7 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
           guestReferenceNotes: isGuestCheckout ? data.guestReferenceNotes : undefined,
           recipientName: selectedAddress?.recipientName,
           recipientPhone: selectedAddress?.recipientPhone,
-          couponCode: data.couponCode,
+          couponCode: isGuestCheckout ? undefined : data.couponCode,
           deliveryDate: data.deliveryDate,
           deliveryTimeSlot: data.deliveryTimeSlot,
           dedication: data.dedication,
