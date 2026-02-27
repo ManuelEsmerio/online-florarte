@@ -1,7 +1,7 @@
 // src/app/api/admin/import/route.ts
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
-import { getDecodedToken, UserSession } from '@/utils/auth';
+import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
 import { z, ZodError } from 'zod';
 import { Readable } from 'stream';
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') return errorHandler(new Error('Acceso prohibido.'), 403);
+    if (!isAdminRole(user?.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const formData = await req.formData();
     const dataType = formData.get('dataType') as keyof typeof importSchemas;

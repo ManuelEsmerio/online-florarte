@@ -106,6 +106,10 @@ const Header = () => {
     }
 
     if (user && user.name) {
+      const normalizedRole = String(user.role ?? '').toUpperCase();
+      const isAdmin = normalizedRole === 'ADMIN';
+      const isCustomer = normalizedRole === 'CUSTOMER';
+
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -116,7 +120,7 @@ const Header = () => {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="rounded-2xl p-2 border-none shadow-2xl min-w-[200px] animate-in fade-in slide-in-from-top-2 duration-300">
             <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-3 py-2">Mi Cuenta</DropdownMenuLabel>
-            {user.role === 'customer' && (
+            {isCustomer && (
               <>
                 <DropdownMenuSeparator className="bg-muted/50" />
                 <DropdownMenuItem disabled className="!opacity-100 !cursor-default focus:bg-transparent rounded-xl">
@@ -126,7 +130,7 @@ const Header = () => {
               </>
             )}
             <DropdownMenuSeparator className="bg-muted/50" />
-            {(user.role === 'admin' ? adminLinks : userLinks).map(link => (
+            {(isAdmin ? adminLinks : userLinks).map(link => (
               <DropdownMenuItem key={link.href} asChild className="rounded-xl">
                 <Link href={link.href} className="w-full flex items-center py-2 transition-all duration-300">
                   <link.icon className="mr-2 h-4 w-4 transition-colors" />
@@ -261,13 +265,13 @@ const Header = () => {
                 {isClient && user && user.name && (
                   <nav className="flex flex-col space-y-4 border-b border-border/50 pb-6">
                     <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-[0.2em]">Mi Cuenta</p>
-                    {user.role === 'customer' && (
+                    {String(user.role ?? '').toUpperCase() === 'CUSTOMER' && (
                       <div className="flex items-center gap-3 text-lg font-medium text-foreground/80">
                         <Gem className="w-5 h-5 text-blue-500" />
                         <span>{user.loyalty_points || 0} Puntos</span>
                       </div>
                     )}
-                    {(user.role === 'admin' ? adminLinks : userLinks).map((link) => (
+                    {(String(user.role ?? '').toUpperCase() === 'ADMIN' ? adminLinks : userLinks).map((link) => (
                       <Link
                         key={link.href}
                         href={link.href}

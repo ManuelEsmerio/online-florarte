@@ -1,7 +1,7 @@
 // src/app/api/admin/announcements/[id]/route.ts
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
-import { getDecodedToken, UserSession } from '@/utils/auth';
+import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
 import { update, deleteAd } from '@/services/announcementService';
 
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const session: UserSession | null = await getDecodedToken(req);
     if (session?.dbId === undefined) return errorHandler(new Error('Acceso denegado.'), 401);
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') return errorHandler(new Error('Acceso prohibido.'), 403);
+    if (!isAdminRole(user?.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const { id: routeAnnouncementId } = await params;
     const id = parseInt(routeAnnouncementId, 10);
@@ -39,7 +39,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const session: UserSession | null = await getDecodedToken(req);
     if (session?.dbId === undefined) return errorHandler(new Error('Acceso denegado.'), 401);
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') return errorHandler(new Error('Acceso prohibido.'), 403);
+    if (!isAdminRole(user?.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const { id: routeAnnouncementId } = await params;
     const id = parseInt(routeAnnouncementId, 10);

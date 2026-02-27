@@ -7,6 +7,10 @@ export interface UserSession {
   role: string;
 }
 
+export function isAdminRole(role: unknown): boolean {
+  return String(role ?? '').trim().toUpperCase() === 'ADMIN';
+}
+
 /**
  * Verifica el JWT almacenado en la cookie httpOnly y retorna la sesión del usuario.
  */

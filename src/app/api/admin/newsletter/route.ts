@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
-import { getDecodedToken, UserSession } from '@/utils/auth';
+import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       select: { role: true },
     });
 
-    if (adminUser?.role !== 'ADMIN') {
+    if (!isAdminRole(adminUser?.role)) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 

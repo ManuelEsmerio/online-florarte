@@ -1,7 +1,7 @@
 // src/app/api/admin/shipping/[id]/route.ts
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
-import { getDecodedToken, UserSession } from '@/utils/auth';
+import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
 import { shippingZoneService } from '@/services/shippingZoneService';
 import { ZodError } from 'zod';
@@ -23,7 +23,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
     const adminUser = await userService.getUserById(session.dbId);
-    if (adminUser?.role !== 'admin') {
+    if (!isAdminRole(adminUser?.role)) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 
@@ -62,7 +62,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
     const adminUser = await userService.getUserById(session.dbId);
-    if (adminUser?.role !== 'admin') {
+    if (!isAdminRole(adminUser?.role)) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
     

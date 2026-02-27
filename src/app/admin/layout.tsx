@@ -106,18 +106,19 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const [isClient, setIsClient] = useState(false);
   const { state: sidebarState } = useSidebar();
   const isCollapsed = sidebarState === 'collapsed';
+  const isAdmin = String(user?.role ?? '').toUpperCase() === 'ADMIN';
   
   useEffect(() => {
     setIsClient(true);
   }, []);
 
   useEffect(() => {
-    if (isClient && (!user || user.role !== 'admin')) {
+    if (isClient && (!user || !isAdmin)) {
       router.push('/login');
     }
-  }, [user, router, isClient]);
+  }, [user, router, isClient, isAdmin]);
 
-  if (!isClient || !user || user.role !== 'admin') {
+  if (!isClient || !user || !isAdmin) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <LoadingSpinner />
