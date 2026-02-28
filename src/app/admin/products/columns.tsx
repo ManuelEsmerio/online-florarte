@@ -37,6 +37,7 @@ export type ProductRow = Product & {
     isVariant: boolean;
     variantName?: string;
     variantId?: number;
+  searchIndex?: string;
 };
 
 const getStatusVariant = (status: ProductStatus): 'success' | 'destructive' | 'secondary' => {
@@ -89,11 +90,11 @@ const ToggleStatusCell = ({ product, onToggleStatus, isUpdating }: { product: Pr
             <TooltipProvider>
                 <Tooltip>
                     <TooltipTrigger asChild>
-                         <div
+                        <div
                             role="button"
                             onClick={handleClick}
                             className={cn(
-                                "h-8 w-8 relative flex items-center justify-center rounded-md",
+                            "h-8 w-10 relative flex items-center justify-center rounded-md",
                                 isUpdating && "cursor-not-allowed"
                             )}
                             aria-label={isUpdating ? "Actualizando estado..." : `Cambiar estado de ${product.name}`}
@@ -176,14 +177,14 @@ export const columns = ({
     header: '',
     cell: ({ row }) => {
       const product = row.original;
-      if (product.isVariant || product.hasVariants) return null;
+      if (product.isVariant) return null;
       return (
         <Image
           src={product.mainImage || '/placehold.webp'}
           alt={product.name}
-          width={40}
-          height={40}
-          className="rounded-md object-cover"
+          width={48}
+          height={48}
+          className="rounded-xl object-cover border border-border/50"
         />
       );
     },
@@ -204,13 +205,14 @@ export const columns = ({
         const product = row.original;
         if(product.isVariant){
              return (
-                <div className="pl-8 text-sm text-muted-foreground">
-                   <span className="mr-1">↳</span>
-                   {product.variantName}
+          <div className="pl-10 relative text-sm text-slate-500 dark:text-slate-400">
+             <span className="absolute left-2 top-[-10px] bottom-1/2 w-px bg-border/70" />
+             <span className="absolute left-2 top-1/2 w-4 h-px bg-border/70" />
+             <span className="font-medium">{product.variantName}</span>
                 </div>
             )
         }
-        return <div className="font-bold">{product.name}</div>;
+      return <div className="font-semibold text-slate-900 dark:text-white">{product.name}</div>;
     },
   },
    {
@@ -224,7 +226,7 @@ export const columns = ({
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => <div className="font-mono text-xs">{row.getValue('code')}</div>,
+    cell: ({ row }) => <div className="font-mono text-xs text-slate-400">{row.getValue('code')}</div>,
   },
   {
     accessorKey: 'category.slug',
@@ -233,7 +235,7 @@ export const columns = ({
     cell: ({ row }) => {
         const product = row.original;
         if (product.isVariant) return null;
-        return <span className="capitalize">{product.category.name}</span>
+        return <span className="capitalize text-slate-500">{product.category.name}</span>
     },
     filterFn: (row, id, value) => {
       const categorySlug = (row.original as any).category.slug;

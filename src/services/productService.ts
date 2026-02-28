@@ -284,14 +284,65 @@ async function syncVariantImages(
 // ────────────────────────────────────────────────────────────
 export const productService = {
 
+
   async getAdminProductList(includeMeta = true) {
+    // 1. Get all products with variants
     const dbProducts = await prisma.product.findMany({
       where: { isDeleted: false },
       include: PRODUCT_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
 
-    const products = enrichProducts(dbProducts.map(mapProduct));
+    // 2. Get all product and variant IDs
+    const productIds = dbProducts.map(p => p.id);
+    const variantIds = dbProducts.flatMap(p => p.variants.map(v => v.id));
+
+    // 3. Get sales count and last sale for products
+    const orderItemsByProduct = await prisma.orderItem.groupBy({
+      by: ['productId'],
+      _sum: { quantity: true },
+      _max: { createdAt: true },
+      where: { productId: { in: productIds } },
+    });
+    const salesByProductId = new Map(orderItemsByProduct.map(row => [row.productId, {
+      salesCount: row._sum.quantity || 0,
+      lastSale: row._max.createdAt || null,
+    }]));
+
+    // 4. Get sales count and last sale for variants
+    let salesByVariantId = new Map();
+    if (variantIds.length > 0) {
+      const orderItemsByVariant = await prisma.orderItem.groupBy({
+        by: ['variantId'],
+        _sum: { quantity: true },
+        _max: { createdAt: true },
+        where: { variantId: { in: variantIds } },
+      });
+      salesByVariantId = new Map(orderItemsByVariant.map(row => [row.variantId, {
+        salesCount: row._sum.quantity || 0,
+        lastSale: row._max.createdAt || null,
+      }]));
+    }
+
+    // 5. Attach metrics to products/variants
+    const products = enrichProducts(dbProducts.map(mapProduct)).map(p => {
+      const productMetrics = salesByProductId.get(p.id) || { salesCount: 0, lastSale: null };
+      return {
+        ...p,
+        salesCount: productMetrics.salesCount,
+        lastSale: productMetrics.lastSale,
+        variants: Array.isArray(p.variants)
+          ? p.variants.map(v => {
+              const variantMetrics = salesByVariantId.get(v.id) || { salesCount: 0, lastSale: null };
+              return {
+                ...v,
+                salesCount: variantMetrics.salesCount,
+                lastSale: variantMetrics.lastSale,
+              };
+            })
+          : [],
+      };
+    });
 
     if (!includeMeta) {
       return { products, categories: undefined, occasions: undefined, tags: undefined };

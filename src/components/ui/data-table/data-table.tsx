@@ -27,6 +27,8 @@ interface DataTableProps<TData> {
   toolbar?: React.ReactNode;
   isLoading?: boolean;
   className?: string;
+  onRowClick?: (rowData: TData) => void;
+  selectedRowId?: string | null;
 }
 
 export function DataTable<TData>({
@@ -34,23 +36,26 @@ export function DataTable<TData>({
   columns,
   toolbar,
   isLoading,
-  className
+  className,
+  onRowClick,
+  selectedRowId,
 }: DataTableProps<TData>) {
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn("space-y-8", className)}>
       {toolbar && (
         <div className="animate-fade-in">
           {toolbar}
         </div>
       )}
-      <div className="rounded-[2.5rem] border border-border/50 bg-background dark:bg-zinc-900/50 shadow-xl overflow-hidden animate-fade-in-up">
+      <div className="rounded-[24px] border border-border/50 bg-background dark:bg-zinc-900/50 shadow-xl overflow-hidden animate-fade-in-up">
+        <div className="overflow-x-auto custom-scrollbar">
         <Table>
-          <TableHeader className="bg-slate-50 dark:bg-white/5">
+          <TableHeader className="bg-transparent">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="hover:bg-transparent border-none">
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id} className="h-14 px-6 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                    <TableHead key={header.id} className="h-14 px-6 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70 border-b border-border/40 whitespace-nowrap">
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -79,10 +84,18 @@ export function DataTable<TData>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="hover:bg-primary/5 transition-colors border-b-border/50 last:border-none"
+                  onClick={() => onRowClick?.(row.original)}
+                  className={cn(
+                    "transition-colors border-b border-border/40 last:border-none",
+                    onRowClick && "cursor-pointer",
+                    selectedRowId && row.id === selectedRowId && "border-l-4 border-l-primary bg-primary/5 dark:bg-primary/[0.06]",
+                    row.original && (row.original as any).isVariant
+                      ? "bg-slate-50/20 dark:bg-zinc-900/40"
+                      : "hover:bg-slate-50/50 dark:hover:bg-zinc-800/30"
+                  )}
                 >
                   {row.getVisibleCells().map((cell: any) => (
-                    <TableCell key={cell.id} className="px-6 py-4">
+                    <TableCell key={cell.id} className="px-6 py-4 align-middle">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -103,6 +116,7 @@ export function DataTable<TData>({
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
        <DataTablePagination table={table} />
     </div>

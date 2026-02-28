@@ -130,6 +130,9 @@ export function ProductDetailModal({
   const activeSalePrice = selectedVariant ? selectedVariant.sale_price : product?.sale_price;
   const activeStock = selectedVariant ? selectedVariant.stock : product?.stock;
   const activeSku = selectedVariant ? selectedVariant.code : product?.code;
+  const activeVariantProductName = selectedVariant
+    ? ((selectedVariant as any).product_name ?? selectedVariant.productName ?? null)
+    : null;
 
   const handleEditClick = () => {
     if (!product || !onEditProduct) return;
@@ -191,6 +194,9 @@ export function ProductDetailModal({
                         )}
 
                         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-10 rounded-2xl border border-primary/20 bg-primary/5 p-4 md:p-5">
+                            {showVariantSelect && (
+                              <DetailRow label="Nombre Producto (Variante)" value={<span className="font-semibold">{activeVariantProductName ?? 'N/A'}</span>} />
+                            )}
                             <DetailRow label="Precio" value={<span className="text-xl font-semibold">{formatCurrency(activePrice)}</span>} />
                             <DetailRow label="Precio Oferta" value={<span className="text-base font-medium text-muted-foreground">{formatCurrency(activeSalePrice)}</span>} />
                             <DetailRow label="Stock" value={<span className="font-semibold">{activeStock ?? 0} unidades</span>} />
@@ -241,6 +247,11 @@ export function ProductDetailModal({
                             <div>
                                 <h4 className="font-semibold text-foreground mb-2">Detalles de la Variante: {selectedVariant.name}</h4>
                                 <div className="space-y-2">
+                                  {activeVariantProductName && (
+                                    <p className="text-sm text-muted-foreground">
+                                      <span className="font-medium text-foreground">Producto:</span> {activeVariantProductName}
+                                    </p>
+                                  )}
                                   {selectedVariant.description && <p className="text-sm text-muted-foreground italic bg-muted/50 p-3 rounded-md">{selectedVariant.description}</p>}
                                   {(selectedVariant.specifications && selectedVariant.specifications.length > 0) && (
                                     <SpecificationsTable specifications={selectedVariant.specifications} />

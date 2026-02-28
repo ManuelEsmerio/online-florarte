@@ -55,11 +55,7 @@ export default function ForgotPasswordPage() {
   };
   
   if (authLoading || user) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <LoadingSpinner />
-      </div>
-    );
+    return <LoadingSpinner variant="luxury" fullScreen size={68} />;
   }
 
   return (

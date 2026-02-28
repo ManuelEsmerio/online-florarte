@@ -120,9 +120,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
 
   if (!isClient || !user || !isAdmin) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <LoadingSpinner />
-      </div>
+      <LoadingSpinner variant="luxury" fullScreen size={72} />
     );
   }
 

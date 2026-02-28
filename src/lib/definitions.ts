@@ -214,6 +214,10 @@ export interface Product {
   orderItems?: OrderItem[];
   couponProducts?: CouponProduct[];
   cartItems?: CartItem[];
+
+  // Admin metrics
+  salesCount?: number;
+  lastSale?: string | Date | null;
 }
 
 export interface ProductVariant {
@@ -237,6 +241,10 @@ export interface ProductVariant {
   specifications?: ProductSpecification[];
   orderItems?: OrderItem[];
   cartItems?: CartItem[];
+
+  // Admin metrics
+  salesCount?: number;
+  lastSale?: string | Date | null;
 }
 
 export interface ProductImage {
