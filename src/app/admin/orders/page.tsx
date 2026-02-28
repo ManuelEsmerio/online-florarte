@@ -94,7 +94,13 @@ const fetchOrders = useCallback(async () => {
         unitPrice: Number(item.unitPrice ?? item.price ?? 0),
         productNameSnap: item.productNameSnap ?? item.product_name ?? 'Producto',
         variantNameSnap: item.variantNameSnap ?? item.variant_name ?? null,
-        imageSnap: item.imageSnap ?? item.image ?? '',
+        imageSnap:
+          item.imageSnap ??
+          item.image ??
+          item.product?.mainImage ??
+          item.product?.main_image ??
+          item.mainImage ??
+          '',
         customPhotoUrl: item.customPhotoUrl ?? null,
       })),
     })) as AdminOrderListDTO[];

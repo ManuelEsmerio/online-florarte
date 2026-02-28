@@ -144,7 +144,7 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[96vw] max-w-6xl p-0 gap-0 bg-background border-border/50 overflow-hidden flex flex-col max-h-[92vh]">
+      <DialogContent className="w-[96vw] max-w-6xl p-0 gap-0 bg-background border-border/50 overflow-hidden flex flex-col max-h-[92vh]" onInteractOutside={(e) => e.preventDefault()}>
         <DialogTitle className="sr-only">Detalle del Pedido #{order?.id}</DialogTitle>
 
         {order && (

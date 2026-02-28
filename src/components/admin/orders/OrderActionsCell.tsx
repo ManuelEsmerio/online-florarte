@@ -203,7 +203,7 @@ export const OrderActionsCell = ({
                 Editar Estado
               </DropdownMenuItem>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
               <DialogHeader>
                 <DialogTitle className="font-headline text-2xl">
                   Editar Pedido: ORD${String(order.id).padStart(4, '0')}

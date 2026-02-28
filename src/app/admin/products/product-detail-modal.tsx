@@ -9,29 +9,24 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import type { Product, ProductVariant } from '@/lib/definitions';
 import { Badge } from '@/components/ui/badge';
-import Image from 'next/image';
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from '@/components/ui/carousel';
-import { Separator } from '@/components/ui/separator';
-import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ProductImageCarousel from '@/components/ProductImageCarousel';
+import { Button } from '@/components/ui/button';
+import { PenSquare } from 'lucide-react';
+import { resolveProductGalleryImages } from '@/lib/product-images';
 
 
 interface ProductDetailModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   product: Product | null;
+  onEditProduct?: (product: Product) => void;
 }
 
 const formatCurrency = (amount: number | null | undefined) => {
@@ -106,6 +101,7 @@ export function ProductDetailModal({
   isOpen,
   onOpenChange,
   product,
+  onEditProduct,
 }: ProductDetailModalProps) {
 
   const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>(undefined);
@@ -125,56 +121,60 @@ export function ProductDetailModal({
   }, [selectedVariantId, product?.variants]);
 
   const imagesToShow = useMemo(() => {
-    if (!product) return [];
-
-    // Si hay una variante seleccionada y tiene imágenes, úsalas.
-    if (selectedVariant && selectedVariant.images && selectedVariant.images.length > 0) {
-      return selectedVariant.images;
-    }
-    
-    // Si no, usa las imágenes principales del producto.
-    if (product.images && product.images.length > 0) {
-      return product.images;
-    }
-    
-    // Fallback: si no hay imágenes principales pero hay variantes, usa las de la primera variante.
-    const firstVariantWithImages = product.variants?.find(v => v.images && v.images.length > 0);
-    if (firstVariantWithImages) {
-      return firstVariantWithImages.images!;
-    }
-    
-    // Último recurso: placeholder
-    return [{ id: 0, src: product.image, alt: product.name, is_primary: true }];
+    return resolveProductGalleryImages(product, selectedVariant);
   }, [product, selectedVariant]);
+
+  const showVariantSelect = Boolean(product?.has_variants && product?.variants && product.variants.length > 0);
+
+  const activePrice = selectedVariant ? selectedVariant.price : product?.price;
+  const activeSalePrice = selectedVariant ? selectedVariant.sale_price : product?.sale_price;
+  const activeStock = selectedVariant ? selectedVariant.stock : product?.stock;
+  const activeSku = selectedVariant ? selectedVariant.code : product?.code;
+
+  const handleEditClick = () => {
+    if (!product || !onEditProduct) return;
+    onOpenChange(false);
+    onEditProduct(product);
+  };
 
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="font-headline text-2xl">{product?.name || 'Cargando...'}</DialogTitle>
-          <DialogDescription>
-            Detalles completos del producto <span className="font-mono">{product?.code}</span>
-          </DialogDescription>
+      <DialogContent className="sm:max-w-5xl max-h-[92vh] flex flex-col p-0 overflow-hidden rounded-3xl border-primary/15" onInteractOutside={(e) => e.preventDefault()}>
+        <DialogHeader className="px-7 md:px-9 py-6 border-b bg-gradient-to-r from-primary/10 via-background/70 to-background/60">
+          <div className="space-y-2 pr-10">
+            <div className="flex items-center flex-wrap gap-3">
+              <DialogTitle className="font-headline text-2xl md:text-3xl">{product?.name || 'Cargando...'}</DialogTitle>
+              {product?.status && (
+                <Badge variant={product.status === 'publicado' ? 'success' : 'secondary'} className="uppercase tracking-wide shadow-sm shadow-primary/25 border border-primary/30">
+                  {product.status}
+                </Badge>
+              )}
+            </div>
+            <DialogDescription className="text-xs md:text-sm">
+              SKU: <span className="font-mono">{product?.code ?? 'N/A'}</span>
+            </DialogDescription>
+          </div>
         </DialogHeader>
-        <div className="flex-grow overflow-y-auto pr-4 -mr-4">
+        <div className="flex-grow overflow-y-auto px-7 md:px-9 py-8 custom-scrollbar">
             {isLoading ? <ProductDetailSkeleton /> : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-10">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-9 md:gap-12">
                     {/* Left Column - Image */}
-                    <div className="space-y-4">
+                    <div className="lg:col-span-5 space-y-4">
                         <ProductImageCarousel images={imagesToShow} />
                     </div>
 
                     {/* Right Column - Details */}
-                    <div className="space-y-6">
-                         {product.has_variants && product.variants && (
-                          <div className="space-y-2">
-                            <label className="font-semibold text-foreground">Variante</label>
+                    <div className="lg:col-span-7 space-y-8">
+                        {showVariantSelect && (
+                            <div className="space-y-2">
+                            <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Variante</label>
                             <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
-                                <SelectTrigger>
+                              <SelectTrigger className="border-primary/30 focus-visible:ring-primary/35">
                                     <SelectValue placeholder="Selecciona una variante" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="z-[120]">
                                     {product.variants.map(v => (
                                         <SelectItem key={v.id} value={String(v.id)}>{v.name}</SelectItem>
                                     ))}
@@ -182,34 +182,51 @@ export function ProductDetailModal({
                             </Select>
                           </div>
                         )}
-                        <dl className="space-y-3">
-                            <DetailRow label="Precio" value={formatCurrency(selectedVariant ? selectedVariant.price : product.price)} />
-                            <DetailRow label="Precio de Oferta" value={formatCurrency(selectedVariant ? selectedVariant.sale_price : product.sale_price)} />
-                            <DetailRow label="Stock" value={selectedVariant ? selectedVariant.stock : product.stock} />
-                            <DetailRow label="SKU" value={<span className="font-mono text-xs">{selectedVariant ? selectedVariant.code : product.code}</span>} />
-                            <DetailRow label="Estado" value={<Badge className="capitalize">{product.status}</Badge>} />
-                            <DetailRow label="Categoría" value={product.category?.name} />
-                            <DetailRow label="Slug" value={<span className="font-mono text-xs">{product.slug}</span>} />
-                            <DetailRow 
-                                label="Permite Foto" 
+
+                        {product.description && (
+                          <div className="space-y-2">
+                            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Descripción</h3>
+                            <p className="text-sm leading-relaxed text-muted-foreground">{product.description}</p>
+                          </div>
+                        )}
+
+                        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-10 rounded-2xl border border-primary/20 bg-primary/5 p-4 md:p-5">
+                            <DetailRow label="Precio" value={<span className="text-xl font-semibold">{formatCurrency(activePrice)}</span>} />
+                            <DetailRow label="Precio Oferta" value={<span className="text-base font-medium text-muted-foreground">{formatCurrency(activeSalePrice)}</span>} />
+                            <DetailRow label="Stock" value={<span className="font-semibold">{activeStock ?? 0} unidades</span>} />
+                            <DetailRow label="Categoría" value={<span className="font-semibold">{product.category?.name ?? 'N/A'}</span>} />
+                            <DetailRow label="SKU" value={<span className="font-mono text-xs">{activeSku ?? 'N/A'}</span>} />
+                            <DetailRow
+                                label="Permite Foto"
                                 value={
-                                    <span className="flex items-center gap-2 justify-end">
+                                    <span className="flex items-center gap-2 justify-end sm:justify-start">
                                         <Badge variant={product.allow_photo ? "success" : "secondary"}>{product.allow_photo ? 'Sí' : 'No'}</Badge>
-                                        {product.allow_photo && `(${formatCurrency(product.photo_price)})`}
+                                        {product.allow_photo && <span className="text-xs text-muted-foreground">{formatCurrency(product.photo_price)}</span>}
                                     </span>
-                                } 
+                                }
+                            />
+                            <DetailRow
+                                label="Etiquetas"
+                                value={product.tags && product.tags.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1.5 justify-end sm:justify-start">
+                                    {product.tags.map(tag => <Badge key={tag.id} variant="secondary">{tag.name}</Badge>)}
+                                  </div>
+                                ) : <span className="text-muted-foreground italic">Sin etiquetas</span>}
+                            />
+                            <DetailRow
+                                label="Ocasiones"
+                                value={product.occasions && product.occasions.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1.5 justify-end sm:justify-start">
+                                    {product.occasions.map(occ => <Badge key={occ.id} variant="outline">{occ.name}</Badge>)}
+                                  </div>
+                                ) : <span className="text-muted-foreground italic">Sin ocasiones</span>}
                             />
                         </dl>
-                        <Separator />
-                        <div className="space-y-3">
-                            <DetailRow label="Etiquetas" value={product.tags && product.tags.length > 0 ? (<div className="flex flex-wrap gap-1 justify-end">{product.tags.map(tag => <Badge key={tag.id} variant="secondary">{tag.name}</Badge>)}</div>) : 'N/A'} />
-                            <DetailRow label="Ocasiones" value={product.occasions && product.occasions.length > 0 ? (<div className="flex flex-wrap gap-1 justify-end">{product.occasions.map(occ => <Badge key={occ.id} variant="outline">{occ.name}</Badge>)}</div>) : 'N/A'} />
-                        </div>
+                    </div>
                     </div>
                     {/* Full-width sections */}
-                    <div className="md:col-span-2 space-y-6">
+                    <div className="space-y-7">
                         {product.short_description && (<div><h4 className="font-semibold text-foreground mb-1">Descripción Corta</h4><p className="text-sm text-muted-foreground">{product.short_description}</p></div>)}
-                        {product.description && (<div><h4 className="font-semibold text-foreground mb-1">Descripción Completa</h4><p className="text-sm text-muted-foreground">{product.description}</p></div>)}
                         
                         {(product.specifications && product.specifications.length > 0) && (
                             <div>
@@ -235,6 +252,15 @@ export function ProductDetailModal({
                 </div>
             )}
         </div>
+        <DialogFooter className="px-7 md:px-9 py-5 border-t bg-gradient-to-r from-background to-primary/5 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            Cerrar
+          </Button>
+          <Button type="button" className="shadow-md shadow-primary/25" onClick={handleEditClick} disabled={!product || !onEditProduct}>
+            <PenSquare className="w-4 h-4 mr-2" />
+            Editar Producto
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

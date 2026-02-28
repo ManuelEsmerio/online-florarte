@@ -57,7 +57,7 @@ export function CustomerDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] sm:max-w-xl p-0 overflow-hidden border-none shadow-2xl rounded-[2rem] md:rounded-[2.5rem] bg-background flex flex-col max-h-[90vh]">
+            <DialogContent className="w-[95vw] sm:max-w-xl p-0 overflow-hidden border-none shadow-2xl rounded-[2rem] md:rounded-[2.5rem] bg-background flex flex-col max-h-[90vh]" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader className="p-6 md:p-8 pb-4 border-b border-border/50 relative">
           <DialogTitle className="font-headline text-2xl md:text-3xl font-bold">Detalles del Perfil</DialogTitle>
           <DialogDescription className="text-xs md:text-sm font-medium">

@@ -5,6 +5,7 @@ import type { ProductStatus as ProductStatusType } from '@/lib/definitions';
 import { getPublicUrlForPath } from '@/utils/file-utils';
 import slugify from 'slugify';
 import { deleteManagedFile, saveProductImage, saveProductVariantImage } from './file.service';
+import { generateProductCode, generateVariantCode } from '@/lib/sku';
 
 // ────────────────────────────────────────────────────────────
 // Include reutilizable con todas las relaciones de un producto
@@ -114,16 +115,26 @@ function mapProduct(p: PrismaProduct) {
 // Procesa las URLs de imágenes (local paths → public URLs)
 // ────────────────────────────────────────────────────────────
 function enrichProducts(products: ReturnType<typeof mapProduct>[]) {
-  return products.map(p => ({
-    ...p,
-    mainImage: getPublicUrlForPath(p.mainImage),
-    image: getPublicUrlForPath(p.mainImage),
-    images: p.images.map(img => ({ ...img, src: getPublicUrlForPath(img.src) })),
-    variants: p.variants.map(v => ({
-      ...v,
-      images: v.images.map(img => ({ ...img, src: getPublicUrlForPath(img.src) })),
-    })),
-  }));
+  return products.map(p => {
+    // Fall back to the first variant's primary image if the product itself has no mainImage.
+    // This happens when admins upload images only to variants, not to the parent product.
+    const variantFallbackSrc =
+      p.variants[0]?.images.find(img => img.isPrimary)?.src ??
+      p.variants[0]?.images[0]?.src ??
+      null;
+    const effectiveMainImage = p.mainImage ?? variantFallbackSrc;
+
+    return {
+      ...p,
+      mainImage: getPublicUrlForPath(effectiveMainImage),
+      image: getPublicUrlForPath(effectiveMainImage),
+      images: p.images.map(img => ({ ...img, src: getPublicUrlForPath(img.src) })),
+      variants: p.variants.map(v => ({
+        ...v,
+        images: v.images.map(img => ({ ...img, src: getPublicUrlForPath(img.src) })),
+      })),
+    };
+  });
 }
 
 function normalizeStatus(status: unknown): ProductStatus {
@@ -271,19 +282,25 @@ async function syncVariantImages(
 // ────────────────────────────────────────────────────────────
 export const productService = {
 
-  async getAdminProductList() {
-    const [dbProducts, categories, occasions, tags] = await Promise.all([
-      prisma.product.findMany({
-        where: { isDeleted: false },
-        include: PRODUCT_INCLUDE,
-        orderBy: { createdAt: 'desc' },
-      }),
+  async getAdminProductList(includeMeta = true) {
+    const dbProducts = await prisma.product.findMany({
+      where: { isDeleted: false },
+      include: PRODUCT_INCLUDE,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const products = enrichProducts(dbProducts.map(mapProduct));
+
+    if (!includeMeta) {
+      return { products, categories: undefined, occasions: undefined, tags: undefined };
+    }
+
+    const [categories, occasions, tags] = await Promise.all([
       prisma.productCategory.findMany({ where: { isDeleted: false }, orderBy: { id: 'asc' } }),
       prisma.occasion.findMany({ orderBy: { id: 'asc' } }),
       prisma.tag.findMany({ orderBy: { id: 'asc' } }),
     ]);
 
-    const products = enrichProducts(dbProducts.map(mapProduct));
     return { products, categories, occasions, tags };
   },
 
@@ -500,109 +517,184 @@ export const productService = {
       throw new Error('La categoría del producto es obligatoria.');
     }
 
-    const createdProduct = await prisma.$transaction(async (tx) => {
-      const product = await tx.product.create({
-        data: {
-          name: normalized.name,
-          slug: normalized.slug,
-          code: normalized.code,
-          description: normalized.description,
-          shortDescription: normalized.shortDescription,
-          price: normalized.price,
-          salePrice: normalized.salePrice,
-          stock: normalized.stock,
-          hasVariants: normalized.hasVariants,
-          status: normalized.status,
-          care: normalized.care,
-          mainImage: normalized.mainImage,
-          badgeText: normalized.badgeText,
-          allowPhoto: normalized.allowPhoto,
-          photoPrice: normalized.photoPrice,
-          categoryId: normalized.categoryId,
-        },
-      });
+    const categoryForCode = await prisma.productCategory.findFirst({
+      where: { id: normalized.categoryId, isDeleted: false },
+      select: { name: true, prefix: true },
+    });
+    if (!categoryForCode) {
+      throw new Error('La categoría seleccionada no existe o está inactiva.');
+    }
 
-      if (imageFiles?.main?.length) {
-        const mainImage = await syncProductMainImages(tx, product.id, product.name, imageFiles.main);
+    const uploadProductKey = normalized.slug || `tmp-${Date.now()}`;
+    const uploadedMainImageUrls = imageFiles?.main?.length
+      ? await Promise.all(imageFiles.main.map((file) => saveProductImage(file, uploadProductKey)))
+      : [];
+
+    const uploadedVariantImageUrlsByIndex = new Map<number, string[]>();
+    if (Array.isArray(imageFiles?.variants)) {
+      for (const entry of imageFiles.variants) {
+        const variantKey = `variant-${entry.index + 1}`;
+        const urls = await Promise.all((entry.files ?? []).map((file) => saveProductVariantImage(file, uploadProductKey, variantKey)));
+        uploadedVariantImageUrlsByIndex.set(entry.index, urls);
+      }
+    }
+
+    const uploadedUrls = [
+      ...uploadedMainImageUrls,
+      ...Array.from(uploadedVariantImageUrlsByIndex.values()).flat(),
+    ];
+
+    let createdProduct: { id: number; slug: string; code: string } | null = null;
+
+    try {
+      const createdRecord = await prisma.$transaction(async (tx) => {
+        const temporaryCode = `TMP-${normalized.categoryId}-${Date.now()}`;
+        const product = await tx.product.create({
+          data: {
+            name: normalized.name,
+            slug: normalized.slug,
+            code: temporaryCode,
+            description: normalized.description,
+            shortDescription: normalized.shortDescription,
+            price: normalized.price,
+            salePrice: normalized.salePrice,
+            stock: normalized.stock,
+            hasVariants: normalized.hasVariants,
+            status: normalized.status,
+            care: normalized.care,
+            mainImage: normalized.mainImage,
+            badgeText: normalized.badgeText,
+            allowPhoto: normalized.allowPhoto,
+            photoPrice: normalized.photoPrice,
+            categoryId: normalized.categoryId,
+          },
+        });
+
+        const productCode = generateProductCode(categoryForCode.prefix || categoryForCode.name, product.id);
         await tx.product.update({
           where: { id: product.id },
-          data: { mainImage },
+          data: { code: productCode },
         });
-      }
 
-      if (normalized.specifications.length > 0) {
-        await tx.productSpecification.createMany({
-          data: normalized.specifications
-            .map((spec: any, index: number) => ({
+        if (uploadedMainImageUrls.length > 0) {
+          await tx.productImage.createMany({
+            data: uploadedMainImageUrls.map((src, index) => ({
               productId: product.id,
-              key: String(spec?.key ?? '').trim(),
-              value: String(spec?.value ?? '').trim(),
-              sortOrder: toInteger(spec?.sortOrder ?? spec?.sort_order, index),
-            }))
-            .filter((spec) => spec.key && spec.value),
-        });
-      }
-
-      if (normalized.tagIds.length > 0) {
-        await tx.productTag.createMany({
-          data: Array.from(new Set(normalized.tagIds)).map((tagId) => ({ productId: product.id, tagId })),
-          skipDuplicates: true,
-        });
-      }
-
-      if (normalized.occasionIds.length > 0) {
-        await tx.productOccasion.createMany({
-          data: Array.from(new Set(normalized.occasionIds)).map((occasionId) => ({ productId: product.id, occasionId })),
-          skipDuplicates: true,
-        });
-      }
-
-      if (normalized.hasVariants && normalized.variants.length > 0) {
-        for (let idx = 0; idx < normalized.variants.length; idx += 1) {
-          const variantInput = normalized.variants[idx];
-          if (variantInput?.is_deleted || variantInput?.isDeleted) continue;
-
-          const variant = await tx.productVariant.create({
-            data: {
-              productId: product.id,
-              name: String(variantInput?.name ?? '').trim() || `Variante ${idx + 1}`,
-              code: variantInput?.code ? String(variantInput.code).trim() : null,
-              price: toNumber(variantInput?.price, normalized.price),
-              salePrice: toNullableNumber(variantInput?.salePrice ?? variantInput?.sale_price),
-              stock: toInteger(variantInput?.stock, 0),
-              shortDescription: variantInput?.shortDescription ?? variantInput?.short_description ?? null,
-              description: variantInput?.description ?? null,
-            },
+              src,
+              alt: product.name,
+              isPrimary: index === 0,
+              sortOrder: index,
+            })),
           });
 
-          const variantFiles = imageFiles?.variants?.find((entry) => entry.index === idx)?.files ?? [];
-          if (variantFiles.length > 0) {
-            await syncVariantImages(tx, product.id, variant.id, variant.name, variantFiles);
-          }
+          await tx.product.update({
+            where: { id: product.id },
+            data: { mainImage: uploadedMainImageUrls[0] },
+          });
+        }
 
-          const variantSpecs = Array.isArray(variantInput?.specifications) ? variantInput.specifications : [];
-          if (variantSpecs.length > 0) {
-            await tx.productSpecification.createMany({
-              data: variantSpecs
-                .map((spec: any, specIdx: number) => ({
-                  variantId: variant.id,
-                  key: String(spec?.key ?? '').trim(),
-                  value: String(spec?.value ?? '').trim(),
-                  sortOrder: toInteger(spec?.sortOrder ?? spec?.sort_order, specIdx),
-                }))
-                .filter((spec) => spec.key && spec.value),
+        if (normalized.specifications.length > 0) {
+          await tx.productSpecification.createMany({
+            data: normalized.specifications
+              .map((spec: any, index: number) => ({
+                productId: product.id,
+                key: String(spec?.key ?? '').trim(),
+                value: String(spec?.value ?? '').trim(),
+                sortOrder: toInteger(spec?.sortOrder ?? spec?.sort_order, index),
+              }))
+              .filter((spec) => spec.key && spec.value),
+          });
+        }
+
+        if (normalized.tagIds.length > 0) {
+          await tx.productTag.createMany({
+            data: Array.from(new Set(normalized.tagIds)).map((tagId) => ({ productId: product.id, tagId })),
+            skipDuplicates: true,
+          });
+        }
+
+        if (normalized.occasionIds.length > 0) {
+          await tx.productOccasion.createMany({
+            data: Array.from(new Set(normalized.occasionIds)).map((occasionId) => ({ productId: product.id, occasionId })),
+            skipDuplicates: true,
+          });
+        }
+
+        if (normalized.hasVariants && normalized.variants.length > 0) {
+          const usedVariantCodes = new Set<string>();
+          for (let idx = 0; idx < normalized.variants.length; idx += 1) {
+            const variantInput = normalized.variants[idx];
+            if (variantInput?.is_deleted || variantInput?.isDeleted) continue;
+
+            const variantCode = generateVariantCode(productCode, {
+              name: variantInput?.name,
+              specifications: Array.isArray(variantInput?.specifications) ? variantInput.specifications : [],
+              existingCodes: usedVariantCodes,
             });
+            usedVariantCodes.add(variantCode);
+
+            const variant = await tx.productVariant.create({
+              data: {
+                productId: product.id,
+                name: String(variantInput?.name ?? '').trim() || `Variante ${idx + 1}`,
+                code: variantCode,
+                price: toNumber(variantInput?.price, normalized.price),
+                salePrice: toNullableNumber(variantInput?.salePrice ?? variantInput?.sale_price),
+                stock: toInteger(variantInput?.stock, 0),
+                shortDescription: variantInput?.shortDescription ?? variantInput?.short_description ?? null,
+                description: variantInput?.description ?? null,
+              },
+            });
+
+            const variantUploadedUrls = uploadedVariantImageUrlsByIndex.get(idx) ?? [];
+            if (variantUploadedUrls.length > 0) {
+              await tx.productImage.createMany({
+                data: variantUploadedUrls.map((src, imgIdx) => ({
+                  variantId: variant.id,
+                  src,
+                  alt: variant.name,
+                  isPrimary: imgIdx === 0,
+                  sortOrder: imgIdx,
+                })),
+              });
+            }
+
+            const variantSpecs = Array.isArray(variantInput?.specifications) ? variantInput.specifications : [];
+            if (variantSpecs.length > 0) {
+              await tx.productSpecification.createMany({
+                data: variantSpecs
+                  .map((spec: any, specIdx: number) => ({
+                    variantId: variant.id,
+                    key: String(spec?.key ?? '').trim(),
+                    value: String(spec?.value ?? '').trim(),
+                    sortOrder: toInteger(spec?.sortOrder ?? spec?.sort_order, specIdx),
+                  }))
+                  .filter((spec) => spec.key && spec.value),
+              });
+            }
           }
         }
-      }
 
-      return tx.product.findUniqueOrThrow({ where: { id: product.id } });
-    });
+        return tx.product.findUniqueOrThrow({ where: { id: product.id } });
+      }, {
+        maxWait: 10_000,
+        timeout: 30_000,
+      });
+
+      createdProduct = {
+        id: createdRecord.id,
+        slug: createdRecord.slug,
+        code: createdRecord.code,
+      };
+    } catch (error) {
+      await Promise.all(uploadedUrls.map((url) => deleteManagedFile(url)));
+      throw error;
+    }
 
     return {
-      id: createdProduct.id,
-      slug: createdProduct.slug,
-      code: createdProduct.code,
+      id: createdProduct!.id,
+      slug: createdProduct!.slug,
+      code: createdProduct!.code,
       result: 'success',
       message: 'Producto creado correctamente.',
     };
@@ -625,14 +717,50 @@ export const productService = {
 
     const normalized = normalizeBaseProductData(productData);
     const targetSlug = normalized.slug || existing.slug;
+    const targetCategoryId = normalized.categoryId || existing.categoryId;
 
-    const updatedProduct = await prisma.$transaction(async (tx) => {
+    const categoryForCode = await prisma.productCategory.findFirst({
+      where: { id: targetCategoryId, isDeleted: false },
+      select: { name: true, prefix: true },
+    });
+    if (!categoryForCode) {
+      throw new Error('La categoría seleccionada no existe o está inactiva.');
+    }
+
+    const productCode = generateProductCode(categoryForCode.prefix || categoryForCode.name, existing.id);
+
+    const uploadProductKey = existing.id;
+    const uploadedMainImageUrls = imageFiles?.main?.length
+      ? await Promise.all(imageFiles.main.map((file) => saveProductImage(file, uploadProductKey)))
+      : [];
+
+    const uploadedVariantImageUrlsByIndex = new Map<number, string[]>();
+    if (Array.isArray(imageFiles?.variants)) {
+      for (const entry of imageFiles.variants) {
+        const sourceVariant = normalized.variants?.[entry.index];
+        const sourceVariantId = toInteger(sourceVariant?.id, 0);
+        const variantKey = sourceVariantId > 0 ? sourceVariantId : `variant-${entry.index + 1}`;
+        const urls = await Promise.all((entry.files ?? []).map((file) => saveProductVariantImage(file, uploadProductKey, variantKey)));
+        uploadedVariantImageUrlsByIndex.set(entry.index, urls);
+      }
+    }
+
+    const uploadedUrls = [
+      ...uploadedMainImageUrls,
+      ...Array.from(uploadedVariantImageUrlsByIndex.values()).flat(),
+    ];
+    const oldUrlsToDeleteAfterCommit: string[] = [];
+
+    let updatedProduct: { id: number; slug: string; code: string } | null = null;
+
+    try {
+      const updatedRecord = await prisma.$transaction(async (tx) => {
       const updated = await tx.product.update({
         where: { id: existing.id },
         data: {
           name: normalized.name,
           slug: targetSlug,
-          code: normalized.code || existing.code,
+            code: productCode,
           description: normalized.description,
           shortDescription: normalized.shortDescription,
           price: normalized.price,
@@ -644,13 +772,31 @@ export const productService = {
           badgeText: normalized.badgeText,
           allowPhoto: normalized.allowPhoto,
           photoPrice: normalized.photoPrice,
-          categoryId: normalized.categoryId || existing.categoryId,
+            categoryId: targetCategoryId,
         },
       });
 
-      if (imageFiles?.main?.length) {
-        const mainImage = await syncProductMainImages(tx, updated.id, normalized.name, imageFiles.main);
-        await tx.product.update({ where: { id: updated.id }, data: { mainImage } });
+      if (uploadedMainImageUrls.length > 0) {
+        const existingMainImages = await tx.productImage.findMany({
+          where: { productId: updated.id, variantId: null },
+          select: { src: true },
+        });
+
+        if (existingMainImages.length > 0) {
+          oldUrlsToDeleteAfterCommit.push(...existingMainImages.map((img) => img.src));
+        }
+
+        await tx.productImage.deleteMany({ where: { productId: updated.id, variantId: null } });
+        await tx.productImage.createMany({
+          data: uploadedMainImageUrls.map((src, index) => ({
+            productId: updated.id,
+            src,
+            alt: normalized.name,
+            isPrimary: index === 0,
+            sortOrder: index,
+          })),
+        });
+        await tx.product.update({ where: { id: updated.id }, data: { mainImage: uploadedMainImageUrls[0] } });
       }
 
       await tx.productSpecification.deleteMany({ where: { productId: updated.id } });
@@ -683,25 +829,44 @@ export const productService = {
         });
       }
 
-      const variantPayload = normalized.hasVariants
-        ? normalized.variants.filter((variant: any) => !(variant?.is_deleted || variant?.isDeleted))
+      const processedVariantIds = new Set<number>();
+      const usedVariantCodes = new Set<string>(
+        (existing.variants ?? [])
+          .map((variant) => String(variant.code ?? '').trim())
+          .filter((code) => code.length > 0)
+      );
+
+      const variantPayloadWithIndex = normalized.hasVariants
+        ? normalized.variants
+            .map((variant: any, index: number) => ({ variant, index }))
+            .filter((entry: any) => !(entry.variant?.is_deleted || entry.variant?.isDeleted))
         : [];
 
-      const processedVariantIds = new Set<number>();
-
-      for (let idx = 0; idx < variantPayload.length; idx += 1) {
-        const variantInput = variantPayload[idx];
+      for (let idx = 0; idx < variantPayloadWithIndex.length; idx += 1) {
+        const variantInput = variantPayloadWithIndex[idx].variant;
+        const sourceIndex = variantPayloadWithIndex[idx].index;
         const incomingId = toInteger(variantInput?.id, 0);
         const sameProductVariant = incomingId
           ? await tx.productVariant.findFirst({ where: { id: incomingId, productId: updated.id } })
           : null;
+
+        if (sameProductVariant?.code) {
+          usedVariantCodes.delete(String(sameProductVariant.code));
+        }
+
+        const variantCode = generateVariantCode(productCode, {
+          name: variantInput?.name,
+          specifications: Array.isArray(variantInput?.specifications) ? variantInput.specifications : [],
+          existingCodes: usedVariantCodes,
+        });
+        usedVariantCodes.add(variantCode);
 
         const variant = sameProductVariant
           ? await tx.productVariant.update({
               where: { id: sameProductVariant.id },
               data: {
                 name: String(variantInput?.name ?? '').trim() || sameProductVariant.name,
-                code: variantInput?.code ? String(variantInput.code).trim() : null,
+                code: variantCode,
                 price: toNumber(variantInput?.price, normalized.price),
                 salePrice: toNullableNumber(variantInput?.salePrice ?? variantInput?.sale_price),
                 stock: toInteger(variantInput?.stock, 0),
@@ -714,7 +879,7 @@ export const productService = {
               data: {
                 productId: updated.id,
                 name: String(variantInput?.name ?? '').trim() || `Variante ${idx + 1}`,
-                code: variantInput?.code ? String(variantInput.code).trim() : null,
+                code: variantCode,
                 price: toNumber(variantInput?.price, normalized.price),
                 salePrice: toNullableNumber(variantInput?.salePrice ?? variantInput?.sale_price),
                 stock: toInteger(variantInput?.stock, 0),
@@ -725,9 +890,26 @@ export const productService = {
 
         processedVariantIds.add(variant.id);
 
-        const variantFiles = imageFiles?.variants?.find((entry) => entry.index === idx)?.files ?? [];
-        if (variantFiles.length > 0) {
-          await syncVariantImages(tx, updated.id, variant.id, variant.name, variantFiles);
+        const variantUploadedUrls = uploadedVariantImageUrlsByIndex.get(sourceIndex) ?? [];
+        if (variantUploadedUrls.length > 0) {
+          const existingVariantImages = await tx.productImage.findMany({
+            where: { variantId: variant.id },
+            select: { src: true },
+          });
+          if (existingVariantImages.length > 0) {
+            oldUrlsToDeleteAfterCommit.push(...existingVariantImages.map((img) => img.src));
+          }
+
+          await tx.productImage.deleteMany({ where: { variantId: variant.id } });
+          await tx.productImage.createMany({
+            data: variantUploadedUrls.map((src, imgIdx) => ({
+              variantId: variant.id,
+              src,
+              alt: variant.name,
+              isPrimary: imgIdx === 0,
+              sortOrder: imgIdx,
+            })),
+          });
         }
 
         await tx.productSpecification.deleteMany({ where: { variantId: variant.id } });
@@ -747,9 +929,12 @@ export const productService = {
       }
 
       if (!normalized.hasVariants) {
-        const existingVariantImages = await tx.productImage.findMany({ where: { productId: updated.id, variantId: { not: null } } });
-        for (const image of existingVariantImages) {
-          await deleteManagedFile(image.src);
+        const existingVariantImages = await tx.productImage.findMany({
+          where: { productId: updated.id, variantId: { not: null } },
+          select: { src: true },
+        });
+        if (existingVariantImages.length > 0) {
+          oldUrlsToDeleteAfterCommit.push(...existingVariantImages.map((img) => img.src));
         }
         await tx.productImage.deleteMany({ where: { productId: updated.id, variantId: { not: null } } });
         await tx.productVariant.updateMany({ where: { productId: updated.id }, data: { isDeleted: true } });
@@ -764,12 +949,29 @@ export const productService = {
       }
 
       return tx.product.findUniqueOrThrow({ where: { id: updated.id } });
+    }, {
+      maxWait: 10_000,
+      timeout: 30_000,
     });
 
+      updatedProduct = {
+        id: updatedRecord.id,
+        slug: updatedRecord.slug,
+        code: updatedRecord.code,
+      };
+    } catch (error) {
+      await Promise.all(uploadedUrls.map((url) => deleteManagedFile(url)));
+      throw error;
+    }
+
+    if (oldUrlsToDeleteAfterCommit.length > 0) {
+      await Promise.all(oldUrlsToDeleteAfterCommit.map((url) => deleteManagedFile(url)));
+    }
+
     return {
-      id: updatedProduct.id,
-      slug: updatedProduct.slug,
-      code: updatedProduct.code,
+      id: updatedProduct!.id,
+      slug: updatedProduct!.slug,
+      code: updatedProduct!.code,
       result: 'success',
       message: 'Producto actualizado correctamente.',
     };

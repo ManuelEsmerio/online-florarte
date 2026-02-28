@@ -276,7 +276,7 @@ export const orderService = {
         quantity: it.quantity,
         price: Number(it.unitPrice),
         product_name: it.productNameSnap,
-        image: it.imageSnap ?? '',
+        image: it.imageSnap ?? it.product?.mainImage ?? '',
       })),
     } as unknown as Order;
   },

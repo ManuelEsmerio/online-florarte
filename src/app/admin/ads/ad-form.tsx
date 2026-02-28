@@ -109,7 +109,7 @@ export function AdForm({ isOpen, onOpenChange, onSave, ad, isSaving }: AdFormPro
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="font-headline text-2xl">{ad ? 'Editar Anuncio' : 'Crear Anuncio'}</DialogTitle>
           <DialogDescription>Completa el formulario para configurar el banner.</DialogDescription>

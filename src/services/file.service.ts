@@ -127,7 +127,11 @@ export async function saveProfilePicture(
  * Guarda la imagen de un producto.
  */
 export async function saveProductImage(file: File, productId: number | string): Promise<string> {
-  return uploadImageToCloudinary(file, 'online-florarte/products', `product-${productId}-${uuidv4()}`);
+  return uploadImageToCloudinary(
+    file,
+    `online-florarte/products/${productId}`,
+    `main-${uuidv4()}`,
+  );
 }
 
 /**
@@ -140,8 +144,8 @@ export async function saveProductVariantImage(
 ): Promise<string> {
   return uploadImageToCloudinary(
     file,
-    'online-florarte/products/variants',
-    `product-${productId}-variant-${variantId}-${uuidv4()}`,
+    `online-florarte/products/${productId}/variants/${variantId}`,
+    `variant-${uuidv4()}`,
   );
 }
 

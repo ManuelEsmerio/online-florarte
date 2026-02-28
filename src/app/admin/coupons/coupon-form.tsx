@@ -259,7 +259,7 @@ export function CouponForm({ isOpen, onOpenChange, onSave, coupon, isSaving, cus
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl flex flex-col h-auto max-h-[90vh]">
+      <DialogContent className="sm:max-w-2xl flex flex-col h-auto max-h-[90vh]" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader><DialogTitle className="font-headline text-2xl">{coupon ? 'Editar Cupón' : 'Crear Cupón'}</DialogTitle><DialogDescription>{coupon ? 'Modifica los detalles del cupón.' : 'Completa los pasos para crear un nuevo cupón.'}</DialogDescription></DialogHeader>
         <FormProvider {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col min-h-0">

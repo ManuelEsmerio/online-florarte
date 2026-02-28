@@ -86,7 +86,7 @@ export function PeakDateForm({ isOpen, onOpenChange, onSave, peakDate, allPeakDa
   
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="font-headline text-2xl">{peakDate ? 'Editar Fecha Pico' : 'Crear Fecha Pico'}</DialogTitle>
           <DialogDescription>{peakDate ? 'Modifica los detalles del periodo.' : 'Completa el formulario para definir un nuevo periodo de alta demanda.'}</DialogDescription>

@@ -241,7 +241,7 @@ export function ImportModal({ isOpen, onOpenChange }: ImportModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg" hideCloseButton={view === 'processing'}>
+      <DialogContent className="sm:max-w-lg" hideCloseButton={view === 'processing'} onInteractOutside={(e) => e.preventDefault()}>
         {view === 'form' && renderFormView()}
         {view === 'confirm' && renderConfirmView()}
         {view === 'processing' && renderProcessingView()}

@@ -186,10 +186,42 @@ export function CategoryPageClient({
   
   const maxPrice = useMemo(() => {
     if (allProducts.length === 0) return 5000;
-    const allPrices = allProducts.flatMap(p => 
+    const allPrices = allProducts.flatMap(p =>
       p.has_variants && p.variants ? p.variants.map(v => v.price) : [p.price]
     );
     return Math.ceil(Math.max(...allPrices, 0) / 100) * 100;
+  }, [allProducts]);
+
+  // Expand products-with-variants so each variant becomes its own catalog entry.
+  const expandedProducts = useMemo(() => {
+    const result: any[] = [];
+    for (const product of allProducts) {
+      if (product.has_variants && product.variants && product.variants.length > 0) {
+        for (const variant of product.variants) {
+          const imgs = (variant as any).images as any[] | undefined;
+          const variantImg =
+            imgs?.find((img: any) => img.isPrimary)?.src ??
+            imgs?.[0]?.src ??
+            (product as any).image ??
+            null;
+          result.push({
+            ...product,
+            _cardKey: `${product.id}-${variant.id}`,
+            name: `${product.name} – ${variant.name}`,
+            price: variant.price,
+            sale_price: (variant as any).sale_price ?? null,
+            salePrice: (variant as any).salePrice ?? null,
+            image: variantImg,
+            mainImage: variantImg,
+            stock: variant.stock,
+            variants: [variant],
+          });
+        }
+      } else {
+        result.push({ ...product, _cardKey: String(product.id) });
+      }
+    }
+    return result;
   }, [allProducts]);
 
   useEffect(() => {
@@ -201,7 +233,7 @@ export function CategoryPageClient({
   }, [maxPrice, currentCategory, subcategories, pageType, currentOccasion, initialOccasionSlug]);
   
   const filteredClientProducts = useMemo(() => {
-    let filtered = allProducts.filter(product => {
+    let filtered = expandedProducts.filter((product: any) => {
         const searchMatch =
             product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             product.code.toLowerCase().includes(searchTerm.toLowerCase());
@@ -258,7 +290,7 @@ export function CategoryPageClient({
     });
 
     return sorted;
-  }, [searchTerm, priceRange, selectedCategories, selectedOccasions, selectedTags, sortOption, allProducts, allCategories, pageType, currentCategory, currentOccasion]);
+  }, [searchTerm, priceRange, selectedCategories, selectedOccasions, selectedTags, sortOption, expandedProducts, allCategories, pageType, currentCategory, currentOccasion]);
 
   // Reset count when filters change
   useEffect(() => {
@@ -554,9 +586,9 @@ export function CategoryPageClient({
                         'isAd' in item && item.isAd ? (
                             <AdCard key={`ad-${index}`} ad={item.adDetails} className="hidden lg:flex" />
                         ) : 'slug' in item ? (
-                            <ProductCard 
-                            key={item.id} 
-                            product={item as any} 
+                            <ProductCard
+                            key={(item as any)._cardKey ?? item.id}
+                            product={item as any}
                             index={index}
                             onQuickViewOpen={handleQuickViewOpen}
                             variant="compact"

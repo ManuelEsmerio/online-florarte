@@ -18,7 +18,7 @@ export const TestimonialDetailModal = ({
   testimonial: Testimonial;
 }) => {
   return (
-    <DialogContent>
+    <DialogContent onInteractOutside={(e) => e.preventDefault()}>
       <DialogHeader>
         <DialogTitle>Detalle del Testimonio</DialogTitle>
         <DialogDescription>

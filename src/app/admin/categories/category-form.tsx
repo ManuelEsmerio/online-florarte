@@ -92,7 +92,7 @@ export function CategoryForm({ isOpen, onOpenChange, onSave, category, allCatego
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="font-headline text-2xl">{category ? 'Editar Categoría' : 'Crear Categoría'}</DialogTitle>
           <DialogDescription>{category ? 'Modifica los detalles de la categoría.' : 'Completa el formulario para crear una nueva categoría.'}</DialogDescription>

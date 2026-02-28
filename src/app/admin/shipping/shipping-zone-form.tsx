@@ -65,7 +65,7 @@ export function ShippingZoneForm({ isOpen, onOpenChange, onSave, zone, isSaving 
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="font-headline text-2xl">{zone ? 'Editar Zona de Envío' : 'Crear Zona de Envío'}</DialogTitle>
           <DialogDescription>{zone ? 'Modifica los detalles de la zona.' : 'Completa el formulario para crear una nueva zona de envío.'}</DialogDescription>

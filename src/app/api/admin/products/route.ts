@@ -14,6 +14,9 @@ import { ZodError } from 'zod';
  */
 export async function GET(req: NextRequest) {
   try {
+    const includeMetaParam = req.nextUrl.searchParams.get('includeMeta');
+    const includeMeta = includeMetaParam == null ? true : includeMetaParam !== 'false' && includeMetaParam !== '0';
+
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado. Se requiere autenticación.'), 401);
@@ -25,7 +28,7 @@ export async function GET(req: NextRequest) {
       return errorHandler(new Error('Acceso prohibido. No tienes permisos de administrador.'), 403);
     }
 
-    const adminProductData = await productService.getAdminProductList();
+    const adminProductData = await productService.getAdminProductList(includeMeta);
     // Filtramos para devolver solo los que no están eliminados lógicamente
     const activeProducts = adminProductData.products.filter(p => !p.is_deleted);
 

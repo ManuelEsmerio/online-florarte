@@ -53,10 +53,10 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, selected, onChange, 
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[200]">
         <Command>
           <CommandInput placeholder="Buscar..." />
-          <CommandList>
+          <CommandList className="max-h-64">
             <CommandEmpty>No se encontraron resultados.</CommandEmpty>
             <CommandGroup>
               {options.map((option) => (

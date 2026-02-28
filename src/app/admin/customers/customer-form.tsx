@@ -344,6 +344,7 @@ export function CustomerForm({
       <DialogContent 
         className="w-[95vw] sm:max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-xl bg-background dark:bg-[#1a1a1a] flex flex-col max-h-[95vh] font-sans"
         hideCloseButton={true}
+                onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogHeader className="sr-only">
             <DialogTitle>{isEditing ? 'Editar Usuario' : 'Crear Usuario'}</DialogTitle>
