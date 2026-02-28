@@ -220,6 +220,7 @@ export interface ProductVariant {
   id: number;
   productId: number;
   name: string;
+  productName: string;
   code?: string | null;
   price: number; // Decimal
   salePrice?: number | null; // Decimal

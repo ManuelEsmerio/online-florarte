@@ -230,6 +230,7 @@ export function CategoryPageClient({
             _cardKey: `${product.id}-${variant.id}`,
             variantId: variant.id,
             variantName: variant.name,
+            variantProductName: (variant as any).product_name ?? (variant as any).productName ?? product.name,
             price: variant.price,
             sale_price: (variant as any).sale_price ?? null,
             salePrice: (variant as any).salePrice ?? null,

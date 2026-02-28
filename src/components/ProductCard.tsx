@@ -32,6 +32,10 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
 
   const isCompact = variant === 'compact';
     const variantLabel = (product as any)?.variantName ?? null;
+    const hasVariantContext = Boolean(product.has_variants && variantLabel);
+    const displayTitle = hasVariantContext
+        ? ((product as any)?.variantProductName ?? product.name)
+        : product.name;
 
   let displayPrice: number;
   let displaySalePrice: number | null = null;
@@ -219,13 +223,13 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
 
             <Link href={`/products/${product.slug}`} className="block mb-4">
                 <h3 className="font-headline text-lg md:text-2xl font-bold text-slate-900 dark:text-white transition-colors duration-300 leading-tight line-clamp-2">
-                    {product.name}
+                    {displayTitle}
                 </h3>
-                                {variantLabel && (
-                                    <p className="mt-1 text-sm md:text-base text-slate-500 dark:text-slate-400 leading-tight line-clamp-1">
-                                        {variantLabel}
-                                    </p>
-                                )}
+                {hasVariantContext && (
+                    <p className="mt-1 text-sm md:text-base text-slate-500 dark:text-slate-400 leading-tight line-clamp-1">
+                        {variantLabel}
+                    </p>
+                )}
             </Link>
 
             <div className="mt-auto">

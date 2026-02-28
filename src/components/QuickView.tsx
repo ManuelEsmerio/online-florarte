@@ -180,6 +180,10 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
     const displaySalePrice = selectedVariant ? selectedVariant.sale_price : detailedProduct?.sale_price;
     const priceToShow = displaySalePrice ?? displayPrice;
     const variantLabel = selectedVariant?.name ?? (initialProduct as any)?.variantName ?? null;
+    const hasVariantContext = Boolean(detailedProduct?.has_variants && variantLabel);
+    const displayTitle = hasVariantContext
+        ? (selectedVariant?.productName ?? (initialProduct as any)?.variantProductName ?? detailedProduct?.name ?? initialProduct.name)
+        : (detailedProduct?.name || initialProduct.name);
 
     const formattedDate = useMemo(() => {
         if (!globalDateString || globalDateString.includes('No especificada')) return 'Selecciona una fecha';
@@ -269,8 +273,8 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
                                     <div className="space-y-6">
                                         <div className="flex justify-between items-start">
                                             <div className="space-y-2">
-                                                <h1 className="text-3xl font-headline font-bold text-slate-900 dark:text-white leading-tight">{detailedProduct.name}</h1>
-                                                {variantLabel && (
+                                                <h1 className="text-3xl font-headline font-bold text-slate-900 dark:text-white leading-tight">{displayTitle}</h1>
+                                                {hasVariantContext && (
                                                     <p className="text-sm md:text-base text-slate-500 dark:text-slate-400 leading-tight">{variantLabel}</p>
                                                 )}
                                                 <p className="text-xs font-medium text-slate-500 dark:text-slate-400 tracking-widest uppercase">SKU: {selectedVariant?.code || detailedProduct.code}</p>

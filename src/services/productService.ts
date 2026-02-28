@@ -82,6 +82,8 @@ function mapProduct(p: PrismaProduct) {
     variants: p.variants.map(v => ({
       id: v.id,
       name: v.name,
+      productName: (v as any).productName,
+      product_name: (v as any).productName,
       code: v.code,
       price: Number(v.price),
       salePrice: v.salePrice != null ? Number(v.salePrice) : null,
@@ -626,6 +628,11 @@ export const productService = {
             const variantInput = normalized.variants[idx];
             if (variantInput?.is_deleted || variantInput?.isDeleted) continue;
 
+            const normalizedVariantProductName = String(variantInput?.productName ?? variantInput?.product_name ?? '').trim();
+            if (!normalizedVariantProductName) {
+              throw new Error(`El nombre de producto de la variante #${idx + 1} es obligatorio.`);
+            }
+
             const variantCode = generateVariantCode(productCode, {
               name: variantInput?.name,
               specifications: Array.isArray(variantInput?.specifications) ? variantInput.specifications : [],
@@ -637,6 +644,7 @@ export const productService = {
               data: {
                 productId: product.id,
                 name: String(variantInput?.name ?? '').trim() || `Variante ${idx + 1}`,
+                productName: normalizedVariantProductName,
                 code: variantCode,
                 price: toNumber(variantInput?.price, normalized.price),
                 salePrice: toNullableNumber(variantInput?.salePrice ?? variantInput?.sale_price),
@@ -846,6 +854,10 @@ export const productService = {
         const variantInput = variantPayloadWithIndex[idx].variant;
         const sourceIndex = variantPayloadWithIndex[idx].index;
         const incomingId = toInteger(variantInput?.id, 0);
+        const normalizedVariantProductName = String(variantInput?.productName ?? variantInput?.product_name ?? '').trim();
+        if (!normalizedVariantProductName) {
+          throw new Error(`El nombre de producto de la variante #${idx + 1} es obligatorio.`);
+        }
         const sameProductVariant = incomingId
           ? await tx.productVariant.findFirst({ where: { id: incomingId, productId: updated.id } })
           : null;
@@ -866,6 +878,7 @@ export const productService = {
               where: { id: sameProductVariant.id },
               data: {
                 name: String(variantInput?.name ?? '').trim() || sameProductVariant.name,
+                productName: normalizedVariantProductName,
                 code: variantCode,
                 price: toNumber(variantInput?.price, normalized.price),
                 salePrice: toNullableNumber(variantInput?.salePrice ?? variantInput?.sale_price),
@@ -879,6 +892,7 @@ export const productService = {
               data: {
                 productId: updated.id,
                 name: String(variantInput?.name ?? '').trim() || `Variante ${idx + 1}`,
+                productName: normalizedVariantProductName,
                 code: variantCode,
                 price: toNumber(variantInput?.price, normalized.price),
                 salePrice: toNullableNumber(variantInput?.salePrice ?? variantInput?.sale_price),

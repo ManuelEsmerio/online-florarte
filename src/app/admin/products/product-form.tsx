@@ -37,6 +37,7 @@ const imageSchema = z.object({
 
 const variantSchema = z.object({
   id: z.number().optional(),
+    product_name: z.string().min(1, "El nombre de producto de la variante es requerido."),
   name: z.string().min(1, "El nombre de la variante es requerido."),
   price: z.coerce.number({invalid_type_error: "El precio es requerido."}).min(0.01, "El precio debe ser positivo."),
   sale_price: z.coerce.number().optional().nullable(),
@@ -480,7 +481,8 @@ function VariantsField() {
                     </div>
                      <div className="p-4 md:p-5 flex-grow space-y-5">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                           <FormField control={control} name={`variants.${index}.name`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Nombre Variante <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} placeholder="Ej: 50 Rosas" /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={control} name={`variants.${index}.product_name`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Nombre Producto (Variante) <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} value={field.value ?? ''} placeholder="Ej: Rosas Eternas" /></FormControl><FormMessage /></FormItem>)} />
+                           <FormField control={control} name={`variants.${index}.name`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Nombre Variante <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} value={field.value ?? ''} placeholder="Ej: 50 Rosas" /></FormControl><FormMessage /></FormItem>)} />
                            <FormField control={control} name={`variants.${index}.stock`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Stock <span className="text-destructive">*</span></FormLabel><FormControl><Input type="number" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)} />
                            <FormField control={control} name={`variants.${index}.price`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Precio <span className="text-destructive">*</span></FormLabel><FormControl><Input type="number" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? 0 : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
                            <FormField control={control} name={`variants.${index}.sale_price`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Precio de Oferta</FormLabel><FormControl><Input type="number" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
@@ -500,7 +502,7 @@ function VariantsField() {
                 </div>
                 )
             })}
-            <Button type="button" variant="outline" className="w-full border-dashed" size="sm" onClick={() => append({ name: '', price: 0, stock: 0, short_description: '', description: '', specifications: [], images: [], is_deleted: false })}>Agregar Variante</Button>
+            <Button type="button" variant="outline" className="w-full border-dashed" size="sm" onClick={() => append({ product_name: getValues('name') || '', name: '', price: 0, stock: 0, short_description: '', description: '', specifications: [], images: [], is_deleted: false })}>Agregar Variante</Button>
         </div>
     );
 }
@@ -635,6 +637,8 @@ export function ProductForm({ isOpen, onOpenChange, onSave, product, isCopyMode,
                     stock: productAny.stock ?? 0,
                     variants: (productAny.variants ?? []).map((v: any) => ({
                         ...v,
+                        product_name: v.product_name ?? v.productName ?? productAny.name ?? '',
+                        name: v.name ?? '',
                         short_description: v.short_description ?? v.shortDescription ?? '',
                         sale_price: (v.sale_price ?? v.salePrice) === 0 ? null : (v.sale_price ?? v.salePrice),
                         specifications: v.specifications || [],
@@ -663,6 +667,12 @@ export function ProductForm({ isOpen, onOpenChange, onSave, product, isCopyMode,
                                     slug: defaultValues.slug,
                                     code: defaultValues.code,
                                 };
+
+                                defaultValues.variants = (defaultValues.variants ?? []).map((variant: any) => ({
+                                    ...variant,
+                                    product_name: variant?.product_name ?? variant?.productName ?? defaultValues.name ?? '',
+                                    name: variant?.name ?? '',
+                                }));
 
                                 toast({
                                     title: 'Borrador recuperado',

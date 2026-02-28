@@ -18,6 +18,10 @@ interface ComplementCardProps {
 export function ComplementCard({ complement, parentCartItemId, onQuickView }: ComplementCardProps) {
   const { cart, toggleComplement, isTogglingComplement, updatingItemId } = useCart();
     const variantLabel = (complement as any).variantName || (complement as any).variant_name || null;
+    const hasVariantContext = Boolean(complement.has_variants && variantLabel);
+    const displayTitle = hasVariantContext
+        ? ((complement as any).variantProductName || (complement as any).product_name || complement.name)
+        : complement.name;
   
   const isSelected = cart.some(item => 
     item.id === complement.id && 
@@ -70,9 +74,9 @@ export function ComplementCard({ complement, parentCartItemId, onQuickView }: Co
                 {complement.category?.name || 'Complemento'}
             </p>
             <h4 className="text-sm font-bold text-foreground leading-tight line-clamp-2 min-h-[2.5rem]">
-                {complement.name}
+                {displayTitle}
             </h4>
-            {variantLabel && (
+            {hasVariantContext && (
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight line-clamp-1">
                     {variantLabel}
                 </p>
