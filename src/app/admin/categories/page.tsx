@@ -20,10 +20,10 @@ import { productCategories } from '@/lib/data/categories-data';
 const CategoryToolbar = ({ table }: { table: any }) => {
   const parentCategories = useMemo(() => {
     const allCats = (table.options.data || []) as ProductCategory[];
-    return allCats.filter(c => !c.parent_id);
+    return allCats.filter(c => !c.parentId);
   }, [table.options.data]);
 
-  const selectedParent = table.getColumn('parent_id')?.getFilterValue() as string || 'all';
+  const selectedParent = table.getColumn('parentId')?.getFilterValue() as string || 'all';
 
   return (
     <div className="flex flex-col md:flex-row items-center justify-between gap-4">
@@ -48,14 +48,14 @@ const CategoryToolbar = ({ table }: { table: any }) => {
             <DropdownMenuSeparator className="bg-muted/50" />
             <DropdownMenuCheckboxItem
               checked={selectedParent === 'all'}
-              onCheckedChange={() => table.getColumn("parent_id")?.setFilterValue('all')}
+              onCheckedChange={() => table.getColumn("parentId")?.setFilterValue('all')}
               className="rounded-xl my-1"
             >
               Todas
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={selectedParent === 'main'}
-              onCheckedChange={() => table.getColumn("parent_id")?.setFilterValue('main')}
+              onCheckedChange={() => table.getColumn("parentId")?.setFilterValue('main')}
               className="rounded-xl my-1"
             >
               Solo Principales
@@ -65,7 +65,7 @@ const CategoryToolbar = ({ table }: { table: any }) => {
               <DropdownMenuCheckboxItem
                 key={cat.id}
                 checked={selectedParent === String(cat.id)}
-                onCheckedChange={() => table.getColumn("parent_id")?.setFilterValue(String(cat.id))}
+                onCheckedChange={() => table.getColumn("parentId")?.setFilterValue(String(cat.id))}
                 className="rounded-xl my-1"
               >
                 Hijas de "{cat.name}"
@@ -100,11 +100,11 @@ export default function CategoriesPage() {
     const roots: ProductCategory[] = [];
 
     for (const cat of categories) {
-      if (cat.parent_id) {
-        if (!groups[cat.parent_id]) {
-          groups[cat.parent_id] = [];
+      if (cat.parentId) {
+        if (!groups[cat.parentId]) {
+          groups[cat.parentId] = [];
         }
-        groups[cat.parent_id].push(cat);
+        groups[cat.parentId].push(cat);
       } else {
         roots.push(cat);
       }
@@ -153,7 +153,7 @@ export default function CategoriesPage() {
     const isEditing = !!id;
     const imageUrl = imageFile
       ? URL.createObjectURL(imageFile)
-      : (isEditing ? productCategories.find(c => c.id === id)?.image_url ?? '' : '');
+      : (isEditing ? productCategories.find(c => c.id === id)?.imageUrl ?? '' : '');
 
     if (isEditing) {
       const idx = productCategories.findIndex(c => c.id === id);
@@ -164,9 +164,9 @@ export default function CategoriesPage() {
           slug: data.slug ?? productCategories[idx].slug,
           prefix: data.prefix ?? productCategories[idx].prefix,
           description: data.description ?? productCategories[idx].description,
-          parent_id: data.parent_id ?? null,
-          show_on_home: data.show_on_home ?? productCategories[idx].show_on_home,
-          image_url: imageUrl || productCategories[idx].image_url,
+          parentId: data.parent_id ?? null,
+          showOnHome: data.show_on_home ?? productCategories[idx].showOnHome,
+          imageUrl: imageUrl || productCategories[idx].imageUrl,
         };
       }
     } else {
@@ -178,9 +178,12 @@ export default function CategoriesPage() {
         slug,
         prefix: data.prefix ?? '',
         description: data.description ?? '',
-        parent_id: data.parent_id ?? null,
-        show_on_home: data.show_on_home ?? false,
-        image_url: imageUrl,
+        parentId: data.parent_id ?? null,
+        showOnHome: data.show_on_home ?? false,
+        imageUrl: imageUrl,
+        isDeleted: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
     }
 
@@ -192,9 +195,9 @@ export default function CategoriesPage() {
 
   const handleToggleShowOnHome = useCallback(async (category: ProductCategory) => {
     setUpdatingVisibilityId(category.id);
-    const newShowOnHome = !category.show_on_home;
+    const newShowOnHome = !category.showOnHome;
     const idx = productCategories.findIndex(c => c.id === category.id);
-    if (idx > -1) productCategories[idx] = { ...productCategories[idx], show_on_home: newShowOnHome };
+    if (idx > -1) productCategories[idx] = { ...productCategories[idx], showOnHome: newShowOnHome };
     toast({
       title: 'Visibilidad Actualizada',
       description: `La categoría "${category.name}" ahora ${newShowOnHome ? 'se mostrará' : 'no se mostrará'} en la página de inicio.`,

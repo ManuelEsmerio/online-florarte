@@ -80,12 +80,20 @@ export function AdForm({ isOpen, onOpenChange, onSave, ad, isSaving }: AdFormPro
     if (isOpen) {
       if (ad) {
         form.reset({
-          ...ad,
-          start_at: ad.start_at ? parseISO(ad.start_at) : null,
-          end_at: ad.end_at ? parseISO(ad.end_at) : null,
+          id: ad.id,
+          title: ad.title,
+          description: ad.description,
+          button_text: ad.buttonText ?? '',
+          button_link: ad.buttonLink ?? '',
+          image_url: ad.imageUrl ?? '',
+          image_mobile_url: ad.imageMobileUrl ?? null,
+          is_active: ad.isActive,
+          start_at: ad.startAt ? (typeof ad.startAt === 'string' ? parseISO(ad.startAt) : ad.startAt) : null,
+          end_at: ad.endAt ? (typeof ad.endAt === 'string' ? parseISO(ad.endAt) : ad.endAt) : null,
+          sort_order: ad.sortOrder,
         });
-        setDesktopImage({ file: null, preview: ad.image_url });
-        setMobileImage({ file: null, preview: ad.image_mobile_url });
+        setDesktopImage({ file: null, preview: ad.imageUrl ?? null });
+        setMobileImage({ file: null, preview: ad.imageMobileUrl ?? null });
       } else {
         form.reset({ title: '', description: '', button_text: '', button_link: '', is_active: true, sort_order: 0, start_at: null, end_at: null });
         setDesktopImage({ file: null, preview: null });

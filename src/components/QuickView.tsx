@@ -100,8 +100,23 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
                     setDetailedProduct(productData);
                     
                     if (productData.has_variants && productData.variants?.length > 0) {
+                        const selectedFromCard = productData.variants.find((variant: any) => {
+                            const initialVariantId = (initialProduct as any)?.variantId;
+                            const initialVariantName = (initialProduct as any)?.variantName;
+
+                            if (initialVariantId != null && Number(variant.id) === Number(initialVariantId)) {
+                                return true;
+                            }
+
+                            if (initialVariantName && String(variant.name).trim() === String(initialVariantName).trim()) {
+                                return true;
+                            }
+
+                            return false;
+                        });
+
                         const sortedVariants = [...productData.variants].sort((a, b) => a.price - b.price);
-                        setSelectedVariant(sortedVariants.find(v => v.stock > 0) || null);
+                        setSelectedVariant(selectedFromCard || sortedVariants.find(v => v.stock > 0) || null);
                     }
                 } catch (error) {
                     toast.error('Error al cargar el producto');
@@ -164,6 +179,7 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
     const displayPrice = selectedVariant ? selectedVariant.price : detailedProduct?.price;
     const displaySalePrice = selectedVariant ? selectedVariant.sale_price : detailedProduct?.sale_price;
     const priceToShow = displaySalePrice ?? displayPrice;
+    const variantLabel = selectedVariant?.name ?? (initialProduct as any)?.variantName ?? null;
 
     const formattedDate = useMemo(() => {
         if (!globalDateString || globalDateString.includes('No especificada')) return 'Selecciona una fecha';
@@ -254,6 +270,9 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
                                         <div className="flex justify-between items-start">
                                             <div className="space-y-2">
                                                 <h1 className="text-3xl font-headline font-bold text-slate-900 dark:text-white leading-tight">{detailedProduct.name}</h1>
+                                                {variantLabel && (
+                                                    <p className="text-sm md:text-base text-slate-500 dark:text-slate-400 leading-tight">{variantLabel}</p>
+                                                )}
                                                 <p className="text-xs font-medium text-slate-500 dark:text-slate-400 tracking-widest uppercase">SKU: {selectedVariant?.code || detailedProduct.code}</p>
                                             </div>
                                             <Button 

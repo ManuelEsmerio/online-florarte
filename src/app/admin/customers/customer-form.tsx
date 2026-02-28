@@ -71,6 +71,12 @@ const customerSchema = z.object({
 
 type FormValues = z.infer<typeof customerSchema>;
 
+const toFormRole = (role?: UserType['role']): FormValues['role'] => {
+    if (role === 'ADMIN') return 'admin';
+    if (role === 'DELIVERY') return 'delivery';
+    return 'customer';
+};
+
 const CustomProgressHeader = ({ activeStep, totalSteps, title }: { activeStep: number, totalSteps: number, title: string }) => {
     const progress = ((activeStep + 1) / totalSteps) * 100;
     return (
@@ -310,7 +316,7 @@ export function CustomerForm({
               name: user.name,
               email: user.email,
               phone: user.phone || '',
-              role: user.role,
+                            role: toFormRole(user.role),
               password: '',
               generatePassword: false,
             });

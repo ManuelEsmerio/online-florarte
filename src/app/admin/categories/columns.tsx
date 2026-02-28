@@ -33,7 +33,7 @@ const ShowOnHomeToggle = ({
     <div className="relative flex items-center justify-center">
         {isUpdating && <Loader2 className="absolute h-4 w-4 animate-spin" />}
         <Switch
-            checked={category.show_on_home}
+            checked={category.showOnHome}
             onCheckedChange={() => onToggle(category)}
             disabled={isUpdating}
             className={isUpdating ? 'opacity-50' : ''}
@@ -46,10 +46,10 @@ const ShowOnHomeToggle = ({
 
 export const columns = ({ onEdit, onDelete, onToggleShowOnHome, allCategories, isDeletingId, updatingVisibilityId }: ColumnsProps): ColumnDef<ProductCategory>[] => [
   {
-    accessorKey: 'image_url',
+    accessorKey: 'imageUrl',
     header: 'Imagen',
     cell: ({ row }) => {
-      const imageUrl = row.getValue('image_url') as string;
+      const imageUrl = row.getValue('imageUrl') as string;
       const name = row.original.name;
       return (
         <Image
@@ -73,7 +73,7 @@ export const columns = ({ onEdit, onDelete, onToggleShowOnHome, allCategories, i
     ),
     cell: ({ row }) => {
         const category = row.original;
-        const isSubcategory = !!category.parent_id;
+        const isSubcategory = !!category.parentId;
         return (
             <div className={isSubcategory ? 'pl-4' : ''}>
                 {isSubcategory && <span className="text-muted-foreground mr-1">↳</span>}
@@ -83,10 +83,10 @@ export const columns = ({ onEdit, onDelete, onToggleShowOnHome, allCategories, i
     }
   },
   {
-    accessorKey: 'parent_id',
+    accessorKey: 'parentId',
     header: 'Categoría Padre',
     cell: ({ row }) => {
-      const parentId = row.getValue('parent_id') as number | undefined;
+      const parentId = row.getValue('parentId') as number | undefined;
       if (!parentId) {
         return <Badge variant="secondary">Principal</Badge>;
       }
@@ -94,7 +94,7 @@ export const columns = ({ onEdit, onDelete, onToggleShowOnHome, allCategories, i
       return parentCategory ? parentCategory.name : 'N/A';
     },
      filterFn: (row, id, value) => {
-      const parentId = row.getValue('parent_id') as number | null;
+      const parentId = row.getValue('parentId') as number | null;
       if (value === 'all') return true;
       if (value === 'main') return parentId === null;
       return parentId === Number(value);
@@ -106,7 +106,7 @@ export const columns = ({ onEdit, onDelete, onToggleShowOnHome, allCategories, i
     cell: ({ row }) => <div className="truncate max-w-xs">{row.getValue('description')}</div>,
   },
   {
-    accessorKey: 'show_on_home',
+    accessorKey: 'showOnHome',
     header: 'Mostrar en Home',
     cell: ({ row }) => {
         const category = row.original;

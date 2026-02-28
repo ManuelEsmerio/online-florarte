@@ -31,6 +31,7 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
   const [isAdding, setIsAdding] = useState(false);
 
   const isCompact = variant === 'compact';
+    const variantLabel = (product as any)?.variantName ?? null;
 
   let displayPrice: number;
   let displaySalePrice: number | null = null;
@@ -114,7 +115,8 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
   };
 
   const renderTag = () => {
-    const tag = product.tag_visible;
+        const rawTag = (product as any)?.tag_visible ?? (product as any)?.badgeText ?? (product as any)?.badge_text ?? null;
+        const tag = rawTag ? String(rawTag).trim().toUpperCase() : null;
     if (!tag) return null;
 
     if (tag === 'OFERTA') {
@@ -150,7 +152,14 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
         );
     }
 
-    return null;
+        return (
+            <div className="absolute top-4 left-4 z-20">
+                <span className="bg-white/95 dark:bg-zinc-800 text-slate-800 dark:text-slate-100 text-[10px] font-bold tracking-widest px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xl border border-primary/20">
+                    <Sparkles className="w-3 h-3 text-primary" />
+                    {tag}
+                </span>
+            </div>
+        );
   };
 
   return (
@@ -212,6 +221,11 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
                 <h3 className="font-headline text-lg md:text-2xl font-bold text-slate-900 dark:text-white transition-colors duration-300 leading-tight line-clamp-2">
                     {product.name}
                 </h3>
+                                {variantLabel && (
+                                    <p className="mt-1 text-sm md:text-base text-slate-500 dark:text-slate-400 leading-tight line-clamp-1">
+                                        {variantLabel}
+                                    </p>
+                                )}
             </Link>
 
             <div className="mt-auto">

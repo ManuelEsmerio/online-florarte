@@ -25,8 +25,6 @@ import { ProductForm } from './product-form';
 import { useAuth } from '@/context/AuthContext';
 import { pickMainProductImage } from '@/lib/product-images';
 
-type ProductFormStatus = 'publicado' | 'oculto' | 'borrador';
-
 const PRODUCT_META_CACHE_VERSION = 'v1';
 const PRODUCT_META_CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const PRODUCT_META_CACHE_KEYS = {
@@ -38,13 +36,6 @@ const PRODUCT_META_CACHE_KEYS = {
 type CachedMeta<T> = {
   timestamp: number;
   data: T;
-};
-
-const mapApiStatusToUi = (status: unknown): ProductFormStatus => {
-  const normalized = String(status ?? '').trim().toUpperCase();
-  if (normalized === 'PUBLISHED' || normalized === 'PUBLICADO') return 'publicado';
-  if (normalized === 'HIDDEN' || normalized === 'OCULTO') return 'oculto';
-  return 'borrador';
 };
 
 const mapUiStatusToApi = (status: unknown): 'PUBLISHED' | 'HIDDEN' | 'DRAFT' => {
@@ -103,8 +94,6 @@ const adaptProduct = (product: any): Product => {
       }))
     : [];
 
-  const statusUi = mapApiStatusToUi(product?.status);
-
   return {
     ...product,
     description: product?.description ?? '',
@@ -113,7 +102,6 @@ const adaptProduct = (product: any): Product => {
     sale_price: product?.sale_price ?? product?.salePrice ?? null,
     stock: Number(product?.stock ?? 0),
     has_variants: Boolean(product?.has_variants ?? product?.hasVariants ?? false),
-    status: statusUi,
     image: preferredMainImage,
     mainImage: product?.mainImage ?? product?.main_image ?? preferredMainImage,
     badgeText: product?.badgeText ?? product?.badge_text ?? null,
@@ -339,8 +327,9 @@ export default function ProductsPage() {
   }, [fetchAppData]);
 
   const handleToggleStatus = useCallback(async (product: Product) => {
-    const current = mapApiStatusToUi((product as any).status);
-    const nextUi: ProductFormStatus = current === 'publicado' ? 'oculto' : 'publicado';
+    const currentStatus = (product as any).status as ProductStatus;
+    const nextStatus: ProductStatus = currentStatus === 'PUBLISHED' ? 'HIDDEN' : 'PUBLISHED';
+    const nextLabel = nextStatus === 'PUBLISHED' ? 'Publicado' : 'Oculto';
 
     setUpdatingStatusId(product.slug);
     try {
@@ -349,7 +338,7 @@ export default function ProductsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           isStatusUpdate: true,
-          productData: { status: mapUiStatusToApi(nextUi) },
+          productData: { status: nextStatus },
         }),
       });
 
@@ -358,7 +347,7 @@ export default function ProductsPage() {
         throw new Error(result?.message || 'No se pudo cambiar el estado.');
       }
 
-      toastRef.current({ title: '¡Estado Actualizado!', description: `El estado del producto cambió a ${nextUi}.`, variant: 'success' });
+      toastRef.current({ title: '¡Estado Actualizado!', description: `El estado del producto cambió a ${nextLabel}.`, variant: 'success' });
       await fetchAppData({ includeMeta: false });
     } catch (error: any) {
       toastRef.current({ title: 'Error', description: error?.message || 'No se pudo actualizar estado.', variant: 'destructive' });

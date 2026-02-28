@@ -27,19 +27,19 @@ import { ResponsiveContainer, AreaChart, BarChart, XAxis, YAxis, CartesianGrid, 
 import { mockDashboardStats } from '@/lib/data/dashboard-data';
 
 const statusStyles: { [key in OrderStatus]: string } = {
-  pendiente: 'bg-slate-100 text-slate-600 border-slate-200',
-  completado: 'bg-green-50 text-green-600 border-green-100',
-  en_reparto: 'bg-blue-50 text-blue-600 border-blue-100',
-  procesando: 'bg-amber-50 text-amber-600 border-amber-100',
-  cancelado: 'bg-red-50 text-red-600 border-red-100',
+  PENDING: 'bg-slate-100 text-slate-600 border-slate-200',
+  DELIVERED: 'bg-green-50 text-green-600 border-green-100',
+  SHIPPED: 'bg-blue-50 text-blue-600 border-blue-100',
+  PROCESSING: 'bg-amber-50 text-amber-600 border-amber-100',
+  CANCELLED: 'bg-red-50 text-red-600 border-red-100',
 };
 
 const statusTranslations: { [key in OrderStatus]: string } = {
-  pendiente: 'Pendiente',
-  procesando: 'En Proceso',
-  en_reparto: 'En Camino',
-  completado: 'Completado',
-  cancelado: 'Cancelado',
+  PENDING: 'Pendiente',
+  PROCESSING: 'En Proceso',
+  SHIPPED: 'En Camino',
+  DELIVERED: 'Completado',
+  CANCELLED: 'Cancelado',
 };
 
 const activityIcons: Record<Activity['type'], React.ReactNode> = {

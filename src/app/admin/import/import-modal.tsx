@@ -124,7 +124,7 @@ export function ImportModal({ isOpen, onOpenChange }: ImportModalProps) {
     
     try {
       const res = await apiFetch('/api/admin/import', { method: 'POST', body: formData });
-      const apiResult = await handleApiResponse(res);
+      const apiResult = await handleApiResponse<ImportResult>(res);
       setResult(apiResult);
       setView('results');
     } catch (error: any) {

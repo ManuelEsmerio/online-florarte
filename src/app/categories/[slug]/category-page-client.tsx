@@ -67,6 +67,27 @@ interface CategoryPageClientProps {
   occasionSlug?: string | null;
 }
 
+const getParentCategoryId = (category: any): number | null => {
+  const rawParentId = category?.parent_id ?? category?.parentId ?? null;
+  if (rawParentId == null) return null;
+
+  const parsed = Number(rawParentId);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normalizeCategory = (category: any): any => {
+  const parentId = getParentCategoryId(category);
+  return {
+    ...category,
+    parentId,
+    parent_id: parentId,
+    image_url: category?.image_url ?? category?.imageUrl ?? null,
+    imageUrl: category?.imageUrl ?? category?.image_url ?? null,
+    show_on_home: category?.show_on_home ?? category?.showOnHome ?? false,
+    showOnHome: category?.showOnHome ?? category?.show_on_home ?? false,
+  };
+};
+
 export function CategoryPageClient({ 
     categorySlug,
     pageType,
@@ -132,7 +153,7 @@ export function CategoryPageClient({
         }
         
         setAllProducts(productsData.products || []);
-        setAllCategories(homeData.categories || []);
+        setAllCategories((homeData.categories || []).map((category: any) => normalizeCategory(category)));
         setAllOccasions(homeData.occasions || []);
         setAllTags(homeData.tags || []);
         setAnnouncements(homeData.announcements || []);
@@ -171,7 +192,7 @@ export function CategoryPageClient({
     }
   
     const subcategories = currentCategory
-      ? allCategories.filter(c => c.parent_id === currentCategory!.id)
+      ? allCategories.filter(c => getParentCategoryId(c) === currentCategory!.id)
       : [];
   
     return { currentCategory, subcategories };
@@ -207,7 +228,8 @@ export function CategoryPageClient({
           result.push({
             ...product,
             _cardKey: `${product.id}-${variant.id}`,
-            name: `${product.name} – ${variant.name}`,
+            variantId: variant.id,
+            variantName: variant.name,
             price: variant.price,
             sale_price: (variant as any).sale_price ?? null,
             salePrice: (variant as any).salePrice ?? null,
@@ -254,7 +276,7 @@ export function CategoryPageClient({
             if(isFilteringSubcategories) {
                 categoryMatch = selectedCategories.includes(product.category.slug);
             } else {
-                const descendantSlugs = allCategories.filter(c => c.parent_id === currentCategory.id).map(c => c.slug);
+              const descendantSlugs = allCategories.filter(c => getParentCategoryId(c) === currentCategory.id).map(c => c.slug);
                 categoryMatch = product.category.slug === currentCategory.slug || descendantSlugs.includes(product.category.slug);
             }
         }
@@ -313,27 +335,28 @@ export function CategoryPageClient({
         const categoryClicked = allCategories.find(c => c.slug === slug);
         if (!categoryClicked) return Array.from(newSelection);
 
-        const isParent = !categoryClicked.parent_id;
+        const categoryClickedParentId = getParentCategoryId(categoryClicked);
+        const isParent = categoryClickedParentId == null;
         const isCurrentlySelected = newSelection.has(slug);
 
         if (isCurrentlySelected) {
             newSelection.delete(slug);
             if (isParent) {
-                const children = allCategories.filter(c => c.parent_id === categoryClicked.id);
+            const children = allCategories.filter(c => getParentCategoryId(c) === categoryClicked.id);
                 children.forEach(child => newSelection.delete(child.slug));
             } else {
-                const parent = allCategories.find(c => c.id === categoryClicked.parent_id);
+            const parent = allCategories.find(c => c.id === categoryClickedParentId);
                 if (parent) newSelection.delete(parent.slug);
             }
         } else {
             newSelection.add(slug);
             if (isParent) {
-                const children = allCategories.filter(c => c.parent_id === categoryClicked.id);
+            const children = allCategories.filter(c => getParentCategoryId(c) === categoryClicked.id);
                 children.forEach(child => newSelection.add(child.slug));
             } else {
-                const parent = allCategories.find(c => c.id === categoryClicked.parent_id);
+            const parent = allCategories.find(c => c.id === categoryClickedParentId);
                 if (parent) {
-                    const siblings = allCategories.filter(c => c.parent_id === parent.id);
+              const siblings = allCategories.filter(c => getParentCategoryId(c) === parent.id);
                     const allSiblingsSelected = siblings.every(sibling => newSelection.has(sibling.slug));
                     if (allSiblingsSelected) newSelection.add(parent.slug);
                 }
@@ -389,10 +412,10 @@ export function CategoryPageClient({
   };
 
   const mainCategories = useMemo(() => {
-    return allCategories.filter(c => !c.parent_id);
+    return allCategories.filter(c => getParentCategoryId(c) == null);
   }, [allCategories]);
 
-  const getSubcategories = (parentId: number) => allCategories.filter(c => c.parent_id === parentId);
+  const getSubcategories = (parentId: number) => allCategories.filter(c => getParentCategoryId(c) === parentId);
 
   const { pageTitle, pageDescription } = useMemo(() => {
     if (pageType === 'category' && currentCategory) {

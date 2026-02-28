@@ -27,7 +27,7 @@ const ActiveToggle = ({ ad, onToggle, isUpdating }: { ad: Announcement; onToggle
     <div className="relative flex items-center justify-center">
         {isUpdating && <Loader2 className="absolute h-4 w-4 animate-spin" />}
         <Switch
-            checked={ad.is_active}
+            checked={ad.isActive}
             onCheckedChange={() => onToggle(ad)}
             disabled={isUpdating}
             className={isUpdating ? 'opacity-50' : ''}
@@ -39,10 +39,10 @@ const ActiveToggle = ({ ad, onToggle, isUpdating }: { ad: Announcement; onToggle
 
 export const columns = ({ onEdit, onDelete, onToggleActive, isDeletingId, updatingStatusId }: ColumnsProps): ColumnDef<Announcement>[] => [
   {
-    accessorKey: 'image_url',
+    accessorKey: 'imageUrl',
     header: () => <ImageIcon className="h-4 w-4" />,
     cell: ({ row }) => {
-      const imageUrl = row.original.image_url;
+      const imageUrl = row.original.imageUrl;
       const title = row.original.title;
       return (
         <Image
@@ -66,7 +66,7 @@ export const columns = ({ onEdit, onDelete, onToggleActive, isDeletingId, updati
     ),
   },
   {
-    accessorKey: 'is_active',
+    accessorKey: 'isActive',
     header: 'Activo',
     cell: ({ row }) => {
       const ad = row.original;
@@ -74,18 +74,18 @@ export const columns = ({ onEdit, onDelete, onToggleActive, isDeletingId, updati
     },
   },
   {
-    accessorKey: 'start_at',
+    accessorKey: 'startAt',
     header: 'Vigencia',
     cell: ({ row }) => {
-        const { start_at, end_at } = row.original;
-        if (!start_at && !end_at) return <span className="text-muted-foreground">Siempre activo</span>;
-        const start = start_at ? format(new Date(start_at), 'dd/MM/yy') : '...';
-        const end = end_at ? format(new Date(end_at), 'dd/MM/yy') : '...';
+        const { startAt, endAt } = row.original;
+        if (!startAt && !endAt) return <span className="text-muted-foreground">Siempre activo</span>;
+        const start = startAt ? format(new Date(startAt), 'dd/MM/yy') : '...';
+        const end = endAt ? format(new Date(endAt), 'dd/MM/yy') : '...';
         return <Badge variant="outline">{start} - {end}</Badge>;
     },
   },
   {
-    accessorKey: 'sort_order',
+    accessorKey: 'sortOrder',
     header: 'Orden',
   },
   {

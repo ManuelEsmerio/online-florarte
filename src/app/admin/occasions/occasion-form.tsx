@@ -64,11 +64,11 @@ export function OccasionForm({ isOpen, onOpenChange, onSave, occasion, isSaving 
             form.reset({
                 name: occasion.name,
                 slug: occasion.slug,
-                description: occasion.description,
-                image_url: occasion.image_url,
-                show_on_home: occasion.show_on_home,
+            description: occasion.description ?? '',
+            image_url: occasion.imageUrl ?? '',
+            show_on_home: occasion.showOnHome,
             });
-            setImagePreview(occasion.image_url);
+          setImagePreview(occasion.imageUrl ?? null);
         } else {
             form.reset({ name: '', slug: '', description: '', image_url: '', show_on_home: false });
             setImagePreview(null);

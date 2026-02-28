@@ -55,19 +55,19 @@ export function PeakDateForm({ isOpen, onOpenChange, onSave, peakDate, allPeakDa
   useEffect(() => {
     if (isOpen) {
         if (isEditing && peakDate) {
-            const localDate = peakDate.peak_date instanceof Date ? peakDate.peak_date : parseToUTCDate(String(peakDate.peak_date));
+            const localDate = peakDate.peakDate instanceof Date ? peakDate.peakDate : parseToUTCDate(String(peakDate.peakDate));
             if(localDate && !isNaN(localDate.getTime())) {
                 const nextYearDate = addYears(localDate, 1);
-                const isRecurring = allPeakDates.some(p => p.name === peakDate.name && p.peak_date.getFullYear() === nextYearDate.getFullYear());
+                const isRecurring = allPeakDates.some(p => p.name === peakDate.name && p.peakDate.getFullYear() === nextYearDate.getFullYear());
                 
                 form.reset({
                     name: peakDate.name,
                     peak_date: localDate,
-                    is_coupon_restricted: peakDate.is_coupon_restricted,
+                    is_coupon_restricted: peakDate.isCouponRestricted,
                     repeat_annually: isRecurring,
                 });
             } else {
-                 form.reset({ name: peakDate.name, peak_date: null, is_coupon_restricted: peakDate.is_coupon_restricted, repeat_annually: false });
+                 form.reset({ name: peakDate.name, peak_date: null, is_coupon_restricted: peakDate.isCouponRestricted, repeat_annually: false });
             }
         } else {
             form.reset({ name: '', peak_date: null, is_coupon_restricted: false, repeat_annually: false });
@@ -134,7 +134,7 @@ export function PeakDateForm({ isOpen, onOpenChange, onSave, peakDate, allPeakDa
                       <PopoverContent className="w-auto p-0 z-50" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value}
+                          selected={field.value ?? undefined}
                           onSelect={(date) => {
                             field.onChange(date);
                             setIsCalendarOpen(false);

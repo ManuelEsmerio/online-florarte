@@ -17,6 +17,7 @@ interface ComplementCardProps {
 
 export function ComplementCard({ complement, parentCartItemId, onQuickView }: ComplementCardProps) {
   const { cart, toggleComplement, isTogglingComplement, updatingItemId } = useCart();
+    const variantLabel = (complement as any).variantName || (complement as any).variant_name || null;
   
   const isSelected = cart.some(item => 
     item.id === complement.id && 
@@ -71,6 +72,11 @@ export function ComplementCard({ complement, parentCartItemId, onQuickView }: Co
             <h4 className="text-sm font-bold text-foreground leading-tight line-clamp-2 min-h-[2.5rem]">
                 {complement.name}
             </h4>
+            {variantLabel && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight line-clamp-1">
+                    {variantLabel}
+                </p>
+            )}
             <p className="text-lg font-bold text-primary font-sans mt-auto">
                 {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(complement.price)}
             </p>

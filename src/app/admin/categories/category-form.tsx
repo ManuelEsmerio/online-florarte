@@ -55,12 +55,12 @@ export function CategoryForm({ isOpen, onOpenChange, onSave, category, allCatego
             form.reset({
                 name: category.name,
                 prefix: category.prefix,
-                description: category.description,
-                image_url: category.image_url,
-                parent_id: category.parent_id,
-                show_on_home: category.show_on_home,
+            description: category.description ?? '',
+            image_url: category.imageUrl ?? '',
+            parent_id: category.parentId ?? null,
+                show_on_home: category.showOnHome,
             });
-            setImagePreview(category.image_url);
+            setImagePreview(category.imageUrl ?? null);
         } else {
             form.reset({ name: '', prefix: '', description: '', image_url: '', parent_id: null, show_on_home: false });
             setImagePreview(null);
@@ -88,7 +88,7 @@ export function CategoryForm({ isOpen, onOpenChange, onSave, category, allCatego
     onSave(data, imageFile, category?.id);
   };
   
-  const parentCategories = allCategories.filter(c => !c.parent_id && c.id !== category?.id);
+  const parentCategories = allCategories.filter(c => !c.parentId && c.id !== category?.id);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>

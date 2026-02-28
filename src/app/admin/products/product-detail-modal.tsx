@@ -146,8 +146,8 @@ export function ProductDetailModal({
             <div className="flex items-center flex-wrap gap-3">
               <DialogTitle className="font-headline text-2xl md:text-3xl">{product?.name || 'Cargando...'}</DialogTitle>
               {product?.status && (
-                <Badge variant={product.status === 'publicado' ? 'success' : 'secondary'} className="uppercase tracking-wide shadow-sm shadow-primary/25 border border-primary/30">
-                  {product.status}
+                <Badge variant={product.status === 'PUBLISHED' ? 'success' : 'secondary'} className="uppercase tracking-wide shadow-sm shadow-primary/25 border border-primary/30">
+                  {product.status === 'PUBLISHED' ? 'Publicado' : product.status === 'HIDDEN' ? 'Oculto' : 'Borrador'}
                 </Badge>
               )}
             </div>

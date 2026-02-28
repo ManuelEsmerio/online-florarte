@@ -41,16 +41,22 @@ export type ProductRow = Product & {
 
 const getStatusVariant = (status: ProductStatus): 'success' | 'destructive' | 'secondary' => {
   switch (status) {
-    case 'publicado':
+    case 'PUBLISHED':
       return 'success';
-    case 'oculto':
+    case 'HIDDEN':
       return 'secondary';
-    case 'borrador':
+    case 'DRAFT':
       return 'destructive';
     default:
       return 'secondary';
   }
 }
+
+const statusLabels: Record<ProductStatus, string> = {
+  PUBLISHED: 'Publicado',
+  HIDDEN: 'Oculto',
+  DRAFT: 'Borrador',
+};
 
 
 type ProductColumnsProps = {
@@ -63,7 +69,7 @@ type ProductColumnsProps = {
 };
 
 const ToggleStatusCell = ({ product, onToggleStatus, isUpdating }: { product: Product, onToggleStatus: (product: Product) => void, isUpdating: boolean }) => {
-    const isPublished = product.status === 'publicado';
+    const isPublished = product.status === 'PUBLISHED';
     const [isAlertOpen, setIsAlertOpen] = useState(false);
 
     const handleConfirmToggle = () => {
@@ -166,14 +172,14 @@ export const columns = ({
     enableHiding: false,
   },
   {
-    accessorKey: 'image',
+    accessorKey: 'mainImage',
     header: '',
     cell: ({ row }) => {
       const product = row.original;
-      if (product.isVariant || product.has_variants) return null;
+      if (product.isVariant || product.hasVariants) return null;
       return (
         <Image
-          src={product.image || '/placehold.webp'}
+          src={product.mainImage || '/placehold.webp'}
           alt={product.name}
           width={40}
           height={40}
@@ -290,7 +296,7 @@ export const columns = ({
           variant={getStatusVariant(status)}
           className="capitalize"
         >
-          {status}
+          {statusLabels[status] ?? status}
         </Badge>
       );
     },

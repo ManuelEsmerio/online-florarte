@@ -77,7 +77,7 @@ export function CustomerDetailModal({
             <div className="flex flex-col sm:flex-row items-center gap-6 p-6 bg-muted/20 rounded-[2rem] border border-border/50">
                 <div className="relative group">
                     <Avatar className="h-20 w-20 md:h-24 md:w-24 border-4 border-background shadow-lg transition-transform duration-500 group-hover:scale-105">
-                        <AvatarImage src={user.profilePic || undefined} alt={user.name} />
+                        <AvatarImage src={user.profilePicUrl || undefined} alt={user.name} />
                         <AvatarFallback className="text-2xl md:text-3xl bg-primary text-white font-bold">{user.name.charAt(0).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 border-4 border-background rounded-full" />
@@ -86,8 +86,8 @@ export function CustomerDetailModal({
                     <h2 className="text-xl md:text-2xl font-bold font-headline leading-tight truncate">{user.name}</h2>
                     <div className="flex flex-wrap items-center gap-2 mt-2 justify-center sm:justify-start">
                         <Badge variant="secondary" className="capitalize text-[10px] font-bold px-2 py-0.5">{user.role}</Badge>
-                        <Badge variant={user.is_deleted ? 'destructive' : 'success'} className="text-[10px] font-bold px-2 py-0.5">
-                            {user.is_deleted ? 'Desactivado' : 'Activo'}
+                        <Badge variant={user.isDeleted ? 'destructive' : 'success'} className="text-[10px] font-bold px-2 py-0.5">
+                            {user.isDeleted ? 'Desactivado' : 'Activo'}
                         </Badge>
                     </div>
                 </div>
@@ -99,8 +99,8 @@ export function CustomerDetailModal({
                      <DetailRow label="Teléfono Directo" icon={<Phone className="w-4 h-4" />} value={user.phone || 'No registrado'} />
                 </div>
                  <div className="space-y-6">
-                     <DetailRow label="Puntos Acumulados" icon={<Gem className="w-4 h-4" />} value={<span className="font-bold text-primary font-sans">{user.loyalty_points || 0} pts</span>} />
-                     {user.created_at && <DetailRow label="Miembro desde" icon={<Calendar className="w-4 h-4" />} value={format(new Date(user.created_at), 'dd MMM, yyyy', { locale: es })} />}
+                     <DetailRow label="Puntos Acumulados" icon={<Gem className="w-4 h-4" />} value={<span className="font-bold text-primary font-sans">{user.loyaltyPoints || 0} pts</span>} />
+                     {user.createdAt && <DetailRow label="Miembro desde" icon={<Calendar className="w-4 h-4" />} value={format(new Date(user.createdAt), 'dd MMM, yyyy', { locale: es })} />}
                 </div>
             </div>
             
@@ -130,9 +130,9 @@ export function CustomerDetailModal({
                                     <p className="text-xs"><strong>Recibe:</strong> {address.recipientName} ({address.recipientPhone || 'Sin teléfono'})</p>
                                     <p className="text-xs leading-relaxed">{`${address.streetName} ${address.streetNumber}${address.interiorNumber ? `, Int. ${address.interiorNumber}` : ''}`}</p>
                                     <p className="text-[10px] font-bold uppercase tracking-wider">{`${address.neighborhood}, ${getAddressLocality(address)}, CP ${address.postalCode}`}</p>
-                                    {address.reference_notes && (
+                                    {address.referenceNotes && (
                                         <div className="mt-3 p-3 rounded-xl bg-muted/50 text-[10px] italic border-l-2 border-primary/30">
-                                            Ref: {address.reference_notes}
+                                            Ref: {address.referenceNotes}
                                         </div>
                                     )}
                                 </div>

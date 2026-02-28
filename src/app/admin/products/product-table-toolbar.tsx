@@ -19,9 +19,9 @@ interface ProductTableToolbarProps<TData> {
 }
 
 const statusTranslations: Record<ProductStatus, string> = {
-    publicado: "Publicado",
-    oculto: "Oculto",
-    borrador: "Borrador"
+    PUBLISHED: "Publicado",
+    HIDDEN: "Oculto",
+    DRAFT: "Borrador",
 }
 
 export function ProductTableToolbar<TData>({

@@ -34,15 +34,23 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 const getStatusVariant = (status: CouponStatus): 'success' | 'destructive' | 'secondary' => {
   switch (status) {
-    case 'vigente':
+    case 'ACTIVE':
       return 'success';
-    case 'vencido':
+    case 'EXPIRED':
       return 'destructive';
-    case 'utilizado':
+    case 'USED':
+    case 'PAUSED':
       return 'secondary';
     default:
       return 'secondary';
   }
+};
+
+const couponStatusLabels: Record<CouponStatus, string> = {
+  ACTIVE: 'Vigente',
+  EXPIRED: 'Vencido',
+  USED: 'Utilizado',
+  PAUSED: 'Pausado',
 };
 
 
@@ -101,22 +109,22 @@ export const columns = ({
     header: 'Descripción',
   },
   {
-    accessorKey: 'discount_value',
+    accessorKey: 'discountValue',
     header: 'Descuento',
     cell: ({ row }) => {
       const coupon = row.original;
-      if (coupon.discount_type === 'percentage') {
-        return <span>{coupon.discount_value}%</span>;
+      if (coupon.discountType === 'PERCENTAGE') {
+        return <span>{coupon.discountValue}%</span>;
       }
-      return <span>{new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(coupon.discount_value)}</span>;
+      return <span>{new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(coupon.discountValue)}</span>;
     },
   },
    {
     id: 'usage',
     header: 'Uso',
     cell: ({ row }) => {
-      const uses = row.original.uses_count || 0;
-      const maxUses = row.original.max_uses;
+      const uses = row.original.usesCount || 0;
+      const maxUses = row.original.maxUses;
       return <span>{uses} / {maxUses || '∞'}</span>;
     },
   },
@@ -126,16 +134,16 @@ export const columns = ({
     cell: ({ row }) => {
       const coupon = row.original;
       const scope = coupon.scope;
-      
+
       let details = '';
       let detailCount = 0;
-      if(scope === 'users' && coupon.details?.users) {
+      if(scope === 'USERS' && coupon.details?.users) {
         detailCount = coupon.details.users.length;
         details = detailCount === 1 ? coupon.details.users[0].name : `${detailCount} usuarios`;
-      } else if (scope === 'categories' && coupon.details?.categories) {
+      } else if (scope === 'CATEGORIES' && coupon.details?.categories) {
         detailCount = coupon.details.categories.length;
         details = detailCount === 1 ? coupon.details.categories[0].name : `${detailCount} categorías`;
-      } else if (scope === 'products' && coupon.details?.products) {
+      } else if (scope === 'PRODUCTS' && coupon.details?.products) {
         detailCount = coupon.details.products.length;
         details = detailCount === 1 ? coupon.details.products[0].name : `${detailCount} productos`;
       }
@@ -167,10 +175,10 @@ export const columns = ({
     },
   },
   {
-    accessorKey: 'valid_until',
+    accessorKey: 'validUntil',
     header: 'Vence',
     cell: ({ row }) => {
-      const validUntil = row.original.valid_until ? new Date(row.original.valid_until) : null;
+      const validUntil = row.original.validUntil ? new Date(row.original.validUntil) : null;
       if (!validUntil) return <span className='text-muted-foreground'>Nunca</span>;
       return (
         <div>
@@ -189,7 +197,7 @@ export const columns = ({
           variant={getStatusVariant(status)}
           className="capitalize"
         >
-          {status}
+          {couponStatusLabels[status] ?? status}
         </Badge>
       );
     },
@@ -218,7 +226,7 @@ export const columns = ({
               <DropdownMenuItem onSelect={() => onEdit(coupon)}>
                 Editar
               </DropdownMenuItem>
-              {coupon.scope === 'users' && coupon.details?.users && coupon.details.users.length > 0 && (
+              {coupon.scope === 'USERS' && coupon.details?.users && coupon.details.users.length > 0 && (
                 <DropdownMenuItem onSelect={() => onSendCoupon(coupon)} disabled={isSending}>
                   {isSending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

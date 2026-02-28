@@ -182,15 +182,17 @@ export default function CouponsPage() {
         id: newId,
         code: couponData.code,
         description: couponData.description || '',
-        discount_type: couponData.discount_type || DiscountType.PERCENTAGE,
-        discount_value: couponData.discount_value || 0,
-        valid_from: couponData.valid_from || new Date().toISOString(),
-        valid_until: couponData.valid_until || null,
+        discountType: couponData.discount_type ?? couponData.discountType ?? DiscountType.PERCENTAGE,
+        discountValue: couponData.discount_value ?? couponData.discountValue ?? 0,
+        validFrom: couponData.valid_from ? new Date(couponData.valid_from) : (couponData.validFrom ? new Date(couponData.validFrom) : new Date()),
+        validUntil: couponData.valid_until ? new Date(couponData.valid_until) : (couponData.validUntil ? new Date(couponData.validUntil) : null),
         scope: couponData.scope || CouponScope.GLOBAL,
-        max_uses: couponData.max_uses || null,
-        uses_count: 0,
-        status: 'vigente',
-        customerName: couponData.customerName || null,
+        maxUses: couponData.max_uses ?? couponData.maxUses ?? null,
+        usesCount: 0,
+        status: 'ACTIVE',
+        isDeleted: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
       newCoupon.status = getCouponStatus(newCoupon);
       allCoupons.push(newCoupon);
@@ -207,11 +209,12 @@ export default function CouponsPage() {
     setIsSaving(false);
   };
 
-  const statusOptions: CouponStatus[] = ['vigente', 'vencido', 'utilizado'];
+  const statusOptions: CouponStatus[] = ['ACTIVE', 'EXPIRED', 'USED', 'PAUSED'];
   const statusTranslations: { [key in CouponStatus]: string } = {
-    'vigente': 'Vigente',
-    'vencido': 'Vencido',
-    'utilizado': 'Utilizado',
+    ACTIVE: 'Vigente',
+    EXPIRED: 'Vencido',
+    USED: 'Utilizado',
+    PAUSED: 'Pausado',
   };
 
   if (isLoading && coupons.length === 0) {

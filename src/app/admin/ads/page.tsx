@@ -32,7 +32,7 @@ export default function AdsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedAd, setSelectedAd] = useState<Announcement | null>(null);
 
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'sort_order', desc: false }]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'sortOrder', desc: false }]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
@@ -57,11 +57,11 @@ export default function AdsPage() {
 
   const handleToggleActive = (ad: Announcement) => {
     setUpdatingStatusId(ad.id);
-    const updated = { ...ad, is_active: !ad.is_active };
+    const updated = { ...ad, isActive: !ad.isActive };
     setAnnouncements(prev => prev.map(a => a.id === ad.id ? updated : a));
     const idx = announcementsData.findIndex(a => a.id === ad.id);
     if (idx > -1) announcementsData[idx] = updated;
-    toast({ title: 'Estado actualizado', description: `El anuncio "${ad.title}" ahora está ${updated.is_active ? 'activo' : 'inactivo'}.` });
+    toast({ title: 'Estado actualizado', description: `El anuncio "${ad.title}" ahora está ${updated.isActive ? 'activo' : 'inactivo'}.` });
     setUpdatingStatusId(null);
   };
 
@@ -72,17 +72,17 @@ export default function AdsPage() {
     // Para imágenes, generar URL de objeto temporal si hay archivos
     const imageUrl = images.desktop
       ? URL.createObjectURL(images.desktop)
-      : data.image_url || '';
+      : data.image_url || data.imageUrl || '';
     const imageMobileUrl = images.mobile
       ? URL.createObjectURL(images.mobile)
-      : data.image_mobile_url || null;
+      : data.image_mobile_url ?? data.imageMobileUrl ?? null;
 
     if (isEditing) {
       const updated: Announcement = {
         ...data,
-        image_url: imageUrl,
-        image_mobile_url: imageMobileUrl,
-        updated_at: new Date().toISOString(),
+        imageUrl,
+        imageMobileUrl,
+        updatedAt: new Date(),
       };
       setAnnouncements(prev => prev.map(a => a.id === data.id ? updated : a));
       const idx = announcementsData.findIndex(a => a.id === data.id);
@@ -93,16 +93,16 @@ export default function AdsPage() {
         id: newId,
         title: data.title,
         description: data.description || null,
-        button_text: data.button_text || null,
-        button_link: data.button_link || null,
-        image_url: imageUrl,
-        image_mobile_url: imageMobileUrl,
-        is_active: data.is_active ?? true,
-        start_at: data.start_at || null,
-        end_at: data.end_at || null,
-        sort_order: data.sort_order ?? (announcements.length + 1),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        buttonText: data.button_text ?? data.buttonText ?? null,
+        buttonLink: data.button_link ?? data.buttonLink ?? null,
+        imageUrl,
+        imageMobileUrl,
+        isActive: data.is_active ?? data.isActive ?? true,
+        startAt: data.start_at ?? data.startAt ?? null,
+        endAt: data.end_at ?? data.endAt ?? null,
+        sortOrder: data.sort_order ?? data.sortOrder ?? (announcements.length + 1),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
       setAnnouncements(prev => [...prev, newAd]);
       announcementsData.push(newAd);

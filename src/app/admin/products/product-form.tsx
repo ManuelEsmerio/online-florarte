@@ -73,7 +73,7 @@ const productFormSchema = z.object({
   care: z.string().optional(),
   allow_photo: z.boolean().default(false),
   photo_price: z.coerce.number().optional(),
-  status: z.string().optional().default('publicado'),
+  status: z.string().optional().default('PUBLISHED'),
 }).superRefine((data, ctx) => {
     if (data.has_variants) {
         if (!data.variants || data.variants.filter(v => !v.is_deleted).length === 0) {
@@ -147,9 +147,9 @@ function Step1_Info({ categories, occasions, tags }: { categories: ProductCatego
                                 <Select onValueChange={field.onChange} value={field.value}>
                                     <FormControl><SelectTrigger><SelectValue placeholder="Selecciona un estado" /></SelectTrigger></FormControl>
                                     <SelectContent className="z-[200]">
-                                        <SelectItem value="publicado">Publicado</SelectItem>
-                                        <SelectItem value="oculto">Oculto</SelectItem>
-                                        <SelectItem value="borrador">Borrador</SelectItem>
+                                        <SelectItem value="PUBLISHED">Publicado</SelectItem>
+                                        <SelectItem value="HIDDEN">Oculto</SelectItem>
+                                        <SelectItem value="DRAFT">Borrador</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -604,7 +604,7 @@ export function ProductForm({ isOpen, onOpenChange, onSave, product, isCopyMode,
     const form = useForm<ProductFormValues>({
       resolver: zodResolver(productFormSchema),
       mode: 'onTouched',
-    defaultValues: { name: '', code: '', slug: '', badge_text: '', description: '', short_description: '', specifications: [], category_id: 0, occasion_ids: [], tag_ids: [], has_variants: false, price: 0, stock: 0, sale_price: undefined, variants: [], care: '', allow_photo: false, photo_price: 0, images: [], status: 'publicado' }
+    defaultValues: { name: '', code: '', slug: '', badge_text: '', description: '', short_description: '', specifications: [], category_id: 0, occasion_ids: [], tag_ids: [], has_variants: false, price: 0, stock: 0, sale_price: undefined, variants: [], care: '', allow_photo: false, photo_price: 0, images: [], status: 'PUBLISHED' }
     });
   
     const { handleSubmit, reset, trigger, watch, formState: { errors } } = form;
@@ -645,7 +645,7 @@ export function ProductForm({ isOpen, onOpenChange, onSave, product, isCopyMode,
                     allow_photo: Boolean(productAny.allow_photo ?? productAny.allowPhoto),
                     photo_price: productAny.photo_price ?? productAny.photoPrice ?? 0,
                     images: (productAny.images ?? []).map((img: any) => ({ id: img.id, src: img.src, alt: img.alt, isNew: false, display_order: (img.is_primary ?? img.isPrimary) ? 0 : 1 })),
-                    status: productAny.status || 'publicado',
+                    status: productAny.status || 'PUBLISHED',
                 };
 
                 if (isEditing && draftKey) {
@@ -687,7 +687,7 @@ export function ProductForm({ isOpen, onOpenChange, onSave, product, isCopyMode,
                 }
             } else {
                 setOriginalProduct(null);
-                defaultValues = { name: '', code: '', slug: '', badge_text: '', description: '', short_description: '', specifications: [], category_id: 0, occasion_ids: [], tag_ids: [], has_variants: false, price: 0, stock: 0, sale_price: undefined, variants: [], care: '', allow_photo: false, photo_price: 0, images: [], status: 'publicado' };
+                defaultValues = { name: '', code: '', slug: '', badge_text: '', description: '', short_description: '', specifications: [], category_id: 0, occasion_ids: [], tag_ids: [], has_variants: false, price: 0, stock: 0, sale_price: undefined, variants: [], care: '', allow_photo: false, photo_price: 0, images: [], status: 'PUBLISHED' };
             }
             reset(defaultValues);
         }
