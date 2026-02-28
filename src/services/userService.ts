@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { saveProfilePicture } from "@/services/file.service";
+import bcrypt from "bcryptjs";
 
 export const userService = {
 
@@ -232,6 +233,99 @@ export const userService = {
         firebaseUid: `deleted_${timestamp}_${userId}`,
       },
     });
-  }
+  },
+
+  async getAllUsersForAdmin({ status, searchTerm, roles }: { status: 'active' | 'deleted' | 'all'; searchTerm: string; roles: string[] }) {
+    const where: any = {};
+
+    if (status === 'active') where.isDeleted = false;
+    else if (status === 'deleted') where.isDeleted = true;
+
+    if (searchTerm) {
+      where.OR = [
+        { name: { contains: searchTerm } },
+        { email: { contains: searchTerm } },
+      ];
+    }
+
+    if (roles.length > 0) {
+      where.role = { in: roles.map(r => r.toUpperCase()) };
+    }
+
+    const users = await prisma.user.findMany({
+      where,
+      orderBy: { name: 'asc' },
+    });
+
+    return users.map(({ passwordHash, ...u }) => u);
+  },
+
+  async createUserByAdmin(data: any, adminId: number) {
+    const existing = await prisma.user.findFirst({ where: { email: data.email.toLowerCase(), isDeleted: false } });
+    if (existing) throw new Error('El correo electrónico ya está en uso.');
+
+    const passwordHash = await bcrypt.hash(data.password || 'Florarte2024!', 12);
+
+    const newUser = await prisma.user.create({
+      data: {
+        name: data.name,
+        email: data.email.toLowerCase(),
+        phone: data.phone || null,
+        role: (data.role || 'CUSTOMER').toUpperCase() as any,
+        passwordHash,
+        firebaseUid: data.uid || `user_${Date.now()}`,
+        loyaltyPoints: 0,
+        acceptsMarketing: false,
+      },
+    });
+
+    const { passwordHash: _, ...userSafe } = newUser;
+    return userSafe;
+  },
+
+  async updateUserByAdmin(userId: number, data: any, adminId: number) {
+    if (data.email) {
+      const existing = await prisma.user.findFirst({ where: { email: data.email.toLowerCase(), isDeleted: false, id: { not: userId } } });
+      if (existing) throw new Error('El correo electrónico ya está en uso por otra cuenta.');
+    }
+
+    const updateData: any = {
+      name: data.name,
+      phone: data.phone || null,
+      role: (data.role || 'CUSTOMER').toUpperCase() as any,
+    };
+
+    if (data.email) updateData.email = data.email.toLowerCase();
+    if (data.password) updateData.passwordHash = await bcrypt.hash(data.password, 12);
+
+    const updated = await prisma.user.update({ where: { id: userId }, data: updateData });
+    const { passwordHash: _, ...userSafe } = updated;
+    return userSafe;
+  },
+
+  async bulkDeleteUsers(userIds: number[], adminId: number) {
+    const errors: { id: number; error: string }[] = [];
+    let deletedCount = 0;
+
+    for (const id of userIds) {
+      try {
+        const timestamp = Date.now();
+        await prisma.user.update({
+          where: { id },
+          data: {
+            isDeleted: true,
+            deletedAt: new Date(),
+            email: `deleted_${timestamp}_${id}@example.com`,
+            firebaseUid: `deleted_${timestamp}_${id}`,
+          },
+        });
+        deletedCount++;
+      } catch (err: any) {
+        errors.push({ id, error: err.message });
+      }
+    }
+
+    return { deletedCount, errors };
+  },
 
 };

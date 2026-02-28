@@ -6,7 +6,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { columns } from './columns';
 import type { Coupon, User } from '@/lib/definitions';
-import { CouponScope, DiscountType } from '@/lib/definitions';
 import { CouponForm } from './coupon-form';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -34,9 +33,6 @@ import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleto
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import type { CouponStatus } from '@/lib/definitions';
 import { useProductContext } from '@/context/ProductContext';
-import { allCoupons } from '@/lib/data/coupon-data';
-import { allUsers } from '@/lib/data/user-data';
-import { getCouponStatus } from '@/lib/business-logic/coupon-logic';
 
 
 export default function CouponsPage() {
@@ -67,55 +63,57 @@ export default function CouponsPage() {
     setIsSendingCouponId(null);
   }, [toast]);
 
-  const fetchData = useCallback(() => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
-    let filtered = [...allCoupons];
-
-    if (filters.search) {
-      const term = filters.search.toLowerCase();
-      filtered = filtered.filter(c =>
-        c.code.toLowerCase().includes(term) ||
-        c.description.toLowerCase().includes(term)
-      );
+    try {
+      const params = new URLSearchParams({
+        page: String(pagination.pageIndex + 1),
+        limit: String(pagination.pageSize),
+        search: filters.search,
+      });
+      if (filters.status.length > 0) params.set('status', filters.status.join(','));
+      const res = await fetch(`/api/admin/coupons?${params}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al cargar cupones');
+      setCoupons(json.data?.coupons ?? []);
+      setTotalRows(json.data?.total ?? 0);
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
     }
-    if (filters.status.length > 0) {
-      filtered = filtered.filter(c => filters.status.includes(c.status));
-    }
-
-    const total = filtered.length;
-    const paginated = filtered.slice(
-      pagination.pageIndex * pagination.pageSize,
-      (pagination.pageIndex + 1) * pagination.pageSize
-    );
-
-    setCoupons(paginated);
-    setTotalRows(total);
-    setIsLoading(false);
   }, [filters, pagination]);
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.search, filters.status, pagination.pageIndex, pagination.pageSize]);
 
   useEffect(() => {
-    if (isFormOpen) {
-      const activeCustomers = allUsers.filter(u => !(u as any).is_deleted) as User[];
-      setCustomers(activeCustomers);
-    }
+    if (!isFormOpen) return;
+    fetch('/api/admin/users?status=active')
+      .then(r => r.json())
+      .then(json => setCustomers(json.data ?? []))
+      .catch(() => {});
   }, [isFormOpen]);
 
-  const handleDeleteCoupon = useCallback((id: number) => {
+  const handleDeleteCoupon = useCallback(async (id: number) => {
     setIsDeletingId(id);
-    const idx = allCoupons.findIndex(c => c.id === id);
-    if (idx > -1) allCoupons.splice(idx, 1);
-    toast({ title: '¡Cupón Eliminado!', description: 'El cupón ha sido eliminado correctamente.', variant: 'success' });
-    fetchData();
-    setIsDeletingId(null);
+    try {
+      const res = await fetch(`/api/admin/coupons/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar');
+      toast({ title: '¡Cupón Eliminado!', description: 'El cupón ha sido eliminado correctamente.', variant: 'success' });
+      await fetchData();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsDeletingId(null);
+    }
   }, [toast, fetchData]);
 
   const handleEditCoupon = useCallback((coupon: Coupon) => {
-    const fullCoupon = allCoupons.find(c => c.id === coupon.id) || coupon;
-    setSelectedCoupon(fullCoupon);
+    setSelectedCoupon(coupon);
     setTimeout(() => setIsFormOpen(true), 100);
   }, []);
 
@@ -147,66 +145,54 @@ export default function CouponsPage() {
     setTimeout(() => setIsFormOpen(true), 100);
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     setIsDeleting(true);
     const selectedIds = table.getFilteredSelectedRowModel().rows.map(row => row.original.id);
     if (selectedIds.length === 0) { setIsDeleting(false); return; }
-
-    selectedIds.forEach(id => {
-      const idx = allCoupons.findIndex(c => c.id === id);
-      if (idx > -1) allCoupons.splice(idx, 1);
-    });
-
-    toast({ title: '¡Cupones Eliminados!', description: `${selectedIds.length} cupones eliminados.`, variant: 'success' });
-    table.resetRowSelection();
-    fetchData();
-    setIsDeleting(false);
+    try {
+      const res = await fetch('/api/admin/coupons', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar');
+      toast({ title: '¡Cupones Eliminados!', description: `${selectedIds.length} cupones eliminados.`, variant: 'success' });
+      table.resetRowSelection();
+      await fetchData();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleSaveCoupon = async (couponData: any, id?: number) => {
     setIsSaving(true);
     const isEditing = !!id;
-
-    if (isEditing) {
-      const idx = allCoupons.findIndex(c => c.id === id);
-      if (idx > -1) {
-        allCoupons[idx] = {
-          ...allCoupons[idx],
-          ...couponData,
-          status: getCouponStatus({ ...allCoupons[idx], ...couponData }),
-        };
-      }
-    } else {
-      const newId = Math.max(...allCoupons.map(c => c.id), 0) + 1;
-      const newCoupon: Coupon = {
-        id: newId,
-        code: couponData.code,
-        description: couponData.description || '',
-        discountType: couponData.discount_type ?? couponData.discountType ?? DiscountType.PERCENTAGE,
-        discountValue: couponData.discount_value ?? couponData.discountValue ?? 0,
-        validFrom: couponData.valid_from ? new Date(couponData.valid_from) : (couponData.validFrom ? new Date(couponData.validFrom) : new Date()),
-        validUntil: couponData.valid_until ? new Date(couponData.valid_until) : (couponData.validUntil ? new Date(couponData.validUntil) : null),
-        scope: couponData.scope || CouponScope.GLOBAL,
-        maxUses: couponData.max_uses ?? couponData.maxUses ?? null,
-        usesCount: 0,
-        status: 'ACTIVE',
-        isDeleted: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      newCoupon.status = getCouponStatus(newCoupon);
-      allCoupons.push(newCoupon);
+    try {
+      const url = isEditing ? `/api/admin/coupons/${id}` : '/api/admin/coupons';
+      const method = isEditing ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(couponData),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al guardar');
+      toast({
+        title: isEditing ? '¡Cupón Actualizado!' : '¡Cupón Creado!',
+        description: `El cupón ${couponData.code} ha sido guardado.`,
+        variant: 'success'
+      });
+      setIsFormOpen(false);
+      setSelectedCoupon(null);
+      await fetchData();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
     }
-
-    toast({
-      title: isEditing ? '¡Cupón Actualizado!' : '¡Cupón Creado!',
-      description: `El cupón ${couponData.code} ha sido guardado.`,
-      variant: 'success'
-    });
-    setIsFormOpen(false);
-    setSelectedCoupon(null);
-    fetchData();
-    setIsSaving(false);
   };
 
   const statusOptions: CouponStatus[] = ['ACTIVE', 'EXPIRED', 'USED', 'PAUSED'];

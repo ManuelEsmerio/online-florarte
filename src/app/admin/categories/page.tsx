@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, SlidersHorizontal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -13,14 +13,12 @@ import { CategoryForm } from './category-form';
 import type { ProductCategory } from '@/lib/definitions';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useProductContext } from '@/context/ProductContext';
-import { productCategories } from '@/lib/data/categories-data';
 
 
 const CategoryToolbar = ({ table }: { table: any }) => {
   const parentCategories = useMemo(() => {
     const allCats = (table.options.data || []) as ProductCategory[];
-    return allCats.filter(c => !c.parentId);
+    return allCats.filter((c: ProductCategory) => !c.parentId);
   }, [table.options.data]);
 
   const selectedParent = table.getColumn('parentId')?.getFilterValue() as string || 'all';
@@ -61,7 +59,7 @@ const CategoryToolbar = ({ table }: { table: any }) => {
               Solo Principales
             </DropdownMenuCheckboxItem>
             <DropdownMenuSeparator className="bg-muted/50" />
-            {parentCategories.map(cat => (
+            {parentCategories.map((cat: ProductCategory) => (
               <DropdownMenuCheckboxItem
                 key={cat.id}
                 checked={selectedParent === String(cat.id)}
@@ -81,7 +79,8 @@ const CategoryToolbar = ({ table }: { table: any }) => {
 
 export default function CategoriesPage() {
   const { toast } = useToast();
-  const { categories, isLoading, fetchAppData } = useProductContext();
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [updatingVisibilityId, setUpdatingVisibilityId] = useState<number | null>(null);
@@ -91,7 +90,26 @@ export default function CategoriesPage() {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+
+  const loadCategories = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/admin/categories');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al cargar categorías');
+      setCategories(json.data ?? []);
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sortedCategories = useMemo(() => {
     if (!categories?.length) return [];
@@ -101,9 +119,7 @@ export default function CategoriesPage() {
 
     for (const cat of categories) {
       if (cat.parentId) {
-        if (!groups[cat.parentId]) {
-          groups[cat.parentId] = [];
-        }
+        if (!groups[cat.parentId]) groups[cat.parentId] = [];
         groups[cat.parentId].push(cat);
       } else {
         roots.push(cat);
@@ -114,15 +130,12 @@ export default function CategoriesPage() {
       a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
 
     roots.sort(sortByName);
-    for(const key in groups) {
-      groups[key].sort(sortByName);
-    }
+    for (const key in groups) groups[key].sort(sortByName);
 
     const out: ProductCategory[] = [];
     for (const rootCat of roots) {
       out.push(rootCat);
-      const children = groups[rootCat.id] || [];
-      out.push(...children);
+      out.push(...(groups[rootCat.id] || []));
     }
 
     return out;
@@ -140,72 +153,69 @@ export default function CategoriesPage() {
 
   const handleDelete = async (id: number) => {
     setIsDeletingId(id);
-    const idx = productCategories.findIndex(c => c.id === id);
-    if (idx > -1) productCategories.splice(idx, 1);
-    toast({ title: '¡Categoría Eliminada!', description: 'La categoría se ha eliminado correctamente.', variant: 'success' });
-    await fetchAppData();
-    setIsDeletingId(null);
+    try {
+      const res = await fetch(`/api/admin/categories/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar');
+      toast({ title: '¡Categoría Eliminada!', description: 'La categoría se ha eliminado correctamente.', variant: 'success' });
+      await loadCategories();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsDeletingId(null);
+    }
   };
 
   const handleSave = async (data: any, imageFile: File | null, id?: number) => {
     setIsSaving(true);
-
     const isEditing = !!id;
-    const imageUrl = imageFile
-      ? URL.createObjectURL(imageFile)
-      : (isEditing ? productCategories.find(c => c.id === id)?.imageUrl ?? '' : '');
-
-    if (isEditing) {
-      const idx = productCategories.findIndex(c => c.id === id);
-      if (idx > -1) {
-        productCategories[idx] = {
-          ...productCategories[idx],
-          name: data.name,
-          slug: data.slug ?? productCategories[idx].slug,
-          prefix: data.prefix ?? productCategories[idx].prefix,
-          description: data.description ?? productCategories[idx].description,
-          parentId: data.parent_id ?? null,
-          showOnHome: data.show_on_home ?? productCategories[idx].showOnHome,
-          imageUrl: imageUrl || productCategories[idx].imageUrl,
-        };
-      }
-    } else {
-      const newId = Math.max(...productCategories.map(c => c.id), 0) + 1;
-      const slug = data.slug ?? (data.name as string).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      productCategories.push({
-        id: newId,
+    try {
+      const fd = new FormData();
+      fd.append('categoryData', JSON.stringify({
         name: data.name,
-        slug,
-        prefix: data.prefix ?? '',
         description: data.description ?? '',
         parentId: data.parent_id ?? null,
         showOnHome: data.show_on_home ?? false,
-        imageUrl: imageUrl,
-        isDeleted: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-    }
+      }));
+      if (imageFile) fd.append('image', imageFile);
 
-    toast({ title: isEditing ? '¡Categoría Actualizada!' : '¡Categoría Creada!', description: 'La categoría ha sido guardada.', variant: 'success' });
-    setIsFormOpen(false);
-    await fetchAppData();
-    setIsSaving(false);
+      const url = isEditing ? `/api/admin/categories/${id}` : '/api/admin/categories';
+      const method = isEditing ? 'PUT' : 'POST';
+      const res = await fetch(url, { method, body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al guardar');
+      toast({ title: isEditing ? '¡Categoría Actualizada!' : '¡Categoría Creada!', description: 'La categoría ha sido guardada.', variant: 'success' });
+      setIsFormOpen(false);
+      await loadCategories();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleToggleShowOnHome = useCallback(async (category: ProductCategory) => {
     setUpdatingVisibilityId(category.id);
-    const newShowOnHome = !category.showOnHome;
-    const idx = productCategories.findIndex(c => c.id === category.id);
-    if (idx > -1) productCategories[idx] = { ...productCategories[idx], showOnHome: newShowOnHome };
-    toast({
-      title: 'Visibilidad Actualizada',
-      description: `La categoría "${category.name}" ahora ${newShowOnHome ? 'se mostrará' : 'no se mostrará'} en la página de inicio.`,
-      variant: 'success'
-    });
-    await fetchAppData();
-    setUpdatingVisibilityId(null);
-  }, [fetchAppData, toast]);
+    try {
+      const res = await fetch(`/api/admin/categories/${category.id}/toggle-visibility`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ showOnHome: !category.showOnHome }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al actualizar');
+      toast({
+        title: 'Visibilidad Actualizada',
+        description: `La categoría "${category.name}" ahora ${!category.showOnHome ? 'se mostrará' : 'no se mostrará'} en la página de inicio.`,
+        variant: 'success'
+      });
+      await loadCategories();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setUpdatingVisibilityId(null);
+    }
+  }, [loadCategories, toast]);
 
   const tableColumns = useMemo(
     () => columns({
@@ -216,7 +226,7 @@ export default function CategoriesPage() {
         isDeletingId,
         updatingVisibilityId
     }),
-    [handleDelete, categories, isDeletingId, handleToggleShowOnHome, updatingVisibilityId]
+    [categories, isDeletingId, handleToggleShowOnHome, updatingVisibilityId]
   );
 
   const table = useReactTable({

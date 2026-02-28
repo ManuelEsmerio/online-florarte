@@ -1,5 +1,6 @@
 
 import type { Coupon } from '@/lib/definitions';
+import { CouponScope, DiscountType } from '@/lib/definitions';
 import { getCouponStatus } from '../business-logic/coupon-logic';
 
 

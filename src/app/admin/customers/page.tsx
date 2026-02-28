@@ -24,8 +24,6 @@ import { DataTableToolbar } from './customer-table-toolbar';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { CustomerDetailModal } from './customer-detail-modal';
-import { allUsers } from '@/lib/data/user-data';
-import { v4 as uuidv4 } from 'uuid';
 
 export default function CustomersPage() {
   const { toast } = useToast();
@@ -44,49 +42,57 @@ export default function CustomersPage() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
-    { id: 'is_deleted', value: 'active' }
+    { id: 'isDeleted', value: 'active' }
   ]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const loadUsers = useCallback(() => {
+  const loadUsers = useCallback(async () => {
     setIsLoading(true);
-    const data = allUsers.filter(u => !(u as any).is_deleted) as User[];
-    setUsers(data);
-    setIsLoading(false);
+    try {
+      const res = await fetch('/api/admin/users?status=all');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al cargar usuarios');
+      setUsers(json.data ?? []);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     loadUsers();
-  }, [loadUsers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAddUser = () => {
     setSelectedUser(null);
-    setTimeout(() => {
-      setIsFormOpen(true);
-    }, 100);
+    setTimeout(() => setIsFormOpen(true), 100);
   };
 
   const handleEditUser = (user: User) => {
-    const fullUser = allUsers.find(u => u.id === user.id) || user;
-    setSelectedUser(fullUser as User);
+    setSelectedUser(user);
     setIsFormOpen(true);
   };
 
   const handleViewDetails = (user: User) => {
-    const fullUser = allUsers.find(u => u.id === user.id) || user;
-    setSelectedUser(fullUser as User);
+    setSelectedUser(user);
     setIsDetailModalOpen(true);
   };
 
-  const handleDeleteUser = (id: number) => {
+  const handleDeleteUser = async (id: number) => {
     setIsDeletingId(id);
-    const idx = allUsers.findIndex(u => u.id === id);
-    if (idx > -1) {
-      (allUsers[idx] as any).is_deleted = true;
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar usuario');
+      toast({ title: '¡Usuario Eliminado!', description: 'El usuario ha sido desactivado del sistema.', variant: 'success' });
+      await loadUsers();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsDeletingId(null);
     }
-    toast({ title: '¡Usuario Eliminado!', description: 'El usuario ha sido desactivado del sistema.', variant: 'success' });
-    loadUsers();
-    setIsDeletingId(null);
   };
 
   const handleSendCredentials = async (user: User) => {
@@ -107,7 +113,7 @@ export default function CustomersPage() {
     onSendCredentials: handleSendCredentials,
     isSendingCredentialsFor,
     isDeletingId,
-  }), [isSendingCredentialsFor, isDeletingId, handleEditUser, handleDeleteUser]);
+  }), [isSendingCredentialsFor, isDeletingId]);
 
   const table = useReactTable({
     data: users,
@@ -120,7 +126,7 @@ export default function CustomersPage() {
     onColumnFiltersChange: setColumnFilters,
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
-    enableRowSelection: (row) => !(row.original as any).is_deleted,
+    enableRowSelection: (row) => !row.original.isDeleted,
     state: {
       sorting,
       rowSelection,
@@ -131,61 +137,61 @@ export default function CustomersPage() {
     onGlobalFilterChange: setSearchTerm,
   });
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     setIsDeleting(true);
-    const selectedRows = table.getFilteredSelectedRowModel().rows;
-    const selectedIds = selectedRows.map(row => row.original.id);
-
-    selectedIds.forEach(id => {
-      const idx = allUsers.findIndex(u => u.id === id);
-      if (idx > -1) (allUsers[idx] as any).is_deleted = true;
-    });
-
-    toast({ title: '¡Usuarios Eliminados!', description: 'Los usuarios seleccionados han sido desactivados.', variant: 'success' });
-    table.resetRowSelection();
-    loadUsers();
-    setIsDeleting(false);
+    const selectedIds = table.getFilteredSelectedRowModel().rows.map(row => row.original.id);
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userIds: selectedIds }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar usuarios');
+      toast({ title: '¡Usuarios Eliminados!', description: 'Los usuarios seleccionados han sido desactivados.', variant: 'success' });
+      table.resetRowSelection();
+      await loadUsers();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
-  const handleSaveUser = async (userData: any) => {
+  const handleSaveUser = async (formData: any) => {
     setIsSaving(true);
     try {
       const isEditing = !!selectedUser;
-      if (isEditing) {
-        const idx = allUsers.findIndex(u => u.id === selectedUser!.id);
-        if (idx > -1) {
-          allUsers[idx] = { ...allUsers[idx], ...userData, updated_at: new Date().toISOString() } as any;
-        }
-      } else {
-        const newId = Math.max(...allUsers.map(u => u.id), 0) + 1;
-        const newUser: any = {
-          id: newId,
-          dbId: newId,
-          uid: uuidv4(),
-          name: userData.name,
-          email: userData.email,
-          phone: userData.phone || null,
-          role: userData.role || 'customer',
-          password: userData.password || 'password123',
-          profilePic: userData.profilePic || null,
-          loyalty_points: 0,
-          is_deleted: false,
-          created_at: new Date().toISOString(),
-        };
-        allUsers.push(newUser);
-      }
+      const payload: any = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone || null,
+        role: (formData.role as string).toUpperCase(),
+      };
+      if (formData.password) payload.password = formData.password;
+
+      const url = isEditing ? `/api/admin/users/${selectedUser!.id}` : '/api/admin/users';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al guardar usuario');
 
       toast({
         title: isEditing ? '¡Usuario Actualizado!' : '¡Usuario Creado!',
-        description: `El usuario ${userData.name} ha sido guardado exitosamente.`,
+        description: `El usuario ${formData.name} ha sido guardado exitosamente.`,
         variant: 'success'
       });
 
       setIsFormOpen(false);
       setSelectedUser(null);
-      loadUsers();
+      await loadUsers();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }

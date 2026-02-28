@@ -2,7 +2,7 @@
 // src/app/admin/ads/page.tsx
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -17,15 +17,16 @@ import {
   SortingState,
   ColumnFiltersState,
 } from '@tanstack/react-table';
+import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { columns } from './columns';
 import { AdForm } from './ad-form';
 import type { Announcement } from '@/lib/definitions';
 import { Input } from '@/components/ui/input';
-import { announcementsData } from '@/lib/data/announcement-data';
 
 export default function AdsPage() {
   const { toast } = useToast();
-  const [announcements, setAnnouncements] = useState<Announcement[]>(() => [...announcementsData]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
@@ -35,6 +36,25 @@ export default function AdsPage() {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'sortOrder', desc: false }]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+
+  const loadAds = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/admin/announcements');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al cargar anuncios');
+      setAnnouncements(json.data ?? []);
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAds();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAdd = () => {
     setSelectedAd(null);
@@ -46,76 +66,84 @@ export default function AdsPage() {
     setIsFormOpen(true);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     setIsDeletingId(id);
-    setAnnouncements(prev => prev.filter(a => a.id !== id));
-    const idx = announcementsData.findIndex(a => a.id === id);
-    if (idx > -1) announcementsData.splice(idx, 1);
-    toast({ title: '¡Anuncio Eliminado!', description: 'El anuncio se ha eliminado correctamente.', variant: 'success' });
-    setIsDeletingId(null);
+    try {
+      const res = await fetch(`/api/admin/announcements/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar');
+      toast({ title: '¡Anuncio Eliminado!', description: 'El anuncio se ha eliminado correctamente.', variant: 'success' });
+      await loadAds();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsDeletingId(null);
+    }
   };
 
-  const handleToggleActive = (ad: Announcement) => {
+  const handleToggleActive = useCallback(async (ad: Announcement) => {
     setUpdatingStatusId(ad.id);
-    const updated = { ...ad, isActive: !ad.isActive };
-    setAnnouncements(prev => prev.map(a => a.id === ad.id ? updated : a));
-    const idx = announcementsData.findIndex(a => a.id === ad.id);
-    if (idx > -1) announcementsData[idx] = updated;
-    toast({ title: 'Estado actualizado', description: `El anuncio "${ad.title}" ahora está ${updated.isActive ? 'activo' : 'inactivo'}.` });
-    setUpdatingStatusId(null);
-  };
+    try {
+      const fd = new FormData();
+      fd.append('announcementData', JSON.stringify({
+        title: ad.title,
+        description: ad.description,
+        buttonText: ad.buttonText,
+        buttonLink: ad.buttonLink,
+        isActive: !ad.isActive,
+        startAt: ad.startAt,
+        endAt: ad.endAt,
+        sortOrder: ad.sortOrder,
+      }));
+      const res = await fetch(`/api/admin/announcements/${ad.id}`, { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al actualizar');
+      toast({ title: 'Estado actualizado', description: `El anuncio "${ad.title}" ahora está ${!ad.isActive ? 'activo' : 'inactivo'}.` });
+      await loadAds();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  }, [loadAds, toast]);
 
   const handleSave = async (data: any, images: { desktop?: File, mobile?: File }) => {
     setIsSaving(true);
     const isEditing = !!data.id;
-
-    // Para imágenes, generar URL de objeto temporal si hay archivos
-    const imageUrl = images.desktop
-      ? URL.createObjectURL(images.desktop)
-      : data.image_url || data.imageUrl || '';
-    const imageMobileUrl = images.mobile
-      ? URL.createObjectURL(images.mobile)
-      : data.image_mobile_url ?? data.imageMobileUrl ?? null;
-
-    if (isEditing) {
-      const updated: Announcement = {
-        ...data,
-        imageUrl,
-        imageMobileUrl,
-        updatedAt: new Date(),
-      };
-      setAnnouncements(prev => prev.map(a => a.id === data.id ? updated : a));
-      const idx = announcementsData.findIndex(a => a.id === data.id);
-      if (idx > -1) announcementsData[idx] = updated;
-    } else {
-      const newId = Math.max(...announcements.map(a => a.id), 0) + 1;
-      const newAd: Announcement = {
-        id: newId,
+    try {
+      const fd = new FormData();
+      fd.append('announcementData', JSON.stringify({
         title: data.title,
-        description: data.description || null,
+        description: data.description ?? null,
         buttonText: data.button_text ?? data.buttonText ?? null,
         buttonLink: data.button_link ?? data.buttonLink ?? null,
-        imageUrl,
-        imageMobileUrl,
         isActive: data.is_active ?? data.isActive ?? true,
         startAt: data.start_at ?? data.startAt ?? null,
         endAt: data.end_at ?? data.endAt ?? null,
-        sortOrder: data.sort_order ?? data.sortOrder ?? (announcements.length + 1),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      setAnnouncements(prev => [...prev, newAd]);
-      announcementsData.push(newAd);
-    }
+        sortOrder: data.sort_order ?? data.sortOrder ?? null,
+      }));
+      if (images.desktop) fd.append('image_desktop', images.desktop);
+      if (images.mobile) fd.append('image_mobile', images.mobile);
 
-    toast({ title: isEditing ? '¡Anuncio Actualizado!' : '¡Anuncio Creado!', variant: 'success' });
-    setIsFormOpen(false);
-    setIsSaving(false);
+      const url = isEditing ? `/api/admin/announcements/${data.id}` : '/api/admin/announcements';
+      // Update uses POST (FormData with PUT not compatible in Next.js App Router)
+      const method = isEditing ? 'POST' : 'POST';
+      const res = await fetch(url, { method, body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al guardar');
+      toast({ title: isEditing ? '¡Anuncio Actualizado!' : '¡Anuncio Creado!', variant: 'success' });
+      setIsFormOpen(false);
+      await loadAds();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const tableColumns = useMemo(
     () => columns({ onEdit: handleEdit, onDelete: handleDelete, onToggleActive: handleToggleActive, isDeletingId, updatingStatusId }),
-    [isDeletingId, updatingStatusId, handleEdit, handleDelete, handleToggleActive]
+    [isDeletingId, updatingStatusId, handleToggleActive]
   );
 
   const table = useReactTable({
@@ -131,6 +159,18 @@ export default function AdsPage() {
     state: { pagination, sorting, columnFilters },
   });
 
+  if (isLoading && announcements.length === 0) {
+    return (
+      <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
+          <h2 className="text-4xl font-bold font-headline tracking-tight text-slate-900 dark:text-white">Anuncios</h2>
+          <Button disabled className="rounded-2xl h-11 px-6 font-bold shadow-lg shadow-primary/20"><PlusCircle className="mr-2 h-4 w-4" />Crear Anuncio</Button>
+        </div>
+        <DataTableSkeleton columnCount={6} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
@@ -145,7 +185,7 @@ export default function AdsPage() {
         table={table}
         columns={tableColumns}
         data={announcements}
-        isLoading={false}
+        isLoading={isLoading}
         toolbar={
              <Input
                 placeholder="Filtrar por título..."

@@ -584,7 +584,7 @@ export default function ProductsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 max-w-[1440px] mx-auto space-y-8 p-6 md:p-10 pt-6">
+      <div className="flex-1 mx-auto space-y-8 p-6 md:p-10 pt-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
           <h2 className="text-4xl font-bold font-headline tracking-tight text-slate-900 dark:text-white">Productos</h2>
           <div className="flex items-center space-x-2"><Button disabled className="rounded-full h-12 px-7 font-semibold shadow-lg shadow-primary/20"><PlusCircle className="mr-2 h-4 w-4" />Agregar Producto</Button></div>
@@ -595,7 +595,7 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="flex-1 max-w-[1440px] mx-auto space-y-8 p-6 md:p-10 pt-6">
+    <div className="flex-1 mx-auto space-y-8 p-6 md:p-10 pt-6">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
         <h2 className="text-4xl font-bold font-headline tracking-tight text-slate-900 dark:text-white">Productos</h2>
         <div className="flex items-center space-x-2">

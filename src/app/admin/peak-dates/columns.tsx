@@ -40,7 +40,7 @@ const RestrictionToggle = ({
     <div className="relative flex items-center justify-center">
         {isUpdating && <Loader2 className="absolute h-4 w-4 animate-spin" />}
         <Switch
-            checked={peakDate.is_coupon_restricted}
+            checked={peakDate.isCouponRestricted}
             onCheckedChange={() => onToggleRestriction(peakDate)}
             disabled={isUpdating}
             className={isUpdating ? 'opacity-50' : ''}
@@ -62,15 +62,15 @@ export const columns = ({ onEdit, onDelete, onToggleRestriction, isDeletingId, u
     ),
   },
   {
-    accessorKey: 'peak_date',
+    accessorKey: 'peakDate',
     header: 'Fecha',
     cell: ({ row }) => {
-      const dateValue = row.getValue('peak_date') as string;
+      const dateValue = row.getValue('peakDate') as string;
       return formatDateIntl(dateValue) || '-';
     },
   },
   {
-    accessorKey: 'is_coupon_restricted',
+    accessorKey: 'isCouponRestricted',
     header: 'Cupones Restringidos',
     cell: ({ row }) => {
       const peakDate = row.original;

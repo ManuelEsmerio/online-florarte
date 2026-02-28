@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -11,13 +11,13 @@ import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleto
 import { ShippingZone } from '@/lib/definitions';
 import { columns } from './columns';
 import { ShippingZoneForm } from './shipping-zone-form';
-import { allShippingZones } from '@/lib/data/shipping-zones';
 
 
 export default function ShippingPage() {
   const { toast } = useToast();
 
-  const [shippingZones, setShippingZones] = useState<ShippingZone[]>(() => [...allShippingZones]);
+  const [shippingZones, setShippingZones] = useState<ShippingZone[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -26,6 +26,25 @@ export default function ShippingPage() {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'postalCode', desc: false }]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  const loadZones = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/admin/shipping');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al cargar zonas de envío');
+      setShippingZones(json.data ?? []);
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadZones();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAdd = () => {
     setSelectedZone(null);
@@ -37,41 +56,50 @@ export default function ShippingPage() {
     setIsFormOpen(true);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     setIsDeletingId(id);
-    setShippingZones(prev => prev.filter(z => z.id !== id));
-    // Sincronizar fuente mock
-    const idx = allShippingZones.findIndex(z => z.id === id);
-    if (idx > -1) allShippingZones.splice(idx, 1);
-    toast({ title: '¡Zona Eliminada!', description: 'La zona de envío ha sido eliminada.', variant: 'success' });
-    setIsDeletingId(null);
+    try {
+      const res = await fetch(`/api/admin/shipping/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar');
+      toast({ title: '¡Zona Eliminada!', description: 'La zona de envío ha sido eliminada.', variant: 'success' });
+      await loadZones();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsDeletingId(null);
+    }
   };
 
   const handleSave = async (data: Omit<ShippingZone, 'id'>, id?: number) => {
     setIsSaving(true);
     const isEditing = !!id;
-
-    if (isEditing) {
-      const updated: ShippingZone = { id: id!, ...data };
-      setShippingZones(prev => prev.map(z => z.id === id ? updated : z));
-      // Sincronizar fuente mock
-      const idx = allShippingZones.findIndex(z => z.id === id);
-      if (idx > -1) {
-        allShippingZones[idx] = { id: id!, postal_code: data.postalCode, locality: data.locality, shipping_cost: data.shippingCost } as any;
-      }
-    } else {
-      const newId = Math.max(...shippingZones.map(z => z.id), 0) + 1;
-      const newZone: ShippingZone = { id: newId, ...data };
-      setShippingZones(prev => [...prev, newZone]);
-      allShippingZones.push({ id: newId, postal_code: data.postalCode, locality: data.locality, shipping_cost: data.shippingCost } as any);
+    try {
+      const url = isEditing ? `/api/admin/shipping/${id}` : '/api/admin/shipping';
+      const method = isEditing ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          postalCode: data.postalCode,
+          locality: data.locality,
+          shippingCost: data.shippingCost,
+          isActive: data.isActive ?? true,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al guardar');
+      toast({ title: isEditing ? '¡Zona Actualizada!' : '¡Zona Creada!', description: 'La zona de envío ha sido guardada.', variant: 'success' });
+      setIsFormOpen(false);
+      await loadZones();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
     }
-
-    toast({ title: isEditing ? '¡Zona Actualizada!' : '¡Zona Creada!', description: 'La zona de envío ha sido guardada.', variant: 'success' });
-    setIsFormOpen(false);
-    setIsSaving(false);
   };
 
-  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, isDeletingId }), [handleEdit, handleDelete, isDeletingId]);
+  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, isDeletingId }), [isDeletingId]);
 
   const table = useReactTable({
     data: shippingZones,
@@ -84,6 +112,18 @@ export default function ShippingPage() {
     getSortedRowModel: getSortedRowModel(),
     state: { pagination, sorting, rowSelection },
   });
+
+  if (isLoading && shippingZones.length === 0) {
+    return (
+      <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
+          <h2 className="text-4xl font-bold font-headline tracking-tight text-slate-900 dark:text-white">Zonas de Envío</h2>
+          <Button disabled className="rounded-2xl h-11 px-6 font-bold shadow-lg shadow-primary/20"><PlusCircle className="mr-2 h-4 w-4" />Agregar Zona</Button>
+        </div>
+        <DataTableSkeleton columnCount={4} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
@@ -103,7 +143,7 @@ export default function ShippingPage() {
         zone={selectedZone}
         isSaving={isSaving}
       />
-      <DataTable table={table} columns={tableColumns} data={shippingZones} isLoading={false} />
+      <DataTable table={table} columns={tableColumns} data={shippingZones} isLoading={isLoading} />
     </div>
   );
 }

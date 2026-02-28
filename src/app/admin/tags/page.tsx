@@ -11,23 +11,39 @@ import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleto
 import { Tag } from '@/lib/definitions';
 import { columns } from './columns';
 import { TagForm } from './tag-form';
-import { useProductContext } from '@/context/ProductContext';
-import { allTags } from '@/lib/data/tag-data';
 
 
 export default function TagsPage() {
   const { toast } = useToast();
-  const { tags, fetchAppData, isLoading: isContextLoading } = useProductContext();
+  const [tags, setTags] = useState<Tag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTag, setSelectedTag] = useState<Tag | null>(null);
 
-  useEffect(() => {
-    setIsLoading(isContextLoading);
-  }, [isContextLoading]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
+  const loadTags = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/admin/tags');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al cargar etiquetas');
+      setTags(json.data ?? []);
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTags();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAdd = () => {
     setSelectedTag(null);
@@ -41,39 +57,54 @@ export default function TagsPage() {
 
   const handleDelete = async (id: number) => {
     setIsDeletingId(id);
-    const idx = allTags.findIndex(t => t.id === id);
-    if (idx > -1) allTags.splice(idx, 1);
-    toast({ title: '¡Etiqueta Eliminada!', description: 'La etiqueta se ha eliminado correctamente.', variant: 'success' });
-    await fetchAppData();
-    setIsDeletingId(null);
+    try {
+      const res = await fetch(`/api/admin/tags/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar');
+      toast({ title: '¡Etiqueta Eliminada!', description: 'La etiqueta se ha eliminado correctamente.', variant: 'success' });
+      await loadTags();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsDeletingId(null);
+    }
   };
 
   const handleSave = async (data: Omit<Tag, 'id'>, id?: number) => {
     setIsSaving(true);
     const isEditing = !!id;
-
-    if (isEditing) {
-      const idx = allTags.findIndex(t => t.id === id);
-      if (idx > -1) allTags[idx] = { ...allTags[idx], name: data.name };
-    } else {
-      const newId = Math.max(...allTags.map(t => t.id), 0) + 1;
-      allTags.push({ id: newId, name: data.name });
+    try {
+      const url = isEditing ? `/api/admin/tags/${id}` : '/api/admin/tags';
+      const method = isEditing ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: data.name }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al guardar');
+      toast({ title: isEditing ? '¡Etiqueta Actualizada!' : '¡Etiqueta Creada!', description: 'La etiqueta ha sido guardada.', variant: 'success' });
+      setIsFormOpen(false);
+      await loadTags();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
     }
-
-    toast({ title: isEditing ? '¡Etiqueta Actualizada!' : '¡Etiqueta Creada!', description: 'La etiqueta ha sido guardada.', variant: 'success' });
-    setIsFormOpen(false);
-    await fetchAppData();
-    setIsSaving(false);
   };
 
-  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, isDeletingId }), [handleEdit, handleDelete, isDeletingId]);
+  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, isDeletingId }), [isDeletingId]);
 
   const table = useReactTable({
     data: tags,
     columns: tableColumns,
+    onPaginationChange: setPagination,
+    onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    state: { pagination, sorting, rowSelection },
   });
 
   if (isLoading) {

@@ -11,13 +11,11 @@ import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleto
 import { Occasion } from '@/lib/definitions';
 import { columns } from './columns';
 import { OccasionForm } from './occasion-form';
-import { useProductContext } from '@/context/ProductContext';
-import { allOccasions } from '@/lib/data/occasion-data';
 
 
 export default function OccasionsPage() {
   const { toast } = useToast();
-  const { occasions, fetchAppData, isLoading: isContextLoading } = useProductContext();
+  const [occasions, setOccasions] = useState<Occasion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
@@ -29,10 +27,24 @@ export default function OccasionsPage() {
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  useEffect(() => {
-    setIsLoading(isContextLoading);
-  }, [isContextLoading]);
+  const loadOccasions = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/admin/occasions');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al cargar ocasiones');
+      setOccasions(json.data ?? []);
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
+  useEffect(() => {
+    loadOccasions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAdd = () => {
     setSelectedOccasion(null);
@@ -46,67 +58,68 @@ export default function OccasionsPage() {
 
   const handleDelete = async (id: number) => {
     setIsDeletingId(id);
-    const idx = allOccasions.findIndex(o => o.id === id);
-    if (idx > -1) allOccasions.splice(idx, 1);
-    toast({ title: '¡Ocasión Eliminada!', description: 'La ocasión se ha eliminado correctamente.', variant: 'success' });
-    await fetchAppData();
-    setIsDeletingId(null);
+    try {
+      const res = await fetch(`/api/admin/occasions/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar');
+      toast({ title: '¡Ocasión Eliminada!', description: 'La ocasión se ha eliminado correctamente.', variant: 'success' });
+      await loadOccasions();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsDeletingId(null);
+    }
   };
 
-  const handleSave = async (data: Omit<Occasion, 'id' | 'slug' | 'image_url'> & { slug?: string, image_url?: string }, imageFile: File | null, id?: number) => {
+  const handleSave = async (data: any, imageFile: File | null, id?: number) => {
     setIsSaving(true);
-
     const isEditing = !!id;
-    const imageUrl = imageFile
-      ? URL.createObjectURL(imageFile)
-      : (isEditing ? allOccasions.find(o => o.id === id)?.image_url ?? '' : '');
-
-    if (isEditing) {
-      const idx = allOccasions.findIndex(o => o.id === id);
-      if (idx > -1) {
-        allOccasions[idx] = {
-          ...allOccasions[idx],
-          name: data.name,
-          slug: data.slug ?? allOccasions[idx].slug,
-          description: data.description ?? allOccasions[idx].description,
-          show_on_home: data.show_on_home ?? allOccasions[idx].show_on_home,
-          image_url: imageUrl || allOccasions[idx].image_url,
-        };
-      }
-    } else {
-      const newId = Math.max(...allOccasions.map(o => o.id), 0) + 1;
-      const slug = data.slug ?? (data.name as string).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      allOccasions.push({
-        id: newId,
+    try {
+      const fd = new FormData();
+      fd.append('occasionData', JSON.stringify({
         name: data.name,
-        slug,
         description: data.description ?? '',
-        show_on_home: data.show_on_home ?? false,
-        image_url: imageUrl,
-      });
-    }
+        showOnHome: (data as any).show_on_home ?? data.showOnHome ?? false,
+      }));
+      if (imageFile) fd.append('image', imageFile);
 
-    toast({ title: isEditing ? '¡Ocasión Actualizada!' : '¡Ocasión Creada!', description: 'La ocasión ha sido guardada.', variant: 'success' });
-    setIsFormOpen(false);
-    await fetchAppData();
-    setIsSaving(false);
+      const url = isEditing ? `/api/admin/occasions/${id}` : '/api/admin/occasions';
+      const method = isEditing ? 'PUT' : 'POST';
+      const res = await fetch(url, { method, body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al guardar');
+      toast({ title: isEditing ? '¡Ocasión Actualizada!' : '¡Ocasión Creada!', description: 'La ocasión ha sido guardada.', variant: 'success' });
+      setIsFormOpen(false);
+      await loadOccasions();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleToggleShowOnHome = useCallback(async (occasion: Occasion) => {
     setUpdatingVisibilityId(occasion.id);
-    const newShowOnHome = !occasion.show_on_home;
-    const idx = allOccasions.findIndex(o => o.id === occasion.id);
-    if (idx > -1) allOccasions[idx] = { ...allOccasions[idx], show_on_home: newShowOnHome };
-    toast({
-      title: 'Visibilidad Actualizada',
-      description: `La ocasión "${occasion.name}" ahora ${newShowOnHome ? 'se mostrará' : 'no se mostrará'} en la página de inicio.`,
-      variant: 'success'
-    });
-    await fetchAppData();
-    setUpdatingVisibilityId(null);
-  }, [fetchAppData, toast]);
+    try {
+      const fd = new FormData();
+      fd.append('occasionData', JSON.stringify({ showOnHome: !occasion.showOnHome }));
+      const res = await fetch(`/api/admin/occasions/${occasion.id}`, { method: 'PUT', body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al actualizar');
+      toast({
+        title: 'Visibilidad Actualizada',
+        description: `La ocasión "${occasion.name}" ahora ${!occasion.showOnHome ? 'se mostrará' : 'no se mostrará'} en la página de inicio.`,
+        variant: 'success'
+      });
+      await loadOccasions();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setUpdatingVisibilityId(null);
+    }
+  }, [loadOccasions, toast]);
 
-  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, onToggleShowOnHome: handleToggleShowOnHome, isDeletingId, updatingVisibilityId }), [handleEdit, handleDelete, isDeletingId, handleToggleShowOnHome, updatingVisibilityId]);
+  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, onToggleShowOnHome: handleToggleShowOnHome, isDeletingId, updatingVisibilityId }), [isDeletingId, handleToggleShowOnHome, updatingVisibilityId]);
 
   const table = useReactTable({
     data: occasions,

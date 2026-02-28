@@ -31,7 +31,7 @@ const ShowOnHomeToggle = ({
     <div className="relative flex items-center justify-center">
         {isUpdating && <Loader2 className="absolute h-4 w-4 animate-spin" />}
         <Switch
-            checked={occasion.show_on_home}
+            checked={occasion.showOnHome}
             onCheckedChange={() => onToggle(occasion)}
             disabled={isUpdating}
             className={isUpdating ? 'opacity-50' : ''}
@@ -43,10 +43,10 @@ const ShowOnHomeToggle = ({
 
 export const columns = ({ onEdit, onDelete, onToggleShowOnHome, isDeletingId, updatingVisibilityId }: ColumnsProps): ColumnDef<Occasion>[] => [
     {
-    accessorKey: 'image_url',
+    accessorKey: 'imageUrl',
     header: 'Imagen',
     cell: ({ row }) => {
-      const imageUrl = row.original.image_url;
+      const imageUrl = row.original.imageUrl;
       const name = row.original.name;
       return (
         <Image
@@ -80,7 +80,7 @@ export const columns = ({ onEdit, onDelete, onToggleShowOnHome, isDeletingId, up
     cell: ({ row }) => <div className="truncate max-w-xs">{row.getValue('description')}</div>,
   },
   {
-    accessorKey: 'show_on_home',
+    accessorKey: 'showOnHome',
     header: 'Mostrar en Home',
     cell: ({ row }) => {
       const occasion = row.original;

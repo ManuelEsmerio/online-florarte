@@ -22,9 +22,9 @@ const statusOptions = {
 }
 
 const roleOptions: Record<string, string> = {
-    admin: 'Administradores',
-    customer: 'Clientes',
-    delivery: 'Repartidores'
+    ADMIN: 'Administradores',
+    CUSTOMER: 'Clientes',
+    DELIVERY: 'Repartidores'
 }
 
 export function DataTableToolbar<TData>({
@@ -33,7 +33,7 @@ export function DataTableToolbar<TData>({
   setSearchTerm,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = searchTerm !== ''
-  const statusFilter = table.getColumn("is_deleted")?.getFilterValue() as string ?? "active"
+  const statusFilter = table.getColumn("isDeleted")?.getFilterValue() as string ?? "active"
   const selectedRoles = (table.getColumn("role")?.getFilterValue() as string[]) ?? [];
 
   return (
@@ -59,7 +59,7 @@ export function DataTableToolbar<TData>({
                     <DropdownMenuCheckboxItem
                         key={key}
                         checked={statusFilter === key}
-                        onCheckedChange={() => table.getColumn("is_deleted")?.setFilterValue(key)}
+                        onCheckedChange={() => table.getColumn("isDeleted")?.setFilterValue(key)}
                     >
                         {value}
                     </DropdownMenuCheckboxItem>
