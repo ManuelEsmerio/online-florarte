@@ -3,6 +3,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { columns } from './columns';
 import type { Coupon, User } from '@/lib/definitions';
@@ -40,7 +41,6 @@ export default function CouponsPage() {
   const { products, categories } = useProductContext();
 
   const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [customers, setCustomers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -89,13 +89,16 @@ export default function CouponsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.search, filters.status, pagination.pageIndex, pagination.pageSize]);
 
-  useEffect(() => {
-    if (!isFormOpen) return;
-    fetch('/api/admin/users?status=active')
-      .then(r => r.json())
-      .then(json => setCustomers(json.data ?? []))
-      .catch(() => {});
-  }, [isFormOpen]);
+  const { data: customersData } = useQuery<User[]>({
+    queryKey: ['admin-active-users'],
+    queryFn: () =>
+      fetch('/api/admin/users?status=active')
+        .then(r => r.json())
+        .then(json => json.data ?? []),
+    enabled: isFormOpen,
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+  const customers = customersData ?? [];
 
   const handleDeleteCoupon = useCallback(async (id: number) => {
     setIsDeletingId(id);

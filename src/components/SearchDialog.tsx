@@ -1,7 +1,8 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -85,11 +86,8 @@ export function SearchDialog() {
   const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [results, setResults] = useState<SearchProduct[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
 
-  const inputRef = useRef<HTMLInputElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   // Debounce de 300ms — single debounce, sin setTimeout adicional
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -107,73 +105,46 @@ export function SearchDialog() {
   useEffect(() => {
     if (!isOpen) {
       setSearchTerm('');
-      setResults([]);
     }
   }, [isOpen]);
 
-  // Búsqueda server-side al cambiar el término debounced
-  useEffect(() => {
-    if (debouncedSearchTerm.length < 2) {
-      setResults([]);
-      setIsSearching(false);
-      return;
-    }
+  const { data: results = [], isFetching: isSearching } = useQuery<SearchProduct[]>({
+    queryKey: ['search', debouncedSearchTerm],
+    queryFn: async () => {
+      const res = await apiFetch(
+        `/api/products/search?q=${encodeURIComponent(debouncedSearchTerm)}`
+      );
+      const data = await handleApiResponse(res);
+      const rawProducts: SearchProduct[] = data.products ?? [];
 
-    // Cancelar request anterior si hay uno en vuelo
-    abortControllerRef.current?.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    setIsSearching(true);
-
-    const run = async () => {
-      try {
-        const res = await apiFetch(
-          `/api/products/search?q=${encodeURIComponent(debouncedSearchTerm)}`
-        );
-        if (controller.signal.aborted) return;
-
-        const data = await handleApiResponse(res);
-        const rawProducts: SearchProduct[] = data.products ?? [];
-
-        // Expandir variantes como filas individuales en resultados
-        const expanded = rawProducts.flatMap(p => {
-          if (p.hasVariants && p.variants.length > 0) {
-            return p.variants.map(v => ({
-              ...p,
-              isVariant: true,
-              variantId: v.id,
-              variantName: v.name,
-              name: `${p.name} (${v.name})`,
-              displayCode: v.code ?? p.code,
-              displayPrice: Number(v.price),
-              displaySalePrice: v.salePrice != null ? Number(v.salePrice) : null,
-              displayImage: v.images?.[0]?.src ?? p.mainImage ?? '/placehold.webp',
-            }));
-          }
-          return [{
+      // Expandir variantes como filas individuales en resultados
+      return rawProducts.flatMap(p => {
+        if (p.hasVariants && p.variants.length > 0) {
+          return p.variants.map(v => ({
             ...p,
-            isVariant: false,
-            displayCode: p.code,
-            displayPrice: Number(p.price),
-            displaySalePrice: p.salePrice != null ? Number(p.salePrice) : null,
-            displayImage: p.mainImage ?? '/placehold.webp',
-          }];
-        });
-
-        setResults(expanded);
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
-        console.error('Error en búsqueda:', err);
-      } finally {
-        if (!controller.signal.aborted) setIsSearching(false);
-      }
-    };
-
-    run();
-
-    return () => controller.abort();
-  }, [debouncedSearchTerm, apiFetch]);
+            isVariant: true,
+            variantId: v.id,
+            variantName: v.name,
+            name: `${p.name} (${v.name})`,
+            displayCode: v.code ?? p.code,
+            displayPrice: Number(v.price),
+            displaySalePrice: v.salePrice != null ? Number(v.salePrice) : null,
+            displayImage: v.images?.[0]?.src ?? p.mainImage ?? '/placehold.webp',
+          }));
+        }
+        return [{
+          ...p,
+          isVariant: false,
+          displayCode: p.code,
+          displayPrice: Number(p.price),
+          displaySalePrice: p.salePrice != null ? Number(p.salePrice) : null,
+          displayImage: p.mainImage ?? '/placehold.webp',
+        }];
+      });
+    },
+    enabled: isOpen && debouncedSearchTerm.length >= 2,
+    staleTime: 1000 * 30,
+  });
 
   const handleQuickView = useCallback((product: SearchProduct) => {
     setSelectedProduct(product as any);

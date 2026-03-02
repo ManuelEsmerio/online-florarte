@@ -44,7 +44,6 @@ export function CustomerDetailModal({
   user,
 }: CustomerDetailModalProps) {
     const { shippingZones } = useAuth();
-  if (!user) return null;
 
     const localityByPostalCode = useMemo(() => {
         const entries = (shippingZones || []).map(zone => [zone.postalCode, zone.locality] as const);
@@ -54,6 +53,8 @@ export function CustomerDetailModal({
     const getAddressLocality = (address: Address) => {
         return localityByPostalCode.get(address.postalCode) || address.city;
     };
+
+    if (!user) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -147,12 +148,6 @@ export function CustomerDetailModal({
                 )}
             </div>
         </div>
-
-        <style jsx global>{`
-            .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-            .custom-scrollbar::-webkit-scrollbar-thumb { background: hsl(var(--primary) / 0.2); border-radius: 10px; }
-        `}</style>
       </DialogContent>
     </Dialog>
   );

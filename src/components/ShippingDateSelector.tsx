@@ -98,13 +98,13 @@ export function ShippingDateSelector() {
                 <p className="font-headline text-lg md:text-xl font-bold mb-4 md:mb-6 text-foreground text-center md:text-left relative z-10">¿A dónde quieres enviar?</p>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 items-end relative z-10">
                     <div className="space-y-1.5 md:col-span-1">
-                        <Label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Estado</Label>
+                        <Label htmlFor="state" className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Estado</Label>
                         <Input id="state" value="Jalisco" disabled className="h-11 md:h-12 rounded-xl bg-muted/30 border-none !transition-none !duration-0" />
                     </div>
                     <div className="space-y-1.5 md:col-span-1">
-                        <Label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Ciudad</Label>
+                        <Label htmlFor="city-select" className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Ciudad</Label>
                          <Select value={city} onValueChange={handleCityChange}>
-                            <SelectTrigger className="h-11 md:h-12 rounded-xl bg-muted/30 border-none !transition-none !duration-0 focus:ring-primary/20">
+                            <SelectTrigger id="city-select" className="h-11 md:h-12 rounded-xl bg-muted/30 border-none !transition-none !duration-0 focus:ring-primary/20">
                                 <SelectValue placeholder="Selecciona una ciudad" />
                             </SelectTrigger>
                             <SelectContent>
@@ -121,8 +121,9 @@ export function ShippingDateSelector() {
                         </Select>
                     </div>
                     <div className="space-y-1.5 md:col-span-1">
-                        <Label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Fecha de envío</Label>
+                        <Label htmlFor="shipping-date" className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Fecha de envío</Label>
                         <Button
+                            id="shipping-date"
                             variant={'ghost'}
                             className={cn(
                                 'w-full h-11 md:h-12 justify-start text-left font-normal rounded-xl bg-muted/30 border-none !transition-none !duration-0 hover:bg-muted/50 hover:text-foreground',

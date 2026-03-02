@@ -47,6 +47,7 @@ export function ComplementCard({ complement, parentCartItemId, onQuickView }: Co
                 alt={complement.name}
                 fill
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             />
             <Button
                 size="icon"

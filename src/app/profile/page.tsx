@@ -150,8 +150,9 @@ function ProfilePageContent() {
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: { name: '', email: '', phone: '', profilePic: '' },
+    values: user ? { name: user.name, email: user.email, phone: user.phone || '', profilePic: user.profilePicUrl || '' } : undefined,
   });
-  
+
   const passwordForm = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordSchema),
     defaultValues: {
@@ -160,17 +161,6 @@ function ProfilePageContent() {
         confirmPassword: '',
     },
     });
-
-  useEffect(() => {
-    if (user) {
-        form.reset({
-            name: user.name,
-            email: user.email,
-            phone: user.phone || '',
-            profilePic: user.profilePicUrl || '',
-        });
-    }
-  }, [user, form]);
   
   useEffect(() => {
     if (!authLoading && !user) {
@@ -372,7 +362,7 @@ function ProfilePageContent() {
                             <div className="relative group">
                                 <div className="w-32 h-32 bg-muted rounded-full flex items-center justify-center border-4 border-background shadow-sm overflow-hidden relative ring-4 ring-primary/10">
                                     {profilePic ? (
-                                        <img src={profilePic} alt={user.name} className="object-cover w-full h-full" />
+                                        <Image src={profilePic} alt={user.name} fill className="object-cover rounded-full" sizes="128px" />
                                     ) : (
                                         <UserIcon className="w-16 h-16 text-muted-foreground" />
                                     )}

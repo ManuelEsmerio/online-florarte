@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,7 @@ import { Eye, EyeOff, ArrowLeft, Store, Mail, Lock } from 'lucide-react';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Isotype } from '@/components/icons/Isotype';
 
-export default function LoginPage() {
+const LoginContent = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -136,5 +136,13 @@ export default function LoginPage() {
         </Link>
       </footer>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner variant="luxury" fullScreen size={68} />}>
+      <LoginContent />
+    </Suspense>
   );
 }

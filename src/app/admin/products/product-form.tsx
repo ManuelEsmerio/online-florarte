@@ -574,6 +574,7 @@ function SortableImageItem({ imageObj, index, onRemove }: { imageObj: ImageObjec
         <div ref={setNodeRef} style={style} className="relative group aspect-square">
             <button type="button" {...attributes} {...listeners} className="absolute inset-0 bg-transparent cursor-grab touch-none p-2 flex items-start justify-start text-white"><GripVertical /></button>
             {isBlobPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img src={imageSrc} alt={imageObj.alt || `preview ${index}`} className="absolute inset-0 w-full h-full object-cover rounded-md" />
             ) : (
                 <Image src={imageSrc} alt={imageObj.alt || `preview ${index}`} fill className="object-cover rounded-md" />

@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Product, ProductVariant, ProductRow } from '@/lib/definitions';
 import ProductImageCarousel from './ProductImageCarousel';
@@ -82,52 +83,46 @@ const QuickViewSkeleton = () => (
 );
 
 export default function QuickView({ isOpen, onOpenChange, product: initialProduct }: QuickViewProps) {
-    const [detailedProduct, setDetailedProduct] = useState<Product | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
     const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
     const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
-    
+
     const { addToCart, isAddingToCart, deliveryDate: globalDateString, setDeliveryDate: setGlobalDateString } = useCart();
-    
+
+    const { data: detailedProduct, isLoading, isError } = useQuery<Product>({
+        queryKey: ['product-detail', initialProduct.slug],
+        queryFn: async () => {
+            const res = await fetch(`/api/products/${initialProduct.slug}`);
+            const data = await handleApiResponse(res);
+            if (!data.product) throw new Error('Product not found');
+            return data.product;
+        },
+        enabled: isOpen && !!initialProduct,
+        staleTime: 1000 * 60 * 5,
+    });
+
     useEffect(() => {
-        const fetchDetailedProduct = async () => {
-            if (isOpen && initialProduct) {
-                setIsLoading(true);
-                try {
-                    const res = await fetch(`/api/products/${initialProduct.slug}`);
-                    const data = await handleApiResponse(res);
-                    const productData = data.product;
-                    setDetailedProduct(productData);
-                    
-                    if (productData.has_variants && productData.variants?.length > 0) {
-                        const selectedFromCard = productData.variants.find((variant: any) => {
-                            const initialVariantId = (initialProduct as any)?.variantId;
-                            const initialVariantName = (initialProduct as any)?.variantName;
+        if (!detailedProduct) return;
+        if (detailedProduct.has_variants && detailedProduct.variants?.length > 0) {
+            const selectedFromCard = detailedProduct.variants.find((variant: any) => {
+                const initialVariantId = (initialProduct as any)?.variantId;
+                const initialVariantName = (initialProduct as any)?.variantName;
+                if (initialVariantId != null && Number(variant.id) === Number(initialVariantId)) return true;
+                if (initialVariantName && String(variant.name).trim() === String(initialVariantName).trim()) return true;
+                return false;
+            });
+            const sortedVariants = [...detailedProduct.variants].sort((a, b) => a.price - b.price);
+            setSelectedVariant(selectedFromCard || sortedVariants.find(v => v.stock > 0) || null);
+        } else {
+            setSelectedVariant(null);
+        }
+    }, [detailedProduct, initialProduct]);
 
-                            if (initialVariantId != null && Number(variant.id) === Number(initialVariantId)) {
-                                return true;
-                            }
-
-                            if (initialVariantName && String(variant.name).trim() === String(initialVariantName).trim()) {
-                                return true;
-                            }
-
-                            return false;
-                        });
-
-                        const sortedVariants = [...productData.variants].sort((a, b) => a.price - b.price);
-                        setSelectedVariant(selectedFromCard || sortedVariants.find(v => v.stock > 0) || null);
-                    }
-                } catch (error) {
-                    toast.error('Error al cargar el producto');
-                    onOpenChange(false);
-                } finally {
-                    setIsLoading(false);
-                }
-            }
-        };
-        fetchDetailedProduct();
-    }, [isOpen, initialProduct, onOpenChange]);
+    useEffect(() => {
+        if (isError) {
+            toast.error('Error al cargar el producto');
+            onOpenChange(false);
+        }
+    }, [isError, onOpenChange]);
 
     const handleDateSave = (selectedDate: Date) => {
         if(setGlobalDateString) {
@@ -444,18 +439,6 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
                 onSave={handleDateSave}
             />
             
-            <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 4px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: transparent;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: hsl(var(--primary) / 0.2);
-                    border-radius: 10px;
-                }
-            `}</style>
         </Dialog>
     );
 }

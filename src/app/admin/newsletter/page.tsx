@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,9 +28,39 @@ export default function NewsletterAdminPage() {
 
   const [items, setItems] = useState<Subscriber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [source, setSource] = useState<'all' | 'home' | 'footer'>('all');
-  const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('active');
+
+  type FilterState = {
+    search: string;
+    source: 'all' | 'home' | 'footer';
+    status: 'all' | 'active' | 'inactive';
+  };
+
+  type FilterAction =
+    | { type: 'SET_SEARCH'; payload: string }
+    | { type: 'SET_SOURCE'; payload: 'all' | 'home' | 'footer' }
+    | { type: 'SET_STATUS'; payload: 'all' | 'active' | 'inactive' };
+
+  const [filters, dispatchFilters] = useReducer(
+    (state: FilterState, action: FilterAction): FilterState => {
+      switch (action.type) {
+        case 'SET_SEARCH':
+          return { ...state, search: action.payload };
+        case 'SET_SOURCE':
+          return { ...state, source: action.payload };
+        case 'SET_STATUS':
+          return { ...state, status: action.payload };
+        default:
+          return state;
+      }
+    },
+    {
+      search: '',
+      source: 'all',
+      status: 'active',
+    }
+  );
+
+  const { search, source, status } = filters;
 
   const fetchSubscribers = useCallback(async () => {
     setIsLoading(true);
@@ -100,12 +130,12 @@ export default function NewsletterAdminPage() {
               <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
               <Input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => dispatchFilters({ type: 'SET_SEARCH', payload: e.target.value })}
                 placeholder="Buscar por email..."
                 className="pl-9 h-11 rounded-xl"
               />
             </div>
-            <Select value={source} onValueChange={(v: any) => setSource(v)}>
+            <Select value={source} onValueChange={(v: 'all' | 'home' | 'footer') => dispatchFilters({ type: 'SET_SOURCE', payload: v })}>
               <SelectTrigger className="h-11 rounded-xl md:w-44"><SelectValue placeholder="Fuente" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas</SelectItem>
@@ -113,7 +143,7 @@ export default function NewsletterAdminPage() {
                 <SelectItem value="footer">Footer</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={status} onValueChange={(v: any) => setStatus(v)}>
+            <Select value={status} onValueChange={(v: 'all' | 'active' | 'inactive') => dispatchFilters({ type: 'SET_STATUS', payload: v })}>
               <SelectTrigger className="h-11 rounded-xl md:w-44"><SelectValue placeholder="Estado" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -10,7 +10,7 @@ import { CheckCircle2, Package, Home } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 
-export default function CheckoutSuccessPage() {
+const CheckoutSuccessContent = () => {
   const searchParams = useSearchParams();
   const { clearCart } = useCart();
   const { user } = useAuth();
@@ -59,5 +59,13 @@ export default function CheckoutSuccessPage() {
       </main>
       <Footer />
     </div>
+  );
+};
+
+export default function CheckoutSuccessPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><CheckCircle2 className="w-10 h-10 text-primary animate-spin" /></div>}>
+      <CheckoutSuccessContent />
+    </Suspense>
   );
 }

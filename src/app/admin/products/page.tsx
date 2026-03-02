@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Product, ProductCategory, ProductStatus, Occasion, Tag } from '@/lib/definitions';
 import { useToast } from '@/hooks/use-toast';
@@ -621,6 +622,7 @@ export default function ProductsPage() {
 
       {selectedProduct && (
         <ProductDetailModal
+          key={selectedProduct.id}
           isOpen={isDetailModalOpen}
           onOpenChange={setIsDetailModalOpen}
           product={selectedProduct}
@@ -654,11 +656,13 @@ export default function ProductsPage() {
 
         <aside className="w-full xl:w-[35%] space-y-4 overflow-y-auto custom-scrollbar">
           <div className="rounded-2xl border border-border/50 bg-background dark:bg-zinc-900/50 overflow-hidden">
-            <div className="relative group">
-              <img
+            <div className="relative group h-56">
+              <Image
                 src={(focusedVariant as any)?.images?.[0]?.src || (focusedProduct as any)?.mainImage || (focusedProduct as any)?.image || '/placehold.webp'}
                 alt={(focusedProduct as any)?.name || 'Producto'}
-                className="w-full h-56 object-cover transition-transform duration-700 group-hover:scale-105"
+                fill
+                className="object-cover transition-transform duration-700 group-hover:scale-105"
+                sizes="(max-width: 1280px) 35vw, 400px"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
               <div className="absolute bottom-4 left-4 right-4 text-white">

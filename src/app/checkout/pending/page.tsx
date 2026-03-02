@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { Suspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Clock, Package, Home } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
-export default function CheckoutPendingPage() {
+const CheckoutPendingContent = () => {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const orderId = useMemo(() => searchParams.get('order_id'), [searchParams]);
@@ -50,5 +50,13 @@ export default function CheckoutPendingPage() {
       </main>
       <Footer />
     </div>
+  );
+};
+
+export default function CheckoutPendingPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><Clock className="w-10 h-10 text-primary animate-spin" /></div>}>
+      <CheckoutPendingContent />
+    </Suspense>
   );
 }

@@ -199,12 +199,6 @@ const Step3 = () => {
         }
     }
   
-    useEffect(() => {
-        if (noExpiry) {
-            setValue('validity', { from: new Date(), to: null });
-        }
-    }, [noExpiry, setValue]);
-    
     return (
         <div className="space-y-4">
              <FormField control={control} name="max_uses" render={({ field }) => (<FormItem><FormLabel>Límite de Usos Totales</FormLabel><FormControl><Input type="number" min="0" placeholder="Ilimitado" {...field} /></FormControl><FormDescription className="text-xs">Dejar en blanco para usos ilimitados en total.</FormDescription><FormMessage /></FormItem>)} />
@@ -212,14 +206,16 @@ const Step3 = () => {
                 <FormItem className="flex flex-col"><FormLabel>Vigencia</FormLabel>
                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                       <PopoverTrigger asChild>
-                        <Button id="date" variant={"outline"} disabled={noExpiry} className={cn("w-full justify-start text-left font-normal", !field.value?.from && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value?.from ? (field.value.to ? (<>{format(field.value.from, "LLL dd, y", { locale: es })} - {format(field.value.to, "LLL dd, y", { locale: es })}</>) : (format(field.value.from, "LLL dd, y", { locale: es }))) : (<span>Selecciona un rango de fechas</span>)}</Button>
+                        <FormControl>
+                          <Button id="date" variant={"outline"} disabled={noExpiry} className={cn("w-full justify-start text-left font-normal", !field.value?.from && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value?.from ? (field.value.to ? (<>{format(field.value.from, "LLL dd, y", { locale: es })} - {format(field.value.to, "LLL dd, y", { locale: es })}</>) : (format(field.value.from, "LLL dd, y", { locale: es }))) : (<span>Selecciona un rango de fechas</span>)}</Button>
+                        </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0 z-50" align="start"><Calendar initialFocus mode="range" defaultMonth={field.value?.from} selected={field.value ? { from: field.value.from, to: field.value.to ?? undefined } : undefined} onSelect={handleDateSelect} numberOfMonths={1} locale={es} /></PopoverContent>
                     </Popover><FormMessage />
                 </FormItem>
               )}
             />
-             <FormField control={control} name="noExpiry" render={({ field }) => (<FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>Sin fecha de vencimiento</FormLabel></div></FormItem>)} />
+             <FormField control={control} name="noExpiry" render={({ field }) => (<FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={(checked) => { field.onChange(checked); if (checked) setValue('validity', { from: new Date(), to: null }); }} /></FormControl><div className="space-y-1 leading-none"><FormLabel>Sin fecha de vencimiento</FormLabel></div></FormItem>)} />
         </div>
     )
 }

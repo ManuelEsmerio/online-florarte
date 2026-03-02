@@ -133,13 +133,13 @@ export function Footer() {
               Creando momentos inolvidables con el lenguaje de las flores en Tequila, Jalisco y la Región Valles.
             </p>
             <div className="flex items-center gap-5">
-              <a href="#" className="social-icon text-slate-400 dark:text-slate-500 hover:text-primary transition-all duration-300 hover:-translate-y-1" aria-label="Facebook">
+              <a href="https://www.facebook.com/florarte" target="_blank" rel="noopener noreferrer" className="social-icon text-slate-400 dark:text-slate-500 hover:text-primary transition-all duration-300 hover:-translate-y-1" aria-label="Facebook">
                 <FacebookIcon />
               </a>
-              <a href="#" className="social-icon text-slate-400 dark:text-slate-500 hover:text-primary transition-all duration-300 hover:-translate-y-1" aria-label="Instagram">
+              <a href="https://www.instagram.com/florarte" target="_blank" rel="noopener noreferrer" className="social-icon text-slate-400 dark:text-slate-500 hover:text-primary transition-all duration-300 hover:-translate-y-1" aria-label="Instagram">
                 <InstagramIcon />
               </a>
-              <a href="#" className="social-icon text-slate-400 dark:text-slate-500 hover:text-primary transition-all duration-300 hover:-translate-y-1" aria-label="Twitter">
+              <a href="https://www.twitter.com/florarte" target="_blank" rel="noopener noreferrer" className="social-icon text-slate-400 dark:text-slate-500 hover:text-primary transition-all duration-300 hover:-translate-y-1" aria-label="Twitter">
                 <TwitterIcon />
               </a>
             </div>

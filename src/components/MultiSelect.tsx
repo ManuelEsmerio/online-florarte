@@ -1,7 +1,7 @@
 // src/components/MultiSelect.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useId } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -19,6 +19,7 @@ interface MultiSelectProps {
 
 const MultiSelect: React.FC<MultiSelectProps> = ({ options, selected, onChange, placeholder, className }) => {
   const [open, setOpen] = useState(false);
+  const listboxId = useId();
 
   const handleSelect = (value: number) => {
     const isSelected = selected.includes(value);
@@ -39,6 +40,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, selected, onChange, 
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-controls={listboxId}
           className={cn("w-full justify-between h-auto min-h-10", className)}
         >
           <div className="flex gap-1 flex-wrap">
@@ -56,7 +58,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, selected, onChange, 
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[200]">
         <Command>
           <CommandInput placeholder="Buscar..." />
-          <CommandList className="max-h-64">
+          <CommandList id={listboxId} className="max-h-64">
             <CommandEmpty>No se encontraron resultados.</CommandEmpty>
             <CommandGroup>
               {options.map((option) => (

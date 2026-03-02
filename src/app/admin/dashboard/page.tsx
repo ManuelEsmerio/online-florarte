@@ -80,6 +80,27 @@ const StatCardSkeleton = () => (
     </Card>
 );
 
+const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('es-MX', {
+        style: 'currency',
+        currency: 'MXN'
+    }).format(value);
+};
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+        return (
+            <div className="rounded-2xl border-none bg-background p-4 shadow-2xl ring-1 ring-black/5">
+                <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</p>
+                    <p className="text-lg font-bold text-primary">{formatCurrency(payload[0].value)}</p>
+                </div>
+            </div>
+        );
+    }
+    return null;
+};
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -94,27 +115,6 @@ export default function DashboardPage() {
   useEffect(() => {
     loadStats();
   }, [loadStats]);
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="rounded-2xl border-none bg-background p-4 shadow-2xl ring-1 ring-black/5">
-          <div className="space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</p>
-            <p className="text-lg font-bold text-primary">{formatCurrency(payload[0].value)}</p>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-MX', {
-        style: 'currency',
-        currency: 'MXN'
-    }).format(value);
-  }
 
   const formatPercentage = (change: number | null | undefined) => {
     if (change === null || change === undefined) return "N/A";

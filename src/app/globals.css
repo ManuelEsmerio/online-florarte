@@ -204,8 +204,49 @@
   }
 }
 
+@layer base {
+  .custom-scrollbar {
+    --scrollbar-width: 4px;
+    --scrollbar-track-color: transparent;
+    --scrollbar-thumb-color: hsl(var(--primary) / 0.2);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: var(--scrollbar-width);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: var(--scrollbar-track-color);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb-color);
+    border-radius: 10px;
+  }
+
+  .custom-scrollbar--strong {
+    --scrollbar-thumb-color: hsl(var(--primary) / 0.3);
+  }
+
+  .custom-scrollbar--muted {
+    --scrollbar-thumb-color: #e2e8f0;
+  }
+
+  .dark .custom-scrollbar--muted {
+    --scrollbar-thumb-color: #333;
+  }
+
+  .custom-scrollbar--contrast {
+    --scrollbar-thumb-color: #444;
+  }
+}
+
 @layer utilities {
   .animate-pulse {
     animation: skeleton-soft-pulse 1.7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  .bg-radial-gradient {
+    background: radial-gradient(circle, var(--tw-gradient-from) 0%, var(--tw-gradient-to) 70%);
   }
 }

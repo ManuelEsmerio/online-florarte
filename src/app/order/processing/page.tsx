@@ -1,19 +1,37 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 
 const POLL_INTERVAL_MS = 2500;
 const TIMEOUT_MS = 90_000; // 90 seconds before giving up
 
-export default function OrderProcessingPage() {
+const OrderProcessingContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId');
 
   const startedAt = useRef(Date.now());
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { data } = useQuery({
+    queryKey: ['order-status', orderId],
+    queryFn: async () => {
+      const res = await fetch(`/api/orders/${orderId}/status`);
+      if (!res.ok) throw new Error('status_fetch_failed');
+      return res.json();
+    },
+    enabled: !!orderId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.data?.status;
+      if (Date.now() - startedAt.current > TIMEOUT_MS) return false;
+      if (status === 'paid' || status === 'failed') return false;
+      return POLL_INTERVAL_MS;
+    },
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
     if (!orderId) {
@@ -21,42 +39,19 @@ export default function OrderProcessingPage() {
       return;
     }
 
-    const poll = async () => {
-      // Safety timeout — stop polling and go to error page
-      if (Date.now() - startedAt.current > TIMEOUT_MS) {
-        router.replace(`/order/error?orderId=${orderId}&reason=timeout`);
-        return;
-      }
+    if (Date.now() - startedAt.current > TIMEOUT_MS) {
+      router.replace(`/order/error?orderId=${orderId}&reason=timeout`);
+      return;
+    }
 
-      try {
-        const res = await fetch(`/api/orders/${orderId}/status`);
-        if (!res.ok) throw new Error('status_fetch_failed');
-        const { data } = await res.json();
-
-        if (data?.status === 'paid') {
-          // Clear cart silently before navigating to success page
-          await fetch('/api/cart', { method: 'DELETE' }).catch(() => {/* ignore */});
-          router.replace(`/order/success?orderId=${orderId}`);
-          return;
-        }
-
-        if (data?.status === 'failed') {
-          router.replace(`/order/error?orderId=${orderId}&reason=payment_failed`);
-          return;
-        }
-      } catch {
-        // Network error — keep polling until timeout
-      }
-
-      timerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
-    };
-
-    timerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [orderId, router]);
+    const status = data?.data?.status;
+    if (status === 'paid') {
+      fetch('/api/cart', { method: 'DELETE' }).catch(() => {/* ignore */});
+      router.replace(`/order/success?orderId=${orderId}`);
+    } else if (status === 'failed') {
+      router.replace(`/order/error?orderId=${orderId}&reason=payment_failed`);
+    }
+  }, [data, orderId, router]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
@@ -75,5 +70,19 @@ export default function OrderProcessingPage() {
         )}
       </div>
     </div>
+  );
+};
+
+export default function OrderProcessingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <Loader2 className="w-12 h-12 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <OrderProcessingContent />
+    </Suspense>
   );
 }

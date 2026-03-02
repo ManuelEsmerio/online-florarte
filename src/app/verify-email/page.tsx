@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { MailCheck, MailWarning, Loader2, Mail } from 'lucide-react';
 import Link from 'next/link';
 import { Isotype } from '@/components/icons/Isotype';
+import { useQuery } from '@tanstack/react-query';
 
 type Status = 'pending' | 'loading' | 'success' | 'error';
 
@@ -19,41 +20,45 @@ const VerifyEmailContent = () => {
   const token = searchParams.get('token');
   const email = searchParams.get('email');
 
-  const [status, setStatus] = useState<Status>(token ? 'loading' : 'pending');
-  const [errorMessage, setErrorMessage] = useState('');
   const [isResending, setIsResending] = useState(false);
 
-  // Si hay token, verificar automáticamente
-  useEffect(() => {
-    if (!token) return;
+  const { data, isLoading: isVerifying } = useQuery({
+    queryKey: ['verify-email', token],
+    queryFn: () =>
+      fetch(`/api/auth/verify-email?token=${token}`).then(res => res.json()),
+    enabled: !!token,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
-    fetch(`/api/auth/verify-email?token=${token}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setStatus('success');
-          toast({ title: '¡Correo verificado!', description: data.data?.message, variant: 'success' });
-          setTimeout(() => router.push('/'), 3000);
-        } else {
-          setStatus('error');
-          setErrorMessage(data.error || 'El enlace no es válido o ha expirado.');
-        }
-      })
-      .catch(() => {
-        setStatus('error');
-        setErrorMessage('Error de conexión. Intenta de nuevo.');
-      });
-  }, [token, router, toast]);
+  // Derivar status desde react-query
+  const status: Status = !token
+    ? 'pending'
+    : isVerifying
+    ? 'loading'
+    : data?.success
+    ? 'success'
+    : 'error';
+
+  const errorMessage = (!data?.success && data?.error) || 'El enlace no es válido o ha expirado.';
+
+  // Side-effects al verificar exitosamente
+  useEffect(() => {
+    if (data?.success) {
+      toast({ title: '¡Correo verificado!', description: data.data?.message, variant: 'success' });
+      setTimeout(() => router.push('/'), 3000);
+    }
+  }, [data?.success, data?.data?.message, toast, router]);
 
   const handleResend = async () => {
     setIsResending(true);
     try {
       const res = await fetch('/api/auth/resend-verification', { method: 'POST' });
-      const data = await res.json();
+      const resData = await res.json();
       if (res.ok) {
         toast({ title: 'Correo enviado', description: 'Revisa tu bandeja de entrada.', variant: 'success' });
       } else {
-        toast({ title: 'Error', description: data.error || 'No se pudo reenviar.', variant: 'destructive' });
+        toast({ title: 'Error', description: resData.error || 'No se pudo reenviar.', variant: 'destructive' });
       }
     } catch {
       toast({ title: 'Error de conexión', variant: 'destructive' });

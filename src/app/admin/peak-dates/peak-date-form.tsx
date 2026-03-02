@@ -115,21 +115,23 @@ export function PeakDateForm({ isOpen, onOpenChange, onSave, peakDate, allPeakDa
                   <FormLabel>Fecha</FormLabel>
                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                       <PopoverTrigger asChild>
-                        <Button
-                            id="date"
-                            variant={"outline"}
-                            className={cn(
-                                "w-full justify-start text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                            )}
-                        >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {field.value ? (
-                                formatDateIntl(field.value)
-                            ) : (
-                                <span>Selecciona una fecha</span>
-                            )}
-                        </Button>
+                        <FormControl>
+                          <Button
+                              id="date"
+                              variant={"outline"}
+                              className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                              )}
+                          >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {field.value ? (
+                                  formatDateIntl(field.value)
+                              ) : (
+                                  <span>Selecciona una fecha</span>
+                              )}
+                          </Button>
+                        </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0 z-50" align="start">
                         <Calendar

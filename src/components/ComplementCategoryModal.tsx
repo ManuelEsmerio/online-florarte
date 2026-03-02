@@ -1,7 +1,8 @@
 
 'use client';
 
-import React, { useCallback, useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -52,8 +53,6 @@ export function ComplementCategoryModal({
   const { cart, toggleComplement, isTogglingComplement, updatingItemId, updateQuantity } = useCart();
   
   const [activeCategoryId, setActiveCategoryId] = useState<number>(11); // Peluches por defecto
-  const [productsByCategory, setProductsByCategory] = useState<Record<number, Product[]>>({});
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
   // Totales de complementos seleccionados en el carrito
   const selectedComplements = useMemo(() => {
@@ -64,33 +63,17 @@ export function ComplementCategoryModal({
     return selectedComplements.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   }, [selectedComplements]);
 
-  // Cargar productos de la categoría seleccionada desde la FAKE API
-  useEffect(() => {
-    const fetchProducts = async () => {
-      if (activeCategoryId && !productsByCategory[activeCategoryId]) {
-        setIsLoadingProducts(true);
-        try {
-          const categorySlug = COMPLEMENT_CATEGORIES.find(c => c.id === activeCategoryId)?.slug;
-          // Llamada a la API interna que usa los repositorios mock
-          const res = await fetch(`/api/products?category=${categorySlug}`);
-          const data = await handleApiResponse(res);
-          setProductsByCategory(prev => ({
-            ...prev,
-            [activeCategoryId]: data.products || []
-          }));
-        } catch (error) {
-          console.error("Failed to fetch mock products", error);
-        } finally {
-          setIsLoadingProducts(false);
-        }
-      }
-    };
-    if (isOpen && activeCategoryId) fetchProducts();
-  }, [activeCategoryId, isOpen, productsByCategory]);
-
-  const activeProducts = useMemo(() => {
-    return activeCategoryId ? productsByCategory[activeCategoryId] || [] : [];
-  }, [activeCategoryId, productsByCategory]);
+  const { data: activeProducts = [], isFetching: isLoadingProducts } = useQuery<Product[]>({
+    queryKey: ['complement-products', activeCategoryId],
+    queryFn: async () => {
+      const categorySlug = COMPLEMENT_CATEGORIES.find(c => c.id === activeCategoryId)?.slug;
+      const res = await fetch(`/api/products?category=${categorySlug}`);
+      const data = await handleApiResponse<{ products?: Product[] }>(res, { products: [] });
+      return data.products || [];
+    },
+    enabled: isOpen && !!activeCategoryId,
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
 
   const getCartItem = (productId: number) => {
     return cart.find(item => 
@@ -129,7 +112,7 @@ export function ComplementCategoryModal({
         {/* Main Body Layout */}
         <div className="flex-1 flex overflow-hidden">
           {/* Sidebar Navigation */}
-          <div className="w-1/3 md:w-1/4 border-r border-border/50 p-4 overflow-y-auto custom-scrollbar bg-muted/20">
+          <div className="w-1/3 md:w-1/4 border-r border-border/50 p-4 overflow-y-auto custom-scrollbar custom-scrollbar--strong bg-muted/20">
             <nav className="space-y-3">
               {COMPLEMENT_CATEGORIES.map((category) => {
                   const Icon = category.icon;
@@ -168,7 +151,7 @@ export function ComplementCategoryModal({
           </div>
 
           {/* Product Grid Area */}
-          <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-background">
+          <div className="flex-1 p-6 overflow-y-auto custom-scrollbar custom-scrollbar--strong bg-background">
             {isLoadingProducts ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -192,6 +175,7 @@ export function ComplementCategoryModal({
                                         alt={complement.name}
                                         fill
                                         className="object-cover group-hover:scale-105 transition-transform duration-700"
+                                        sizes="(max-width: 768px) 80vw, 35vw"
                                     />
                                 </div>
                                 <div className="flex flex-col flex-1 px-1">
@@ -269,18 +253,6 @@ export function ComplementCategoryModal({
         </div>
       </DialogContent>
 
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: hsl(var(--primary) / 0.3);
-            border-radius: 10px;
-        }
-      `}</style>
     </Dialog>
   );
 }

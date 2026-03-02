@@ -56,20 +56,15 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
         postalCode: '',
         addressType: 'HOME',
         referenceNotes: '',
-    }
-  });
-
-  useEffect(() => {
-    if (addressToEdit) {
-      form.reset({
+    },
+    values: addressToEdit ? {
         ...addressToEdit,
         recipientPhone: addressToEdit.recipientPhone || '',
         interiorNumber: addressToEdit.interiorNumber || '',
-                state: 'Jalisco',
+        state: 'Jalisco',
         referenceNotes: addressToEdit.referenceNotes || '',
-      });
-    }
-  }, [addressToEdit, form]);
+    } : undefined,
+  });
 
     useEffect(() => {
         if (form.getValues('state') !== 'Jalisco') {

@@ -73,7 +73,7 @@ const ShoppingCartButton = () => {
                 </div>
 
                 {/* Items List */}
-                <div className="flex-1 overflow-y-auto px-8 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto px-8 custom-scrollbar custom-scrollbar--muted">
                     {isLoading && cart.length === 0 ? (
                         <div className="space-y-8 py-4">
                             {Array.from({ length: 3 }).map((_, i) => <CartItemSkeleton key={i} />)}
@@ -87,11 +87,12 @@ const ShoppingCartButton = () => {
                                 return (
                                     <div key={item.cartItemId} className="flex gap-4 group animate-fade-in-up">
                                         <div className="w-24 h-24 flex-shrink-0 bg-slate-50 dark:bg-zinc-900 rounded-lg overflow-hidden border border-slate-100 dark:border-zinc-800 relative">
-                                            <Image 
-                                                src={item.image || '/placehold.webp'} 
-                                                alt={item.name} 
+                                            <Image
+                                                src={item.image || '/placehold.webp'}
+                                                alt={item.name}
                                                 fill
                                                 className="object-cover"
+                                                sizes="96px"
                                             />
                                         </div>
                                         <div className="flex flex-col flex-1">
@@ -195,22 +196,6 @@ const ShoppingCartButton = () => {
                     </div>
                 </div>
             </SheetContent>
-
-            <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 4px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: transparent;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #e2e8f0;
-                    border-radius: 10px;
-                }
-                .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #333;
-                }
-            `}</style>
         </Sheet>
     );
 }

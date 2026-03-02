@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { Suspense, useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ProductCard } from '@/components/ProductCard';
 import type { Product, ProductCategory, Occasion, Announcement, Tag, ProductRow } from '@/lib/definitions';
 import { Input } from '@/components/ui/input';
@@ -67,6 +67,114 @@ interface CategoryPageClientProps {
   occasionSlug?: string | null;
 }
 
+interface FiltersContentProps {
+  searchTerm: string;
+  setSearchTerm: (value: string) => void;
+  pageType: 'category' | 'all' | 'occasion';
+  mainCategories: ProductCategory[];
+  selectedCategories: string[];
+  handleCategoryChange: (slug: string) => void;
+  getSubcategories: (id: number) => ProductCategory[];
+  maxPrice: number;
+  priceRange: [number];
+  setPriceRange: (value: [number]) => void;
+  allOccasions: Occasion[];
+  selectedOccasions: string[];
+  handleOccasionChange: (slug: string) => void;
+  allTags: Tag[];
+  selectedTags: string[];
+  handleTagChange: (name: string) => void;
+}
+
+const FiltersContent = ({
+  searchTerm, setSearchTerm, pageType, mainCategories, selectedCategories,
+  handleCategoryChange, getSubcategories, maxPrice, priceRange, setPriceRange,
+  allOccasions, selectedOccasions, handleOccasionChange, allTags, selectedTags,
+  handleTagChange,
+}: FiltersContentProps) => (
+    <div className="space-y-8">
+        <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+                placeholder="Buscar por nombre..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-12 rounded-xl"
+            />
+        </div>
+
+        {pageType === 'all' && (
+            <div className="space-y-4">
+                <h3 className="font-bold uppercase text-muted-foreground text-xs tracking-widest">Categoría</h3>
+                <div className="space-y-3">
+                    {mainCategories.map(cat => (
+                        <div key={cat.id}>
+                            <div className="flex items-center space-x-2">
+                                <Checkbox id={cat.slug} checked={selectedCategories.includes(cat.slug)} onCheckedChange={() => handleCategoryChange(cat.slug)} />
+                                <Label htmlFor={cat.slug} className="font-semibold text-sm">{cat.name}</Label>
+                            </div>
+                            {getSubcategories(cat.id).length > 0 && (
+                                <div className="pl-6 mt-3 space-y-3">
+                                    {getSubcategories(cat.id).map(sub => (
+                                        <div key={sub.id} className="flex items-center space-x-2">
+                                            <Checkbox id={sub.slug} checked={selectedCategories.includes(sub.slug)} onCheckedChange={() => handleCategoryChange(sub.slug)} />
+                                            <Label htmlFor={sub.slug} className="font-normal text-sm text-muted-foreground">{sub.name}</Label>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
+
+        <div>
+          <h3 className="font-bold uppercase text-muted-foreground text-xs tracking-widest mb-6">Precio Máximo</h3>
+          <Slider
+              max={maxPrice}
+              step={50}
+              value={priceRange}
+              onValueChange={(value) => setPriceRange(value as [number])}
+              className="py-4"
+          />
+          <div className="flex justify-between text-sm font-bold text-primary mt-2">
+              <span>$0</span>
+              <span>${priceRange[0]}</span>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+            <h3 className="font-bold uppercase text-muted-foreground text-xs tracking-widest">Ocasión</h3>
+            <div className="flex flex-wrap gap-2">
+                {allOccasions.map(occ => (
+                    <Button
+                        key={occ.id}
+                        variant={selectedOccasions.includes(occ.slug) ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => handleOccasionChange(occ.slug)}
+                        className="rounded-full h-9 px-4"
+                    >
+                        {occ.name}
+                    </Button>
+                ))}
+            </div>
+        </div>
+
+        <div className="space-y-4">
+            <h3 className="font-bold uppercase text-muted-foreground text-xs tracking-widest">Etiquetas</h3>
+            <div className="grid grid-cols-2 gap-3">
+                {allTags.map(tag => (
+                    <div key={tag.id} className="flex items-center space-x-2 p-2 rounded-lg hover:bg-secondary/50 transition-colors">
+                        <Checkbox id={`tag-${tag.id}`} checked={selectedTags.includes(tag.name)} onCheckedChange={() => handleTagChange(tag.name)} />
+                        <Label htmlFor={`tag-${tag.id}`} className="font-medium text-xs">{tag.name}</Label>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+);
+
 const getParentCategoryId = (category: any): number | null => {
   const rawParentId = category?.parent_id ?? category?.parentId ?? null;
   if (rawParentId == null) return null;
@@ -88,7 +196,17 @@ const normalizeCategory = (category: any): any => {
   };
 };
 
-export function CategoryPageClient({ 
+const CategoryPageFallback = () => (
+  <div className="container mx-auto px-4 py-12">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-8">
+      {Array.from({ length: 8 }).map((_, index) => (
+        <ProductCardSkeleton key={`category-fallback-${index}`} />
+      ))}
+    </div>
+  </div>
+);
+
+function CategoryPageClientContent({ 
     categorySlug,
     pageType,
     occasionSlug
@@ -437,90 +555,6 @@ export function CategoryPageClient({
     }
   }, [pageType, currentCategory, currentOccasion]);
 
-  const FiltersContent = () => (
-    <div className="space-y-8">
-        <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-                placeholder="Buscar por nombre..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 h-12 rounded-xl"
-            />
-        </div>
-      
-        {pageType === 'all' && (
-            <div className="space-y-4">
-                <h3 className="font-bold uppercase text-muted-foreground text-xs tracking-widest">Categoría</h3>
-                <div className="space-y-3">
-                    {mainCategories.map(cat => (
-                        <div key={cat.id}>
-                            <div className="flex items-center space-x-2">
-                                <Checkbox id={cat.slug} checked={selectedCategories.includes(cat.slug)} onCheckedChange={() => handleCategoryChange(cat.slug)} />
-                                <Label htmlFor={cat.slug} className="font-semibold text-sm">{cat.name}</Label>
-                            </div>
-                            {getSubcategories(cat.id).length > 0 && (
-                                <div className="pl-6 mt-3 space-y-3">
-                                    {getSubcategories(cat.id).map(sub => (
-                                        <div key={sub.id} className="flex items-center space-x-2">
-                                            <Checkbox id={sub.slug} checked={selectedCategories.includes(sub.slug)} onCheckedChange={() => handleCategoryChange(sub.slug)} />
-                                            <Label htmlFor={sub.slug} className="font-normal text-sm text-muted-foreground">{sub.name}</Label>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            </div>
-        )}
-
-        <div>
-          <h3 className="font-bold uppercase text-muted-foreground text-xs tracking-widest mb-6">Precio Máximo</h3>
-          <Slider
-              max={maxPrice}
-              step={50}
-              value={priceRange}
-              onValueChange={(value) => setPriceRange(value as [number])}
-              className="py-4"
-          />
-          <div className="flex justify-between text-sm font-bold text-primary mt-2">
-              <span>$0</span>
-              <span>${priceRange[0]}</span>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-            <h3 className="font-bold uppercase text-muted-foreground text-xs tracking-widest">Ocasión</h3>
-            <div className="flex flex-wrap gap-2">
-                {allOccasions.map(occ => (
-                    <Button
-                        key={occ.id}
-                        variant={selectedOccasions.includes(occ.slug) ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => handleOccasionChange(occ.slug)}
-                        className="rounded-full h-9 px-4"
-                    >
-                        {occ.name}
-                    </Button>
-                ))}
-            </div>
-        </div>
-
-        <div className="space-y-4">
-            <h3 className="font-bold uppercase text-muted-foreground text-xs tracking-widest">Etiquetas</h3>
-            <div className="grid grid-cols-2 gap-3">
-                {allTags.map(tag => (
-                    <div key={tag.id} className="flex items-center space-x-2 p-2 rounded-lg hover:bg-secondary/50 transition-colors">
-                        <Checkbox id={`tag-${tag.id}`} checked={selectedTags.includes(tag.name)} onCheckedChange={() => handleTagChange(tag.name)} />
-                        <Label htmlFor={`tag-${tag.id}`} className="font-medium text-xs">{tag.name}</Label>
-                    </div>
-                ))}
-            </div>
-        </div>
-    </div>
-  );
-
   return (
     <>
       <div className="container mx-auto px-4 py-6 md:px-6 md:py-12">
@@ -583,7 +617,24 @@ export function CategoryPageClient({
                             </SheetTitle>
                         </SheetHeader>
                         <div className="flex-grow overflow-y-auto px-6 py-8">
-                            <FiltersContent />
+                            <FiltersContent
+                                searchTerm={searchTerm}
+                                setSearchTerm={setSearchTerm}
+                                pageType={pageType}
+                                mainCategories={mainCategories}
+                                selectedCategories={selectedCategories}
+                                handleCategoryChange={handleCategoryChange}
+                                getSubcategories={getSubcategories}
+                                maxPrice={maxPrice}
+                                priceRange={priceRange}
+                                setPriceRange={setPriceRange}
+                                allOccasions={allOccasions}
+                                selectedOccasions={selectedOccasions}
+                                handleOccasionChange={handleOccasionChange}
+                                allTags={allTags}
+                                selectedTags={selectedTags}
+                                handleTagChange={handleTagChange}
+                            />
                         </div>
                         <SheetFooter className="p-6 border-t mt-auto">
                             <SheetClose asChild>
@@ -655,5 +706,13 @@ export function CategoryPageClient({
         />
       )}
     </>
+  );
+}
+
+export function CategoryPageClient(props: CategoryPageClientProps) {
+  return (
+    <Suspense fallback={<CategoryPageFallback />}>
+      <CategoryPageClientContent {...props} />
+    </Suspense>
   );
 }

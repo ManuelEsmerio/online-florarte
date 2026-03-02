@@ -2,7 +2,7 @@
 // src/app/admin/products/product-detail-modal.tsx
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -104,16 +104,13 @@ export function ProductDetailModal({
   onEditProduct,
 }: ProductDetailModalProps) {
 
-  const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>(undefined);
-  const isLoading = !product;
-
-  useEffect(() => {
-    if (product?.has_variants && product.variants && product.variants.length > 0) {
-      setSelectedVariantId(String(product.variants[0].id));
-    } else {
-      setSelectedVariantId(undefined);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>(() => {
+    if (product?.has_variants && product?.variants && product.variants.length > 0) {
+      return String(product.variants[0].id);
     }
-  }, [product]);
+    return undefined;
+  });
+  const isLoading = !product;
 
   const selectedVariant = useMemo(() => {
     if (!selectedVariantId || !product?.variants) return null;

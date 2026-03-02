@@ -60,6 +60,7 @@ export function Categories({ categories, isLoading }: CategoriesProps) {
                                 alt={`Colección de ${category.name}`}
                                 fill
                                 className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-110"
+                                sizes="(max-width: 640px) 70vw, (max-width: 1024px) 33vw, 25vw"
                                 data-ai-hint={category.name.toLowerCase()}
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-6 flex flex-col justify-end items-center text-center transition-all duration-500 group-hover:via-black/40">

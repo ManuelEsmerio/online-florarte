@@ -59,6 +59,7 @@ export function Occasions({ occasions, isLoading }: OccasionsProps) {
                                 alt={`Flores para ${occasion.name}`}
                                 fill
                                 className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-110"
+                                sizes="(max-width: 640px) 45vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
                                 data-ai-hint={occasion.name}
                             />
                             <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
