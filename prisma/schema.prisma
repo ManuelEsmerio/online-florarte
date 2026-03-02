@@ -607,14 +607,30 @@ model Testimonial {
 // ============================================================
 
 model ShippingZone {
-  id           Int      @id @default(autoincrement())
-  postalCode   String   @unique @db.VarChar(10)
-  locality     String   @db.VarChar(150)
-  shippingCost Decimal  @db.Decimal(10, 2)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id               Int      @id @default(autoincrement())
 
+  // Datos actuales
+  postalCode       String   @db.VarChar(10)
+  locality         String   @db.VarChar(150)
+  shippingCost     Decimal  @db.Decimal(10, 2)
+  isActive         Boolean  @default(true)
+
+  // NUEVOS CAMPOS GEO
+  settlementType   String?  @db.VarChar(100) // Colonia, Ranchería, Ejido
+  municipality     String?  @db.VarChar(150)
+  state            String?  @db.VarChar(100)
+
+  stateCode        String?  @db.VarChar(5)   // c_estado
+  municipalityCode String?  @db.VarChar(5)   // c_mnpio
+  postalOfficeCode String?  @db.VarChar(10)  // c_oficina
+
+  // Clasificación logística (muy útil)
+  zone             String?  @db.VarChar(50)  // urbana, rural, extendida
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([postalCode, locality])
   @@map("shipping_zones")
 }
 

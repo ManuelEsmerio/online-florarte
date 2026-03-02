@@ -554,6 +554,13 @@ export interface ShippingZone {
   locality: string;
   shippingCost: number; // Decimal
   isActive: boolean;
+  settlementType?: string | null;
+  municipality?: string | null;
+  state?: string | null;
+  stateCode?: string | null;
+  municipalityCode?: string | null;
+  postalOfficeCode?: string | null;
+  zone?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

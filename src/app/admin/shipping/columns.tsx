@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ShippingZone } from '@/lib/definitions';
 import React from 'react';
+import { Badge } from '@/components/ui/badge';
 
 type ColumnsProps = {
   onEdit: (zone: ShippingZone) => void;
@@ -33,12 +34,31 @@ export const columns = ({ onEdit, onDelete, isDeletingId }: ColumnsProps): Colum
     header: 'Localidad',
   },
   {
+    accessorKey: 'municipality',
+    header: 'Municipio',
+    cell: ({ row }) => row.original.municipality ?? '—',
+  },
+  {
+    accessorKey: 'zone',
+    header: 'Zona',
+    cell: ({ row }) => row.original.zone ?? '—',
+  },
+  {
     accessorKey: 'shippingCost',
     header: () => <div className="text-right">Costo de Envío</div>,
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue('shippingCost'));
       return <div className="text-right font-medium">{formatCurrency(amount)}</div>;
     },
+  },
+  {
+    accessorKey: 'isActive',
+    header: 'Estado',
+    cell: ({ row }) => (
+      <Badge variant={row.original.isActive ? 'success' : 'secondary'}>
+        {row.original.isActive ? 'Activo' : 'Inactivo'}
+      </Badge>
+    ),
   },
   {
     id: 'actions',
