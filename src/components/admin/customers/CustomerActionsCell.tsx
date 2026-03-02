@@ -59,7 +59,7 @@ export function CustomerActionsCell({
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
-            className="h-8 w-8 p-0 data-[state=open]:bg-primary/10 hover:bg-primary/90 hover:text-white"
+            className="h-8 w-8 p-0 data-[state=open]:bg-primary/10 hover:bg-primary/10 hover:text-primary"
           >
             <span className="sr-only">Abrir menú</span>
             {isDeleting ? (

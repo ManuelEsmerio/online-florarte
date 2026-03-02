@@ -281,7 +281,7 @@ export function CouponForm({ isOpen, onOpenChange, onSave, coupon, isSaving, cus
               {(stepperProps) => (
                 <>
                   <div className="px-6 pt-4 border-b"><Stepper.Navigation /></div>
-                  <div className="flex-grow overflow-y-auto p-6 min-h-0">
+                  <div className="flex-grow overflow-y-auto custom-scrollbar p-6 min-h-0">
                     <Stepper.Step index={0}><Step1 /></Stepper.Step>
                     <Stepper.Step index={1}><Step2 customers={customers} products={products} categories={categories} /></Stepper.Step>
                     <Stepper.Step index={2}><Step3 /></Stepper.Step>

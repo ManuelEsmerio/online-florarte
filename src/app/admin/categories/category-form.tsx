@@ -42,9 +42,6 @@ export function CategoryForm({ isOpen, onOpenChange, onSave, category, allCatego
     }
   });
   
-  const { watch, setValue } = form;
-  const nameValue = watch('name');
-
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,7 +95,7 @@ export function CategoryForm({ isOpen, onOpenChange, onSave, category, allCatego
           <DialogDescription>{category ? 'Modifica los detalles de la categoría.' : 'Completa el formulario para crear una nueva categoría.'}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-2">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto custom-scrollbar px-2">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                 control={form.control}
@@ -156,7 +153,7 @@ export function CategoryForm({ isOpen, onOpenChange, onSave, category, allCatego
                         <SelectValue placeholder="Ninguna (es categoría principal)" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent className="z-[130]">
                       <SelectItem value="null">Ninguna (es categoría principal)</SelectItem>
                       {parentCategories.map(cat => (
                         <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>

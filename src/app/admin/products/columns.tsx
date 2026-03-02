@@ -195,6 +195,7 @@ export const columns = ({
     header: ({ column }) => (
       <Button
         variant="ghost"
+        className="hover:bg-primary/10 hover:text-primary"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
       >
         Nombre
@@ -326,7 +327,7 @@ export const columns = ({
         <div className="text-right">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0" disabled={isUpdating}>
+              <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary" disabled={isUpdating}>
                 <span className="sr-only">Abrir menú</span>
                 {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
               </Button>

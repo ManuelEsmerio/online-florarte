@@ -10,6 +10,7 @@ import { useReactTable, getCoreRowModel, getPaginationRowModel, getSortedRowMode
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { columns } from './columns';
 import { CategoryForm } from './category-form';
+import { CategoryPreview, CategoryPreviewSkeleton } from './category-preview';
 import type { ProductCategory } from '@/lib/definitions';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -86,6 +87,8 @@ export default function CategoriesPage() {
   const [updatingVisibilityId, setUpdatingVisibilityId] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | null>(null);
+  const [previewCategory, setPreviewCategory] = useState<ProductCategory | null>(null);
+  const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
 
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
@@ -104,12 +107,11 @@ export default function CategoriesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     loadCategories();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadCategories]);
 
   const sortedCategories = useMemo(() => {
     if (!categories?.length) return [];
@@ -141,6 +143,28 @@ export default function CategoriesPage() {
     return out;
   }, [categories]);
 
+  useEffect(() => {
+    if (!sortedCategories.length) {
+      setPreviewCategory(null);
+      setFocusedRowId(null);
+      return;
+    }
+
+    setPreviewCategory((prev) => {
+      if (!prev) return sortedCategories[0];
+      const match = sortedCategories.find((cat) => cat.id === prev.id);
+      return match ?? sortedCategories[0];
+    });
+  }, [sortedCategories]);
+
+  useEffect(() => {
+    if (!previewCategory) return;
+    const rowId = `category-${previewCategory.id}`;
+    if (focusedRowId !== rowId) {
+      setFocusedRowId(rowId);
+    }
+  }, [previewCategory, focusedRowId]);
+
   const handleAdd = () => {
     setSelectedCategory(null);
     setIsFormOpen(true);
@@ -150,6 +174,11 @@ export default function CategoriesPage() {
     setSelectedCategory(category);
     setIsFormOpen(true);
   };
+
+  const handleRowPreview = useCallback((category: ProductCategory) => {
+    setPreviewCategory(category);
+    setFocusedRowId(`category-${category.id}`);
+  }, []);
 
   const handleDelete = async (id: number) => {
     setIsDeletingId(id);
@@ -229,6 +258,12 @@ export default function CategoriesPage() {
     [categories, isDeletingId, handleToggleShowOnHome, updatingVisibilityId]
   );
 
+  const previewParentName = useMemo(() => {
+    if (!previewCategory?.parentId) return undefined;
+    const parent = categories.find((cat) => cat.id === previewCategory.parentId);
+    return parent?.name;
+  }, [previewCategory, categories]);
+
   const table = useReactTable({
     data: sortedCategories,
     columns: tableColumns,
@@ -241,6 +276,7 @@ export default function CategoriesPage() {
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     state: { pagination, sorting, rowSelection, columnFilters },
+    getRowId: (row) => `category-${row.id}`,
   });
 
   if (isLoading) {
@@ -250,7 +286,11 @@ export default function CategoriesPage() {
           <h2 className="text-4xl font-bold font-headline tracking-tight text-slate-900 dark:text-white">Categorías</h2>
           <Button disabled className="rounded-2xl h-11 px-6 font-bold shadow-lg shadow-primary/20"><PlusCircle className="mr-2 h-4 w-4" />Crear Categoría</Button>
         </div>
-        <DataTableSkeleton columnCount={7} />
+        <div className="flex flex-col xl:flex-row gap-6 min-h-[calc(100vh-230px)]">
+          <div className="flex-1 min-w-0"><DataTableSkeleton columnCount={7} className="h-full" /></div>
+          <div className="hidden xl:block w-px bg-border/40" />
+          <aside className="w-full xl:w-[32%]"><CategoryPreviewSkeleton /></aside>
+        </div>
       </div>
     );
   }
@@ -274,13 +314,32 @@ export default function CategoriesPage() {
         allCategories={categories}
         isSaving={isSaving}
       />
-      <DataTable
-        table={table}
-        columns={tableColumns}
-        data={sortedCategories}
-        isLoading={isLoading}
-        toolbar={<CategoryToolbar table={table} />}
-      />
+      <div className="flex flex-col xl:flex-row gap-6 min-h-[calc(100vh-230px)]">
+        <div className="flex-1 min-w-0">
+          <DataTable
+            table={table}
+            columns={tableColumns}
+            data={sortedCategories}
+            isLoading={isLoading}
+            toolbar={<CategoryToolbar table={table} />}
+            onRowClick={handleRowPreview}
+            selectedRowId={focusedRowId}
+            className="h-full"
+          />
+        </div>
+        <div className="hidden xl:block w-px bg-border/40" />
+        <aside className="w-full xl:w-[32%]">
+          <CategoryPreview
+            category={previewCategory}
+            onEdit={handleEdit}
+            onToggleShowOnHome={handleToggleShowOnHome}
+            onDelete={(category) => handleDelete(category.id)}
+            isToggling={previewCategory ? updatingVisibilityId === previewCategory.id : false}
+            isDeleting={previewCategory ? isDeletingId === previewCategory.id : false}
+            parentName={previewParentName}
+          />
+        </aside>
+      </div>
     </div>
   );
 }

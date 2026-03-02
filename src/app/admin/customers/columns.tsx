@@ -49,7 +49,7 @@ export const columns = ({ onEdit, onDelete, onViewDetails, onSendCredentials, is
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="hover:bg-primary/90 hover:text-white"
+          className="hover:bg-primary/10 hover:text-primary"
         >
           Nombre
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -72,7 +72,7 @@ export const columns = ({ onEdit, onDelete, onViewDetails, onSendCredentials, is
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="hover:bg-primary/90 hover:text-white"
+        className="hover:bg-primary/10 hover:text-primary"
       >
         Puntos
         <ArrowUpDown className="ml-2 h-4 w-4" />

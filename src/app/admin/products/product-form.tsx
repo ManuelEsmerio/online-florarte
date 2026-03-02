@@ -798,7 +798,7 @@ export function ProductForm({ isOpen, onOpenChange, onSave, product, isCopyMode,
                             <div className="h-full bg-primary transition-all duration-300" style={{ width: `${((stepperProps.activeStep + 1) / steps.length) * 100}%` }} />
                         </div>
                         <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden bg-background/60">
-                            <aside className="lg:w-72 border-b lg:border-b-0 lg:border-r bg-muted/25 p-5 md:p-6 overflow-y-auto flex flex-col">
+                            <aside className="lg:w-72 border-b lg:border-b-0 lg:border-r bg-muted/25 p-5 md:p-6 overflow-y-auto custom-scrollbar flex flex-col">
                                 <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground mb-3">
                                     {isEditing ? 'Panel de edición' : (isCopyMode ? 'Panel de copia' : 'Panel de creación')}
                                 </p>
@@ -844,7 +844,7 @@ export function ProductForm({ isOpen, onOpenChange, onSave, product, isCopyMode,
                                 </div>
                             </aside>
 
-                            <div className="flex-1 min-h-0 overflow-y-auto p-6 md:p-8 bg-muted/10">
+                            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 md:p-8 bg-muted/10">
                                 <Stepper.Step index={0}><Step1_Info categories={categories} occasions={occasions} tags={tags} /></Stepper.Step>
                                 <Stepper.Step index={1}><Step2_PricingVariants /></Stepper.Step>
                                 <Stepper.Step index={2}><Step3_Media /></Stepper.Step>

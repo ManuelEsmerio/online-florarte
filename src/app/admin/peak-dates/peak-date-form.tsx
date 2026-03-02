@@ -92,7 +92,7 @@ export function PeakDateForm({ isOpen, onOpenChange, onSave, peakDate, allPeakDa
           <DialogDescription>{peakDate ? 'Modifica los detalles del periodo.' : 'Completa el formulario para definir un nuevo periodo de alta demanda.'}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-2">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto custom-scrollbar px-2">
             <FormField
               control={form.control}
               name="name"

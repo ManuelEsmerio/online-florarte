@@ -104,7 +104,7 @@ export function OccasionForm({ isOpen, onOpenChange, onSave, occasion, isSaving 
           <DialogDescription>{occasion ? 'Modifica los detalles de la ocasión.' : 'Completa el formulario para crear una nueva ocasión.'}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-2">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto custom-scrollbar px-2">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                 control={form.control}

@@ -112,7 +112,7 @@ export function ShippingDateSelector() {
                                     <SelectItem key="loading-city" value="loading" disabled>Cargando...</SelectItem>
                                 ) : (
                                     localities.map(zone => (
-                                        <SelectItem key={zone.postalCode || zone.locality} value={zone.locality}>
+                                        <SelectItem key={`${zone.postalCode}-${zone.locality}`} value={zone.locality}>
                                             {zone.locality}
                                         </SelectItem>
                                     ))
