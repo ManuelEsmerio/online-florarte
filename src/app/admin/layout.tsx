@@ -274,7 +274,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                   asChild
                   tooltip="Ver Tienda"
                   className={cn(
-                      "rounded-xl h-12 px-4 font-bold text-xs uppercase tracking-widest border border-border/50 hover:bg-slate-50",
+                      "rounded-xl h-12 px-4 font-bold text-xs uppercase tracking-widest border border-border/50 hover:bg-primary/10 hover:text-primary hover:border-primary/30",
                       isCollapsed && "px-0 justify-center"
                   )}
                 >
@@ -290,7 +290,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
 
         <div className="flex w-full flex-col">
           <header className="sticky top-0 z-30 flex h-20 items-center gap-4 border-b border-border/50 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl px-6">
-            <SidebarTrigger className="h-10 w-10 rounded-full hover:bg-slate-100" />
+            <SidebarTrigger className="h-10 w-10 rounded-full hover:bg-primary/10 hover:text-primary" />
             <div className="hidden md:flex items-center gap-3">
               <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center shadow-lg shadow-primary/20">
                 <Isotype className="h-6 w-6 brightness-0 invert" />
