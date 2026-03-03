@@ -23,6 +23,18 @@ import { AdForm } from './ad-form';
 import { AdPreview } from './ad-preview';
 import type { Announcement } from '@/lib/definitions';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const toAnnouncementApiPayload = (payload: any) => ({
+  title: payload.title,
+  description: payload.description ?? null,
+  button_text: payload.button_text ?? payload.buttonText ?? null,
+  button_link: payload.button_link ?? payload.buttonLink ?? null,
+  is_active: payload.is_active ?? payload.isActive ?? true,
+  start_at: payload.start_at ?? payload.startAt ?? null,
+  end_at: payload.end_at ?? payload.endAt ?? null,
+  sort_order: payload.sort_order ?? payload.sortOrder ?? 0,
+});
 
 export default function AdsPage() {
   const { toast } = useToast();
@@ -86,16 +98,12 @@ export default function AdsPage() {
     setUpdatingStatusId(ad.id);
     try {
       const fd = new FormData();
-      fd.append('announcementData', JSON.stringify({
-        title: ad.title,
-        description: ad.description,
-        buttonText: ad.buttonText,
-        buttonLink: ad.buttonLink,
-        isActive: !ad.isActive,
-        startAt: ad.startAt,
-        endAt: ad.endAt,
-        sortOrder: ad.sortOrder,
-      }));
+      fd.append('announcementData', JSON.stringify(
+        toAnnouncementApiPayload({
+          ...ad,
+          isActive: !ad.isActive,
+        })
+      ));
       const res = await fetch(`/api/admin/announcements/${ad.id}`, { method: 'POST', body: fd });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Error al actualizar');
@@ -113,16 +121,7 @@ export default function AdsPage() {
     const isEditing = !!data.id;
     try {
       const fd = new FormData();
-      fd.append('announcementData', JSON.stringify({
-        title: data.title,
-        description: data.description ?? null,
-        buttonText: data.button_text ?? data.buttonText ?? null,
-        buttonLink: data.button_link ?? data.buttonLink ?? null,
-        isActive: data.is_active ?? data.isActive ?? true,
-        startAt: data.start_at ?? data.startAt ?? null,
-        endAt: data.end_at ?? data.endAt ?? null,
-        sortOrder: data.sort_order ?? data.sortOrder ?? null,
-      }));
+      fd.append('announcementData', JSON.stringify(toAnnouncementApiPayload(data)));
       if (images.desktop) fd.append('image_desktop', images.desktop);
       if (images.mobile) fd.append('image_mobile', images.mobile);
 
@@ -169,7 +168,55 @@ export default function AdsPage() {
           <h2 className="text-4xl font-bold font-headline tracking-tight text-slate-900 dark:text-white">Anuncios</h2>
           <Button disabled className="rounded-2xl h-11 px-6 font-bold shadow-lg shadow-primary/20"><PlusCircle className="mr-2 h-4 w-4" />Crear Anuncio</Button>
         </div>
-        <DataTableSkeleton columnCount={6} />
+        <div className="grid gap-8 xl:grid-cols-[minmax(0,0.68fr)_minmax(360px,1fr)] 2xl:grid-cols-[minmax(0,0.62fr)_minmax(460px,1fr)]">
+          <div className="min-w-0 xl:max-w-4xl">
+            <DataTableSkeleton columnCount={6} />
+          </div>
+          <div className="xl:sticky xl:top-24">
+            <div className="rounded-[32px] border border-border/60 bg-gradient-to-b from-background/95 via-background/80 to-muted/30 p-6 shadow-2xl">
+              <div className="flex flex-wrap items-center gap-3 pb-4">
+                <Skeleton className="h-8 w-40 rounded-full" />
+                <Skeleton className="ml-auto h-8 w-32 rounded-full" />
+              </div>
+              <div className="space-y-8">
+                <div className="rounded-[32px] border border-border/40 bg-muted/10 p-5 shadow-inner space-y-4">
+                  <Skeleton className="h-3 w-32 rounded-full" />
+                  <Skeleton className="h-64 w-full rounded-[26px]" />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {[1, 2, 3].map((item) => (
+                    <div key={item} className="rounded-[28px] border border-border/40 bg-background/90 p-4">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="mt-3 h-6 w-32" />
+                      <Skeleton className="mt-1 h-4 w-24" />
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-4">
+                  <Skeleton className="h-3 w-36" />
+                  <div className="rounded-[36px] border border-border/50 bg-gradient-to-br from-primary/10 via-background to-background p-6 shadow-inner space-y-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-40" />
+                        <Skeleton className="h-3 w-32" />
+                      </div>
+                      <Skeleton className="h-8 w-28 rounded-full" />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {[1, 2, 3].map((item) => (
+                        <div key={item} className="rounded-2xl border border-border/50 bg-background/80 p-3 space-y-2">
+                          <Skeleton className="h-3 w-24" />
+                          <Skeleton className="h-5 w-28" />
+                        </div>
+                      ))}
+                    </div>
+                    <Skeleton className="h-9 w-40 rounded-full" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -190,8 +237,8 @@ export default function AdsPage() {
         ad={selectedAd}
         isSaving={isSaving}
       />
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0">
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,0.68fr)_minmax(360px,1fr)] 2xl:grid-cols-[minmax(0,0.62fr)_minmax(460px,1fr)]">
+        <div className="min-w-0 xl:max-w-4xl">
           <DataTable
             table={table}
             columns={tableColumns}
@@ -207,8 +254,8 @@ export default function AdsPage() {
             }
           />
         </div>
-        <div className="xl:sticky xl:top-28">
-          <AdPreview ad={previewAd} />
+        <div className="xl:sticky xl:top-24">
+          <AdPreview ad={previewAd} onEdit={handleEdit} />
         </div>
       </div>
     </div>

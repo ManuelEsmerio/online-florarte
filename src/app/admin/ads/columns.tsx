@@ -2,13 +2,12 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
-import { MoreHorizontal, ArrowUpDown, Loader2, Image as ImageIcon } from 'lucide-react';
+import { MoreHorizontal, ArrowUpDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Announcement } from '@/lib/definitions';
 import React from 'react';
-import Image from 'next/image';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -38,24 +37,6 @@ const ActiveToggle = ({ ad, onToggle, isUpdating }: { ad: Announcement; onToggle
 };
 
 export const columns = ({ onEdit, onDelete, onToggleActive, isDeletingId, updatingStatusId }: ColumnsProps): ColumnDef<Announcement>[] => [
-  {
-    accessorKey: 'imageUrl',
-    header: () => <ImageIcon className="h-4 w-4" />,
-    cell: ({ row }) => {
-      const imageUrl = row.original.imageUrl;
-      const title = row.original.title;
-      return (
-        <Image
-          src={imageUrl || '/placehold.webp'}
-          alt={title}
-          width={60}
-          height={30}
-          className="rounded-sm object-cover aspect-[2/1]"
-        />
-      );
-    },
-    enableSorting: false,
-  },
   {
     accessorKey: 'title',
     header: ({ column }) => (
