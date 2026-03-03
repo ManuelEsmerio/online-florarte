@@ -20,6 +20,7 @@ import {
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { columns } from './columns';
 import { AdForm } from './ad-form';
+import { AdPreview } from './ad-preview';
 import type { Announcement } from '@/lib/definitions';
 import { Input } from '@/components/ui/input';
 
@@ -159,6 +160,8 @@ export default function AdsPage() {
     state: { pagination, sorting, columnFilters },
   });
 
+  const previewAd = selectedAd ?? announcements[0] ?? null;
+
   if (isLoading && announcements.length === 0) {
     return (
       <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
@@ -180,21 +183,34 @@ export default function AdsPage() {
           Crear Anuncio
         </Button>
       </div>
-      <AdForm isOpen={isFormOpen} onOpenChange={setIsFormOpen} onSave={handleSave} ad={selectedAd} isSaving={isSaving} />
-      <DataTable
-        table={table}
-        columns={tableColumns}
-        data={announcements}
-        isLoading={isLoading}
-        toolbar={
-             <Input
-                placeholder="Filtrar por título..."
-                value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
-                onChange={(event) => table.getColumn("title")?.setFilterValue(event.target.value)}
-                className="h-10 rounded-xl w-full md:w-[300px] border-none bg-background shadow-sm"
-            />
-        }
+      <AdForm
+        isOpen={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        onSave={handleSave}
+        ad={selectedAd}
+        isSaving={isSaving}
       />
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0">
+          <DataTable
+            table={table}
+            columns={tableColumns}
+            data={announcements}
+            isLoading={isLoading}
+            toolbar={
+              <Input
+                placeholder="Filtrar por título..."
+                value={(table.getColumn('title')?.getFilterValue() as string) ?? ''}
+                onChange={(event) => table.getColumn('title')?.setFilterValue(event.target.value)}
+                className="h-10 rounded-xl w-full md:w-[300px] border-none bg-background shadow-sm"
+              />
+            }
+          />
+        </div>
+        <div className="xl:sticky xl:top-28">
+          <AdPreview ad={previewAd} />
+        </div>
+      </div>
     </div>
   );
 }

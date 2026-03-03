@@ -21,7 +21,12 @@ import { CalendarIcon, Flower2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DeliveryDateModal } from './DeliveryDateModal';
 
-export function ShippingDateSelector() {
+interface ShippingDateSelectorProps {
+    disableNavigation?: boolean;
+    className?: string;
+}
+
+export function ShippingDateSelector({ disableNavigation = false, className }: ShippingDateSelectorProps = {}) {
     const { toast } = useToast();
     const router = useRouter();
     const { shippingZones, loading: authLoading } = useAuth();
@@ -64,6 +69,7 @@ export function ShippingDateSelector() {
     }
 
     const handleViewGifts = () => {
+        if (disableNavigation) return;
         if (!city || !deliveryDate) {
             toast({
                 variant: 'info',
@@ -88,7 +94,7 @@ export function ShippingDateSelector() {
     }, [deliveryDate, mounted]);
     
     return (
-        <div className="container mx-auto px-4">
+        <div className={cn('container mx-auto px-4', className)}>
             <div className="group bg-card p-5 md:p-8 rounded-[2rem] shadow-2xl border border-border/50 relative z-20 transition-all duration-300 overflow-hidden">
                 {/* Decoración de Flor en la parte superior con animación */}
                 <div className="absolute top-4 right-4 opacity-50 pointer-events-none -z-10 transition-transform duration-700 group-hover:rotate-12 group-hover:scale-110">
@@ -135,7 +141,11 @@ export function ShippingDateSelector() {
                             <span className="truncate text-sm">{formattedDate}</span>
                         </Button>
                     </div>
-                    <Button onClick={handleViewGifts} className="w-full h-12 md:w-auto md:col-span-1 rounded-xl font-bold text-lg shadow-lg shadow-primary/20 !transition-none !duration-0 mt-2 md:mt-0 active:scale-95 transition-transform">
+                    <Button
+                        onClick={handleViewGifts}
+                        disabled={disableNavigation}
+                        className="w-full h-12 md:w-auto md:col-span-1 rounded-xl font-bold text-lg shadow-lg shadow-primary/20 !transition-none !duration-0 mt-2 md:mt-0 active:scale-95 transition-transform"
+                    >
                         Ver regalos
                     </Button>
                 </div>

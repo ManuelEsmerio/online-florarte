@@ -44,27 +44,53 @@ interface AdFormProps {
   isSaving: boolean;
 }
 
-const ImageUploader = ({ label, description, preview, onFileChange, onRemove }: { label: string, description: string, preview: string | null, onFileChange: (file: File) => void, onRemove: () => void }) => (
-  <FormItem>
-    <FormLabel>{label}</FormLabel>
-    <FormMessage />
+const ImageUploader = ({
+  label,
+  description,
+  preview,
+  onFileChange,
+  onRemove,
+}: {
+  label: string;
+  description: string;
+  preview: string | null;
+  onFileChange: (file: File) => void;
+  onRemove: () => void;
+}) => (
+  <div className="space-y-2">
+    <p className="text-sm font-medium leading-none">{label}</p>
     {preview ? (
-      <div className="relative w-full aspect-[2/1] rounded-md overflow-hidden">
-        <Image src={preview} alt="Previsualización" layout="fill" objectFit="contain" />
-        <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7" onClick={onRemove} type="button"><X className="h-4 w-4" /></Button>
+      <div className="relative h-48 w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/30">
+        <Image
+          src={preview}
+          alt="Previsualización"
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 100vw, 520px"
+        />
+        <Button
+          variant="destructive"
+          size="icon"
+          className="absolute top-3 right-3 h-8 w-8"
+          onClick={onRemove}
+          type="button"
+        >
+          <X className="h-4 w-4" />
+        </Button>
       </div>
     ) : (
-      <FormControl>
-        <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer bg-card hover:bg-muted transition-colors">
-          <div className="flex flex-col items-center justify-center pt-5 pb-6">
-            <UploadCloud className="w-8 h-8 mb-2 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground">{description}</p>
-          </div>
-          <input type="file" className="hidden" onChange={(e) => e.target.files?.[0] && onFileChange(e.target.files[0])} accept="image/png, image/jpeg, image/webp" />
-        </label>
-      </FormControl>
+      <label className="flex h-48 w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/60 bg-muted/20 text-center transition-colors hover:bg-muted/40">
+        <UploadCloud className="mb-2 h-8 w-8 text-muted-foreground" />
+        <p className="px-6 text-xs text-muted-foreground">{description}</p>
+        <input
+          type="file"
+          className="hidden"
+          onChange={(e) => e.target.files?.[0] && onFileChange(e.target.files[0])}
+          accept="image/png, image/jpeg, image/webp"
+        />
+      </label>
     )}
-  </FormItem>
+  </div>
 );
 
 export function AdForm({ isOpen, onOpenChange, onSave, ad, isSaving }: AdFormProps) {
@@ -75,6 +101,7 @@ export function AdForm({ isOpen, onOpenChange, onSave, ad, isSaving }: AdFormPro
 
   const [desktopImage, setDesktopImage] = useState<{ file: File | null, preview: string | null }>({ file: null, preview: null });
   const [mobileImage, setMobileImage] = useState<{ file: File | null, preview: string | null }>({ file: null, preview: null });
+  const startDate = form.watch('start_at');
 
   useEffect(() => {
     if (isOpen) {
@@ -117,39 +144,212 @@ export function AdForm({ isOpen, onOpenChange, onSave, ad, isSaving }: AdFormPro
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl" onInteractOutside={(e) => e.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle className="font-headline text-2xl">{ad ? 'Editar Anuncio' : 'Crear Anuncio'}</DialogTitle>
-          <DialogDescription>Completa el formulario para configurar el banner.</DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto custom-scrollbar px-2">
-            <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Título</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-            <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Descripción</FormLabel><FormControl><Textarea {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField control={form.control} name="button_text" render={({ field }) => (<FormItem><FormLabel>Texto del Botón</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="button_link" render={({ field }) => (<FormItem><FormLabel>Enlace del Botón</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-            </div>
+      <DialogContent
+        className="w-full sm:max-w-2xl max-h-[90vh] overflow-hidden border border-border/60 p-0"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
+        <div className="flex h-full flex-col">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle className="font-headline text-2xl">
+              {ad ? 'Editar Anuncio' : 'Crear Anuncio'}
+            </DialogTitle>
+            <DialogDescription>
+              Completa el formulario para configurar el banner.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col">
+              <div className="custom-scrollbar flex-1 space-y-5 overflow-y-auto px-6 pb-6">
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Título</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Ej. Lanza del Día de las Madres" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <ImageUploader label="Imagen de Escritorio" description="Recomendado: 800x400px" preview={desktopImage.preview} onFileChange={handleFileChange(setDesktopImage)} onRemove={handleRemoveImage(setDesktopImage, 'image_url')} />
-            <ImageUploader label="Imagen Móvil (Opcional)" description="Recomendado: 400x500px" preview={mobileImage.preview} onFileChange={handleFileChange(setMobileImage)} onRemove={handleRemoveImage(setMobileImage, 'image_mobile_url')} />
-            
-            <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="start_at" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha de Inicio</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, 'PPP', { locale: es }) : <span>Sin fecha</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="end_at" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha de Fin</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, 'PPP', { locale: es }) : <span>Sin fecha</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => field.value ? date < field.value : false} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
-            </div>
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Descripción</FormLabel>
+                      <FormControl>
+                        <Textarea rows={4} {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="sort_order" render={({ field }) => (<FormItem><FormLabel>Orden</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="is_active" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm h-full mt-auto"><FormLabel>Activo</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-            </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="button_text"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Texto del Botón</FormLabel>
+                        <FormControl>
+                          <Input {...field} value={field.value ?? ''} placeholder="Ver catálogo" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="button_link"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Enlace del Botón</FormLabel>
+                        <FormControl>
+                          <Input type="url" {...field} value={field.value ?? ''} placeholder="https://" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-            <DialogFooter className="pt-4 sticky bottom-0 bg-background py-3 -mx-2 px-2">
-              <DialogClose asChild><Button type="button" variant="secondary" disabled={isSaving}>Cancelar</Button></DialogClose>
-              <Button type="submit" loading={isSaving}>Guardar Anuncio</Button>
-            </DialogFooter>
-          </form>
-        </Form>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <ImageUploader
+                    label="Imagen de Escritorio"
+                    description="Recomendado 1280x640 px"
+                    preview={desktopImage.preview}
+                    onFileChange={handleFileChange(setDesktopImage)}
+                    onRemove={handleRemoveImage(setDesktopImage, 'image_url')}
+                  />
+                  <ImageUploader
+                    label="Imagen Móvil (opcional)"
+                    description="Recomendado 750x1000 px"
+                    preview={mobileImage.preview}
+                    onFileChange={handleFileChange(setMobileImage)}
+                    onRemove={handleRemoveImage(setMobileImage, 'image_mobile_url')}
+                  />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="start_at"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col gap-2">
+                        <FormLabel>Fecha de inicio</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  'w-full justify-start text-left font-normal',
+                                  !field.value && 'text-muted-foreground'
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {field.value ? format(field.value, 'PPP', { locale: es }) : 'Sin fecha definida'}
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 z-50" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value ?? undefined}
+                              onSelect={(date) => field.onChange(date ?? null)}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="end_at"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col gap-2">
+                        <FormLabel>Fecha de fin</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  'w-full justify-start text-left font-normal',
+                                  !field.value && 'text-muted-foreground'
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {field.value ? format(field.value, 'PPP', { locale: es }) : 'Sin fecha definida'}
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 z-50" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value ?? undefined}
+                              onSelect={(date) => field.onChange(date ?? null)}
+                              disabled={(date) => (startDate ? date < startDate : false)}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="sort_order"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Orden</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="is_active"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-2xl border border-border/60 p-4 shadow-sm">
+                        <div>
+                          <FormLabel>Activo</FormLabel>
+                          <p className="text-xs text-muted-foreground">Muestra u oculta el anuncio.</p>
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+              <DialogFooter className="flex-shrink-0 border-t border-border/60 bg-muted/30 px-6 py-4">
+                <DialogClose asChild>
+                  <Button type="button" variant="secondary" disabled={isSaving}>
+                    Cancelar
+                  </Button>
+                </DialogClose>
+                <Button type="submit" loading={isSaving}>
+                  Guardar anuncio
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </div>
       </DialogContent>
     </Dialog>
   );
