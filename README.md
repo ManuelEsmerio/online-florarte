@@ -82,3 +82,40 @@ La aplicación usa Prisma + MySQL y Stripe en modo prueba para checkout real.
    - **Éxito:** `4242 4242 4242 4242`
    - **Tarjeta declinada:** `4000 0000 0000 9995`
    - Fecha futura y CVC de 3 dígitos.
+
+### 5. Configurar Mercado Pago en Sandbox
+
+Además de Stripe, puedes probar el checkout con Mercado Pago.
+
+1. En tu `.env.local`, agrega las credenciales sandbox:
+
+   ```
+   MERCADOPAGO_ACCESS_TOKEN="APP_USR-..."
+   MERCADO_PAGO_WEBHOOK_SECRET="tu-secreto-webhook"
+   NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY="TEST-..."
+   ```
+
+2. Asegúrate de exponer públicamente tu entorno local (ngrok u otro túnel) y registra la URL del webhook en el panel de Mercado Pago apuntando a `https://TU_TUNEL/api/mercadopago/webhook`.
+
+3. Para pruebas manuales puedes usar las tarjetas sandbox oficiales de Mercado Pago:
+   - **Aprobada:** `5031 7557 3453 0604`
+   - **Rechazada:** `4926 7222 1111 9083`
+   - Usa cualquier CVC y una fecha futura.
+
+4. Si necesitas simular un webhook aprobado manualmente:
+
+   ```bash
+   curl -X POST https://api.mercadopago.com/v1/payments \
+     -H "Authorization: Bearer $MERCADOPAGO_ACCESS_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "transaction_amount": 100,
+       "token": "TEST-...",
+       "installments": 1,
+       "payment_method_id": "visa",
+       "payer": { "email": "test_user_XXXX@testuser.com" },
+       "external_reference": "<ORDER_ID>"
+     }'
+   ```
+
+   Reemplaza `<ORDER_ID>` por el ID real de la orden y revisa los logs del webhook para confirmar el flujo completo.
