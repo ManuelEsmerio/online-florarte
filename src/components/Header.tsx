@@ -125,7 +125,7 @@ const HeaderContent = () => {
                 <DropdownMenuSeparator className="bg-muted/50" />
                 <DropdownMenuItem disabled className="!opacity-100 !cursor-default focus:bg-transparent rounded-xl">
                   <Gem className="mr-2 h-4 w-4 text-blue-500" />
-                  <span className="font-medium">{user.loyalty_points || 0} Puntos</span>
+                  <span className="font-medium">{user.loyaltyPoints || 0} Puntos</span>
                 </DropdownMenuItem>
               </>
             )}
@@ -268,7 +268,7 @@ const HeaderContent = () => {
                     {String(user.role ?? '').toUpperCase() === 'CUSTOMER' && (
                       <div className="flex items-center gap-3 text-lg font-medium text-foreground/80">
                         <Gem className="w-5 h-5 text-blue-500" />
-                        <span>{user.loyalty_points || 0} Puntos</span>
+                        <span>{user.loyaltyPoints || 0} Puntos</span>
                       </div>
                     )}
                     {(String(user.role ?? '').toUpperCase() === 'ADMIN' ? adminLinks : userLinks).map((link) => (

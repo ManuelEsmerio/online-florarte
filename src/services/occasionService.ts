@@ -14,22 +14,32 @@ const occasionSchema = z.object({
 
 const dbWithAudit = async <T>(userId: number, fn: () => Promise<T>): Promise<T> => fn();
 
+const formatOccasion = (occasion: any): Occasion => {
+  const publicUrl = getPublicUrlForPath(occasion.imageUrl);
+  return {
+    ...occasion,
+    imageUrl: publicUrl || '/placehold.webp',
+    showOnHome: occasion.showOnHome,
+    products: [],
+  } as Occasion;
+};
+
 export const occasionService = {
   async getAllOccasions(): Promise<Occasion[]> {
     const dbOccasions = await prisma.occasion.findMany({
       orderBy: { name: 'asc' }
     });
     
-    return dbOccasions.map(o => {
-        const imageUrl = getPublicUrlForPath(o.imageUrl);
-        return {
-            ...o,
-            imageUrl: imageUrl || '/placehold.webp',
-            // Prisma returns showOnHome, interface expects showOnHome
-            showOnHome: o.showOnHome,
-            products: [] // Prisma findMany doesn't include relation unless include is used
-        } as Occasion;
+    return dbOccasions.map(formatOccasion);
+  },
+
+  async getHomePageOccasions(): Promise<Occasion[]> {
+    const dbOccasions = await prisma.occasion.findMany({
+      where: { showOnHome: true },
+      orderBy: { name: 'asc' }
     });
+
+    return dbOccasions.map(formatOccasion);
   },
   
   async createOccasion(data: any, imageFile: File | null, creatorId: number): Promise<Occasion> {
@@ -71,11 +81,7 @@ export const occasionService = {
         }
     }
 
-    return {
-        ...newOccasion, 
-        imageUrl: getPublicUrlForPath(newOccasion.imageUrl),
-        products: []
-    } as Occasion;
+    return formatOccasion(newOccasion);
   },
   
   async updateOccasion(id: number, data: any, imageFile: File | null, editorId: number): Promise<Occasion> {
@@ -109,11 +115,7 @@ export const occasionService = {
       })
     );
     
-    return {
-        ...updatedOccasion, 
-        imageUrl: getPublicUrlForPath(updatedOccasion.imageUrl),
-        products: []
-    } as Occasion;
+    return formatOccasion(updatedOccasion);
   },
   
   async deleteOccasion(id: number, deleterId: number): Promise<void> {
@@ -142,21 +144,13 @@ export const occasionService = {
     const occasion = await prisma.occasion.findUnique({ where: { slug } });
     if (!occasion) return null;
     
-    return {
-        ...occasion,
-        imageUrl: getPublicUrlForPath(occasion.imageUrl),
-        products: []
-    } as Occasion;
+    return formatOccasion(occasion);
   },
     
   async getOccasionById(id: number): Promise<Occasion | null> {
     const occasion = await prisma.occasion.findUnique({ where: { id } });
     if (!occasion) return null;
     
-    return {
-        ...occasion,
-        imageUrl: getPublicUrlForPath(occasion.imageUrl),
-        products: []
-    } as Occasion;
+    return formatOccasion(occasion);
   }
 };

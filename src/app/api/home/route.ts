@@ -27,7 +27,7 @@ export async function GET() {
     ] = await Promise.all([
       categoryService.getAllCategories(),
       testimonialService.getApprovedTestimonials(),
-      occasionService.getAllOccasions(),
+      occasionService.getHomePageOccasions(),
       getActiveAnnouncements(),
       tagService.getAllTags(),
     ]);

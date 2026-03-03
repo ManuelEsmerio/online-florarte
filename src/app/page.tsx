@@ -27,9 +27,9 @@ const getHomePageData = unstable_cache(
   async () => {
     try {
         const [categories, testimonials, occasions] = await Promise.all([
-            categoryService.getHomePageCategories(),
-            testimonialService.getApprovedTestimonials(),
-            occasionService.getAllOccasions(),
+          categoryService.getHomePageCategories(),
+          testimonialService.getApprovedTestimonials(),
+          occasionService.getHomePageOccasions(),
         ]);
 
         return {

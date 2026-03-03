@@ -97,14 +97,15 @@ export function OccasionForm({ isOpen, onOpenChange, onSave, occasion, isSaving 
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle className="font-headline text-2xl">{occasion ? 'Editar Ocasión' : 'Crear Ocasión'}</DialogTitle>
-          <DialogDescription>{occasion ? 'Modifica los detalles de la ocasión.' : 'Completa el formulario para crear una nueva ocasión.'}</DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4 py-4">
-            <div className="space-y-4 overflow-y-auto max-h-[60vh] pr-1 custom-scrollbar">
+      <DialogContent className="w-full sm:max-w-2xl max-h-[90vh] overflow-hidden border border-border/60 p-0" onInteractOutside={(e) => e.preventDefault()}>
+        <div className="flex flex-col h-full">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle className="font-headline text-2xl">{occasion ? 'Editar Ocasión' : 'Crear Ocasión'}</DialogTitle>
+            <DialogDescription>{occasion ? 'Modifica los detalles de la ocasión.' : 'Completa el formulario para crear una nueva ocasión.'}</DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1">
+              <div className="flex-1 space-y-4 overflow-y-auto px-6 pb-6 custom-scrollbar">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
@@ -182,16 +183,17 @@ export function OccasionForm({ isOpen, onOpenChange, onSave, occasion, isSaving 
                   </FormItem>
                 )}
               />
-            </div>
+              </div>
 
-            <DialogFooter className="pt-4 sticky bottom-0 bg-background/95 backdrop-blur">
-              <DialogClose asChild>
-                <Button type="button" variant="secondary" disabled={isSaving}>Cancelar</Button>
-              </DialogClose>
-              <Button type="submit" loading={isSaving}>Guardar</Button>
-            </DialogFooter>
-          </form>
-        </Form>
+              <DialogFooter className="flex-shrink-0 px-6 py-4 border-t border-border/60 bg-muted/30">
+                <DialogClose asChild>
+                  <Button type="button" variant="secondary" disabled={isSaving}>Cancelar</Button>
+                </DialogClose>
+                <Button type="submit" loading={isSaving}>Guardar</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </div>
       </DialogContent>
     </Dialog>
   );
