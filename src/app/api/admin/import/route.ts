@@ -131,20 +131,21 @@ export async function POST(req: NextRequest) {
         // --- Lógica de creación por tipo ---
         // Se podría refactorizar en un mapa de funciones, pero por claridad lo dejamos explícito
         if (dataType === 'categories') {
-            await categoryService.createCategory(validatedData, null, session.dbId);
+            await categoryService.createCategory(validatedData as any, null, session.dbId);
         } else if (dataType === 'occasions') {
-            await occasionService.createOccasion(validatedData, null, session.dbId);
+            await occasionService.createOccasion(validatedData as any, null, session.dbId);
         } else if (dataType === 'tags') {
-            await tagService.createTag(validatedData, session.dbId);
+            await tagService.createTag(validatedData as any, session.dbId);
         } else if (dataType === 'shipping_zones') {
-          await shippingZoneService.createShippingZone(validatedData, session.dbId);
+          await shippingZoneService.createShippingZone(validatedData as any, session.dbId);
         } else if(dataType === 'peak_dates') {
-            await peakDateService.createPeakDate(validatedData, session.dbId);
+            await peakDateService.createPeakDate(validatedData as any, session.dbId);
         } else if (dataType === 'coupons') {
+            const vd = validatedData as any;
             const couponData = {
-                ...validatedData,
-                validity: { from: new Date(), to: validatedData.valid_until ? new Date(validatedData.valid_until) : null },
-                noExpiry: !validatedData.valid_until,
+                ...vd,
+                validity: { from: new Date(), to: vd.valid_until ? new Date(vd.valid_until) : null },
+                noExpiry: !vd.valid_until,
             }
             await couponService.createCoupon(couponData, session.dbId);
         } else if (dataType === 'customers') {

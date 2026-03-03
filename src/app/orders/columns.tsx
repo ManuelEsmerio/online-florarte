@@ -10,11 +10,11 @@ import { DialogCell } from '@/components/orders/DialogCell';
 
 const getStatusVariant = (status: OrderStatus): 'default' | 'destructive' | 'secondary' | 'success' => {
   switch (status) {
-    case 'completado':
+    case 'DELIVERED':
       return 'success';
-    case 'en_reparto':
+    case 'SHIPPED':
       return 'default';
-    case 'cancelado':
+    case 'CANCELLED':
       return 'destructive';
     default:
       return 'secondary';
@@ -22,11 +22,11 @@ const getStatusVariant = (status: OrderStatus): 'default' | 'destructive' | 'sec
 };
 
 const statusTranslations: { [key in OrderStatus]: string } = {
-    'pendiente': 'Pendiente',
-    'procesando': 'En Proceso',
-    'en_reparto': 'En Camino',
-    'completado': 'Completado',
-    'cancelado': 'Cancelado',
+    'PENDING': 'Pendiente',
+    'PROCESSING': 'En Proceso',
+    'SHIPPED': 'En Camino',
+    'DELIVERED': 'Completado',
+    'CANCELLED': 'Cancelado',
 }
 
 const formatCurrency = (amount: number | undefined) => {
@@ -53,10 +53,10 @@ export const columns = ({ onDataChange }: { onDataChange: () => void }): ColumnD
     }
   },
   {
-    accessorKey: 'delivery_date',
+    accessorKey: 'deliveryDate',
     header: 'Entrega',
      cell: ({ row }) => {
-        const date = new Date(row.original.delivery_date);
+        const date = new Date(row.original.deliveryDate);
         const trigger = <div className="cursor-pointer font-medium hover:text-primary transition-colors">{date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</div>;
         return <DialogCell row={row.original} trigger={trigger} />;
      }

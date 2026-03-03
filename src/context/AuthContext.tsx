@@ -5,11 +5,9 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { Order, Product, Address, ShippingZone, Coupon, User } from '@/lib/definitions';
+import { Order, Product, ProductVariant, Address, ShippingZone, Coupon, User } from '@/lib/definitions';
 import type { LoginCredentials, RegisterData } from '@/lib/definitions';
 import { apiFetch as baseApiFetch } from '@/lib/apiFetch';
-import { allShippingZones } from '@/lib/data/shipping-zones';
-import { allUsers } from '@/lib/data/user-data';
 
 // ─── Módulo-level guards ─────────────────────────────────────────────────────
 // Evitan que React Strict Mode (doble-invocación en dev) o navegaciones rápidas
@@ -18,6 +16,15 @@ let profileInFlight: Promise<void> | null = null;
 let shippingZonesMemoryCache: { zones: ShippingZone[]; fetchedAt: number } | null = null;
 const SHIPPING_ZONES_TTL = 5 * 60 * 1000; // 5 minutes
 let shippingZonesInFlight: Promise<ShippingZone[]> | null = null;
+
+const buildWishlistSelectionKey = (productId: number, variantId?: number | null) =>
+  variantId ? `variant:${variantId}` : `product:${productId}`;
+
+const resolveVariantFromProduct = (product: Product, variantId?: number | null): ProductVariant | null => {
+  if (!variantId) return null;
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  return variants.find(v => Number(v.id) === Number(variantId)) ?? null;
+};
 
 interface AuthResult {
   success: boolean;
@@ -32,12 +39,28 @@ interface ToggleWishlistResult {
   message?: string;
 }
 
+interface WishlistEntry {
+  id: number;
+  productId: number;
+  variantId?: number | null;
+  selectionKey: string;
+  createdAt?: string | Date;
+  product: Product;
+  variant?: ProductVariant | null;
+}
+
+interface ToggleWishlistPayload {
+  productId: number;
+  product: Product;
+  variantId?: number | null;
+  variant?: ProductVariant | null;
+}
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  wishlist: Product[];
+  wishlist: WishlistEntry[];
   shippingZones: ShippingZone[];
-  allUsers: User[];
   fetchUserData: () => Promise<void>;
   apiFetch: (url: string, options?: RequestInit) => Promise<Response>;
   login: (credentials: LoginCredentials) => Promise<AuthResult>;
@@ -51,7 +74,7 @@ interface AuthContextType {
   setDefaultAddress: (addressId: number) => Promise<AuthResult>;
   getOrders: () => Promise<Order[]>;
   getCoupons: () => Promise<Coupon[]>;
-  toggleWishlist: (productId: number, product: Product) => Promise<ToggleWishlistResult>;
+  toggleWishlist: (payload: ToggleWishlistPayload) => Promise<ToggleWishlistResult>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<AuthResult>;
 }
 
@@ -60,7 +83,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [wishlist, setWishlist] = useState<Product[]>([]);
+  const [wishlist, setWishlist] = useState<WishlistEntry[]>([]);
   const [shippingZones, setShippingZones] = useState<ShippingZone[]>([]);
   const { toast } = useToast();
   const router = useRouter();
@@ -90,15 +113,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!shippingZonesInFlight) {
       shippingZonesInFlight = (async () => {
+        const res = await baseApiFetch('/api/shipping', { cache: 'no-store' });
+        let payload: any = null;
         try {
-          const res = await baseApiFetch('/api/shipping');
-          if (!res.ok) return allShippingZones as unknown as ShippingZone[];
-          const result = await res.json();
-          const zones = Array.isArray(result?.data) ? (result.data as ShippingZone[]) : [];
-          return zones.length > 0 ? zones : (allShippingZones as unknown as ShippingZone[]);
+          payload = await res.json();
         } catch {
-          return allShippingZones as unknown as ShippingZone[];
+          payload = null;
         }
+
+        if (!res.ok) {
+          throw new Error(payload?.message ?? 'No se pudieron obtener las zonas de envío.');
+        }
+
+        const zones = Array.isArray(payload?.data) ? (payload.data as ShippingZone[]) : [];
+        return zones;
       })();
     }
 
@@ -106,6 +134,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const zones = await shippingZonesInFlight;
       shippingZonesMemoryCache = { zones, fetchedAt: Date.now() };
       setShippingZones(zones);
+    } catch (error) {
+      console.error('[AUTH_FETCH_SHIPPING_ZONES_ERROR]', error);
+      shippingZonesMemoryCache = null;
+      setShippingZones([]);
     } finally {
       shippingZonesInFlight = null;
     }
@@ -211,6 +243,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ordersInFlightRef.current = null;
   }, [user?.id]);
 
+  const getApiErrorMessage = useCallback((payload: any, fallback: string) => {
+    if (!payload) return fallback;
+
+    const messageCandidates = [payload.message, payload.error];
+    if (Array.isArray(payload.errors)) {
+      const firstError = payload.errors.find((err: any) => typeof err?.message === 'string');
+      if (firstError?.message) messageCandidates.push(firstError.message);
+    }
+
+    const resolved = messageCandidates.find((msg) => typeof msg === 'string' && msg.trim().length > 0);
+    return resolved ?? fallback;
+  }, []);
+
   // ─── login ────────────────────────────────────────────────────────────────
   const login = useCallback(async (credentials: LoginCredentials): Promise<AuthResult> => {
     setLoading(true);
@@ -224,7 +269,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await res.json();
 
       if (!res.ok) {
-        return { success: false, message: result.error || 'Login inválido' };
+        const fallback = res.status === 401 ? 'Credenciales inválidas.' : 'No pudimos iniciar sesión.';
+        return { success: false, message: getApiErrorMessage(result, fallback) };
       }
 
       const userData = result.data || result;
@@ -239,7 +285,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getApiErrorMessage]);
 
   // ─── register ────────────────────────────────────────────────────────────
   const register = useCallback(async (data: RegisterData): Promise<AuthResult> => {
@@ -254,7 +300,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await res.json();
 
       if (!res.ok) {
-        return { success: false, message: result.error || 'Error al registrarse' };
+        return { success: false, message: getApiErrorMessage(result, 'No pudimos crear tu cuenta.') };
       }
 
       const userData = result.data;
@@ -269,7 +315,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getApiErrorMessage]);
 
   // ─── logout ───────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
@@ -446,7 +492,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [apiFetch]);
 
   // ─── toggleWishlist ───────────────────────────────────────────────────────
-  const toggleWishlist = useCallback(async (productId: number, product: Product): Promise<ToggleWishlistResult> => {
+  const toggleWishlist = useCallback(async ({ productId, product, variantId, variant }: ToggleWishlistPayload): Promise<ToggleWishlistResult> => {
     if (!userRef.current?.id) {
       return { success: false, message: 'Debes iniciar sesión para guardar favoritos.' };
     }
@@ -455,7 +501,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await apiFetch('/api/wishlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId }),
+        body: JSON.stringify({ productId, variantId: variantId ?? null }),
       });
 
       if (!res.ok) {
@@ -464,19 +510,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const data = await res.json();
       const type = data.data?.type as 'added' | 'removed' | undefined;
+      const itemPayload = data.data?.item as { id?: number; selectionKey?: string } | undefined;
 
       if (!type) {
         return { success: false };
       }
 
       setWishlist(prev => {
+        const selectionKey = itemPayload?.selectionKey ?? buildWishlistSelectionKey(productId, variantId ?? null);
         if (type === 'removed') {
-          return prev.filter(p => p.id !== productId);
+          return prev.filter(entry => entry.selectionKey !== selectionKey);
         }
 
-        const alreadyInWishlist = prev.some(p => p.id === productId);
+        const alreadyInWishlist = prev.some(entry => entry.selectionKey === selectionKey);
         if (alreadyInWishlist) return prev;
-        return [...prev, product];
+
+        const resolvedVariant = variant ?? resolveVariantFromProduct(product, variantId);
+
+        const newEntry: WishlistEntry = {
+          id: itemPayload?.id ?? Date.now(),
+          productId,
+          variantId: variantId ?? null,
+          selectionKey,
+          createdAt: new Date().toISOString(),
+          product,
+          variant: resolvedVariant ?? null,
+        };
+
+        return [newEntry, ...prev];
       });
 
       return { success: true, type };
@@ -496,7 +557,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     wishlist,
     shippingZones,
-    allUsers: allUsers as any,
     fetchUserData,
     apiFetch,
     login,

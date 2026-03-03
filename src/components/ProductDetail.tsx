@@ -32,7 +32,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
     const { addToCart, isAddingToCart, deliveryDate: globalDateString, setDeliveryDate: setGlobalDateString } = useCart();
 
     useEffect(() => {
-        const defaultVariant = (product.has_variants && product.variants?.length) 
+        const defaultVariant = (product.hasVariants && product.variants?.length) 
             ? [...product.variants].sort((a,b) => a.price - b.price).find(v => v.stock > 0) || null 
             : null;
         setSelectedVariant(defaultVariant);
@@ -80,7 +80,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
             setIsCalendarModalOpen(true);
             return;
         }
-        if (product.has_variants && !selectedVariant) {
+        if (product.hasVariants && !selectedVariant) {
             toast.info('¡Selecciona una opción!', {
                 description: 'Por favor, elige una de las variantes del producto.'
             });
@@ -95,11 +95,11 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
     const imagesToShow = useMemo(() => {
         if (selectedVariant?.images?.length) return selectedVariant.images;
-        return product.images || [{ src: product.image, alt: product.name, is_primary: true }];
+        return product.images || (product.mainImage ? [{ src: product.mainImage, alt: product.name, isPrimary: true }] : []);
     }, [product, selectedVariant]);
     
     const displayPrice = selectedVariant ? selectedVariant.price : product.price;
-    const displaySalePrice = selectedVariant ? selectedVariant.sale_price : product.sale_price;
+    const displaySalePrice = selectedVariant ? selectedVariant.salePrice : product.salePrice;
     const priceToShow = displaySalePrice ?? displayPrice;
 
     const formattedDate = useMemo(() => {
@@ -286,7 +286,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                         <div className="space-y-6">
                             <h3 className="text-xl font-bold">Descripción</h3>
                             <p className="text-sm md:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
-                                {product.short_description || product.description?.substring(0, 150) + "..."}
+                                {product.shortDescription || product.description?.substring(0, 150) + "..."}
                             </p>
                             <FullDetailsSidebar />
                         </div>
@@ -403,7 +403,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                     </div>
 
                     <div className="space-y-8">
-                        {product.has_variants && product.variants && (
+                        {product.hasVariants && product.variants && (
                             <div className="space-y-3">
                                 <Label className="text-[10px] font-bold tracking-widest uppercase text-slate-400 dark:text-slate-500 block">Opciones</Label>
                                 <div className="flex flex-wrap gap-3">

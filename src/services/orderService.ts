@@ -283,7 +283,24 @@ export const orderService = {
 
   async updateOrderStatus(orderId: number, newStatus: OrderStatus, payload: any): Promise<boolean> {
     const prismaStatus = Object.entries(ORDER_STATUS_MAP).find(([, v]) => v === newStatus)?.[0] ?? (newStatus as string).toUpperCase();
-    await prisma.order.update({ where: { id: orderId }, data: { status: prismaStatus as any, ...payload } });
+    const statusChanged = await prisma.$transaction(async (tx: any) => {
+      const current = await tx.order.findUnique({ where: { id: orderId }, select: { status: true } });
+      if (!current) {
+        throw new Error('Pedido no encontrado.');
+      }
+
+      await tx.order.update({ where: { id: orderId }, data: { status: prismaStatus as any, ...payload } });
+      return current.status !== prismaStatus;
+    });
+
+    if (statusChanged) {
+      try {
+        await orderEmailService.sendOrderStatusChangeNotification(orderId, newStatus);
+      } catch (error) {
+        console.error('[ORDER_STATUS_NOTIFICATION_ERROR]', error);
+      }
+    }
+
     return true;
   },
 

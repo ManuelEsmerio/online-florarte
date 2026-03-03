@@ -23,7 +23,14 @@
       "Bash(npm install isomorphic-dompurify)",
       "Bash(npm install --save-dev @types/dompurify)",
       "Read(//c/Users/Manuel Esmerio G/Documents/Projects/online-florarte/**)",
-      "Bash(node -e \"const pkg = require\\(''./node_modules/next/package.json''\\); console.log\\(pkg.version\\)\")"
+      "Bash(node -e \"const pkg = require\\(''./node_modules/next/package.json''\\); console.log\\(pkg.version\\)\")",
+      "Bash(grep -n \"is_deleted\\\\|sale_price\\\\|short_description\\\\|has_variants\\\\|product_id\\\\|user_id\\\\|order_id\\\\|customer_name\\\\|shipping_cost\\\\|delivery_date\\\\|product_name\\\\|discount_type\\\\|discount_value\\\\|valid_from\\\\|valid_until\\\\|max_uses\\\\|uses_count\\\\|created_at\\\\|updated_at\" src/lib/data/*.ts)",
+      "Bash(grep -n \"is_deleted\\\\|sale_price\\\\|short_description\\\\|has_variants\\\\|product_id\\\\|user_id\\\\|order_id\\\\|customer_name\\\\|shipping_cost\\\\|delivery_date\\\\|product_name\\\\|discount_type\\\\|discount_value\\\\|valid_from\\\\|valid_until\\\\|max_uses\\\\|uses_count\\\\|created_at\\\\|updated_at\\\\|variant_name\\\\|user_email\\\\|user_name\\\\|transaction_type\\\\|peak_date\\\\|is_coupon_restricted\" src/lib/data/*.ts)",
+      "Bash(grep -n \"\\\\.is_deleted\\\\|\\\\.sale_price\\\\|\\\\.short_description\\\\|\\\\.has_variants\\\\|\\\\.created_at\\\\|\\\\.updated_at\\\\|\\\\.product_id\\\\|\\\\.user_id\\\\|\\\\.order_id\\\\|\\\\.customer_name\\\\|\\\\.shipping_cost\\\\|\\\\.delivery_date\\\\|\\\\.product_name\\\\|\\\\.discount_type\\\\|\\\\.discount_value\\\\|\\\\.valid_from\\\\|\\\\.valid_until\\\\|\\\\.max_uses\\\\|\\\\.uses_count\\\\|\\\\.user_name\\\\|\\\\.user_email\\\\|\\\\.transaction_type\\\\|\\\\.peak_date\\\\|\\\\.is_coupon_restricted\" src/services/*.ts src/app/admin/**/*.tsx src/app/api/**/*.ts)",
+      "Bash(xargs grep -l \"from.*data/\\\\|from.*lib/data\")",
+      "Bash(grep -r \"from.*data/\" src/lib/data/*.ts)",
+      "Bash(grep -n \"HomeDataCache\\\\|interface Home\\\\|type Home\" src/app/categories/[slug]/category-page-client.tsx)",
+      "Bash(cut -d'\\(' -f1)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Manuel Esmerio G\\.claude\\projects\\c--Users-Manuel-Esmerio-G-Documents-Projects-online-florarte\\memory"

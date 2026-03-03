@@ -74,9 +74,6 @@ export const Hero = () => {
                     priority={index === 0}
                     data-ai-hint={slide.dataAiHint}
                     sizes="(max-width: 768px) 100vw, 100vw"
-                    srcSet={
-                      `${slide.src.mobile} 750w, ${slide.src.desktop} 1920w`
-                    }
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 md:from-black/40" />
                   <div className="relative z-10 h-full container mx-auto px-4 flex flex-col items-center justify-center text-center pb-32 md:pb-0">

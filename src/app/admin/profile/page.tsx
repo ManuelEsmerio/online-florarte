@@ -113,7 +113,7 @@ export default function ProfilePageContent() {
             name: user.name,
             email: user.email,
             phone: user.phone || '',
-            profilePic: user.profilePic || '',
+            profilePic: user.profilePicUrl || '',
         });
     }
   }, [user, form]);
@@ -152,7 +152,7 @@ export default function ProfilePageContent() {
   const handleChangePassword = async (data: PasswordFormValues) => {
     if (changePassword) {
       setIsChangingPassword(true);
-      const { success, message } = await changePassword(data.newPassword);
+      const { success, message } = await changePassword('', data.newPassword);
       if (success) {
         toast({ title: '¡Contraseña Cambiada!', description: 'Tu contraseña ha sido actualizada.' });
         passwordForm.reset();
@@ -263,7 +263,7 @@ export default function ProfilePageContent() {
           </div>
           
           <div className="lg:col-span-1 space-y-8">
-            {user.role === 'customer' && (
+            {user.role === 'CUSTOMER' && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Gem className="w-6 h-6 text-blue-500" /> Lealtad Florarte</CardTitle>
@@ -272,7 +272,7 @@ export default function ProfilePageContent() {
                   <CardContent>
                       <div className='flex flex-col items-center justify-center text-center p-6 bg-muted/50 rounded-lg'>
                         <p className='text-muted-foreground'>Tu Saldo</p>
-                        <p className="text-5xl font-bold text-blue-500 my-2">{user.loyalty_points || 0}</p>
+                        <p className="text-5xl font-bold text-blue-500 my-2">{user.loyaltyPoints || 0}</p>
                         <p className='font-semibold'>Puntos</p>
                         <p className="text-xs text-muted-foreground mt-4 max-w-sm">Gana 1 punto por cada $1 gastado. Al juntar 3,000 puntos, obtienes un cupón de $200 MXN.</p>
                       </div>

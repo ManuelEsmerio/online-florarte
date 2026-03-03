@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { Product, ProductVariant, ProductRow } from '@/lib/definitions';
+import type { Product, ProductVariant } from '@/lib/definitions';
 import ProductImageCarousel from './ProductImageCarousel';
 import { Skeleton } from './ui/skeleton';
 import { handleApiResponse } from '@/utils/handleApiResponse';
@@ -43,7 +43,7 @@ import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 interface QuickViewProps {
     isOpen: boolean;
     onOpenChange: (isOpen: boolean) => void;
-    product: ProductRow;
+    product: Product;
 }
 
 const QuickViewSkeleton = () => (
@@ -92,7 +92,7 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
         queryKey: ['product-detail', initialProduct.slug],
         queryFn: async () => {
             const res = await fetch(`/api/products/${initialProduct.slug}`);
-            const data = await handleApiResponse(res);
+            const data = await handleApiResponse<{ product: Product }>(res);
             if (!data.product) throw new Error('Product not found');
             return data.product;
         },
@@ -102,15 +102,15 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
 
     useEffect(() => {
         if (!detailedProduct) return;
-        if (detailedProduct.has_variants && detailedProduct.variants?.length > 0) {
-            const selectedFromCard = detailedProduct.variants.find((variant: any) => {
+        if (detailedProduct.hasVariants && (detailedProduct.variants?.length ?? 0) > 0) {
+            const selectedFromCard = detailedProduct.variants!.find((variant: any) => {
                 const initialVariantId = (initialProduct as any)?.variantId;
                 const initialVariantName = (initialProduct as any)?.variantName;
                 if (initialVariantId != null && Number(variant.id) === Number(initialVariantId)) return true;
                 if (initialVariantName && String(variant.name).trim() === String(initialVariantName).trim()) return true;
                 return false;
             });
-            const sortedVariants = [...detailedProduct.variants].sort((a, b) => a.price - b.price);
+            const sortedVariants = [...(detailedProduct.variants ?? [])].sort((a, b) => a.price - b.price);
             setSelectedVariant(selectedFromCard || sortedVariants.find(v => v.stock > 0) || null);
         } else {
             setSelectedVariant(null);
@@ -168,14 +168,14 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
         if (!detailedProduct) return [];
         if (selectedVariant?.images?.length) return selectedVariant.images;
         if (detailedProduct.images?.length) return detailedProduct.images;
-        return [{ id: 0, src: detailedProduct.image, alt: detailedProduct.name, is_primary: true }];
+        return detailedProduct.mainImage ? [{ id: 0, src: detailedProduct.mainImage, alt: detailedProduct.name, isPrimary: true, variantId: null, sortOrder: 0, productId: detailedProduct.id }] : [];
     }, [detailedProduct, selectedVariant]);
     
     const displayPrice = selectedVariant ? selectedVariant.price : detailedProduct?.price;
-    const displaySalePrice = selectedVariant ? selectedVariant.sale_price : detailedProduct?.sale_price;
+    const displaySalePrice = selectedVariant ? selectedVariant.salePrice : detailedProduct?.salePrice;
     const priceToShow = displaySalePrice ?? displayPrice;
     const variantLabel = selectedVariant?.name ?? (initialProduct as any)?.variantName ?? null;
-    const hasVariantContext = Boolean(detailedProduct?.has_variants && variantLabel);
+    const hasVariantContext = Boolean(detailedProduct?.hasVariants && variantLabel);
     const displayTitle = hasVariantContext
         ? (selectedVariant?.productName ?? (initialProduct as any)?.variantProductName ?? detailedProduct?.name ?? initialProduct.name)
         : (detailedProduct?.name || initialProduct.name);
@@ -290,7 +290,7 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
                                     </div>
                                     
                                     <div className="space-y-8">
-                                        {detailedProduct.has_variants && detailedProduct.variants && (
+                                        {detailedProduct.hasVariants && detailedProduct.variants && (
                                             <div className="space-y-3">
                                                 <Label className="text-[10px] font-bold tracking-widest uppercase text-slate-400 block">Opciones</Label>
                                                 <div className="flex flex-wrap gap-3">
@@ -360,7 +360,7 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
                                         <div className="space-y-6">
                                             <h3 className="text-lg font-bold">Descripción</h3>
                                             <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-4">
-                                                {detailedProduct.short_description || detailedProduct.description}
+                                                {detailedProduct.shortDescription || detailedProduct.description}
                                             </p>
                                             
                                             {(selectedVariant?.specifications || detailedProduct.specifications) && (

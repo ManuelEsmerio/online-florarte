@@ -148,9 +148,9 @@ const OrdersSkeleton = ({ isMobile }: { isMobile: boolean }) => {
 };
 
 const getOrderProgressStep = (status: OrderStatus, isUnpaidOrder: boolean) => {
-  if (isUnpaidOrder || status === 'cancelado') return 0;
-  if (status === 'completado') return 3;
-  if (status === 'en_reparto') return 2;
+  if (isUnpaidOrder || status === 'CANCELLED') return 0;
+  if (status === 'DELIVERED') return 3;
+  if (status === 'SHIPPED') return 2;
   return 1;
 };
 
@@ -162,9 +162,9 @@ const getOrderProgressWidth = (step: number) => {
 };
 
 const getOrderProgressColor = (status: OrderStatus, isUnpaidOrder: boolean) => {
-  if (isUnpaidOrder || status === 'cancelado') return 'bg-muted-foreground/30';
-  if (status === 'completado') return 'bg-emerald-500';
-  if (status === 'en_reparto') return 'bg-amber-500';
+  if (isUnpaidOrder || status === 'CANCELLED') return 'bg-muted-foreground/30';
+  if (status === 'DELIVERED') return 'bg-emerald-500';
+  if (status === 'SHIPPED') return 'bg-amber-500';
   return 'bg-primary';
 };
 
@@ -226,13 +226,13 @@ export default function OrdersPage() {
     },
   });
 
-  const statusOptions: OrderStatus[] = ['pendiente', 'procesando', 'en_reparto', 'completado', 'cancelado'];
+  const statusOptions: OrderStatus[] = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
   const statusTranslations: { [key in OrderStatus]: string } = {
-    'pendiente': 'Pendiente',
-    'procesando': 'En Proceso',
-    'en_reparto': 'En Camino',
-    'completado': 'Completado',
-    'cancelado': 'Cancelado',
+    'PENDING': 'Pendiente',
+    'PROCESSING': 'En Proceso',
+    'SHIPPED': 'En Camino',
+    'DELIVERED': 'Completado',
+    'CANCELLED': 'Cancelado',
   };
 
   const getStatusBadgeClass = (status: OrderStatus, isUnpaidOrder: boolean) => {
@@ -241,9 +241,9 @@ export default function OrdersPage() {
     }
 
     switch (status) {
-      case 'completado': return 'bg-green-100 text-green-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
-      case 'en_reparto': return 'bg-blue-100 text-blue-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
-      case 'cancelado': return 'bg-slate-100 text-slate-500 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
+      case 'DELIVERED': return 'bg-green-100 text-green-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
+      case 'SHIPPED': return 'bg-blue-100 text-blue-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
+      case 'CANCELLED': return 'bg-slate-100 text-slate-500 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
       default: return 'bg-amber-100 text-amber-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
     }
   };
@@ -252,8 +252,8 @@ export default function OrdersPage() {
     return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+  const formatDate = (dateValue: Date | string) => {
+    const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
     return date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
@@ -343,7 +343,7 @@ export default function OrdersPage() {
                         <div className="flex justify-between items-center">
                           <div>
                             <h3 className="text-primary font-bold text-lg">#{String(order.id).padStart(4, '0')}</h3>
-                            <p className="text-xs text-muted-foreground">{formatDate(order.delivery_date)}</p>
+                            <p className="text-xs text-muted-foreground">{formatDate(order.deliveryDate)}</p>
                           </div>
                           <Badge className={cn('uppercase', getStatusBadgeClass(order.status, isUnpaidOrder))}>
                             {isUnpaidOrder ? 'Sin pago' : statusTranslations[order.status]}
@@ -353,7 +353,7 @@ export default function OrdersPage() {
                         <div className="flex items-center -space-x-2">
                           {(order.items || []).slice(0, 3).map((item, idx) => (
                             <div key={`${order.id}-${idx}`} className="relative h-11 w-11 rounded-lg overflow-hidden ring-2 ring-background bg-muted">
-                              <Image src={item.image || '/placehold.webp'} alt={item.product_name || 'Producto'} fill className="object-cover" />
+                              <Image src={item.imageSnap || '/placehold.webp'} alt={item.productNameSnap || 'Producto'} fill className="object-cover" />
                             </div>
                           ))}
                           {(order.items?.length || 0) > 3 && (
@@ -429,13 +429,13 @@ export default function OrdersPage() {
                         <div className="grid grid-cols-12 gap-4 items-center">
                           <div className="col-span-2">
                             <span className="block text-primary font-bold text-2xl mb-0.5">#{String(order.id).padStart(4, '0')}</span>
-                            <span className="text-xs text-muted-foreground">{formatDate(order.delivery_date)}</span>
+                            <span className="text-xs text-muted-foreground">{formatDate(order.deliveryDate)}</span>
                           </div>
 
                           <div className="col-span-4 flex -space-x-2">
                             {(order.items || []).slice(0, 3).map((item, idx) => (
                               <div key={`${order.id}-desktop-${idx}`} className="relative inline-block h-12 w-12 rounded-lg ring-4 ring-background overflow-hidden bg-muted">
-                                <Image src={item.image || '/placehold.webp'} alt={item.product_name || 'Producto'} fill className="object-cover" />
+                                <Image src={item.imageSnap || '/placehold.webp'} alt={item.productNameSnap || 'Producto'} fill className="object-cover" />
                               </div>
                             ))}
                             {(order.items?.length || 0) > 3 && (

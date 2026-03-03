@@ -337,4 +337,9 @@ export const userService = {
     return { deletedCount, errors };
   },
 
+  async redeemLoyaltyPoints(userId: number, quantity: number): Promise<{ coupons_created: number; new_coupon_ids: number[] }> {
+    // TODO: Implement loyalty points redemption logic
+    throw new Error('Loyalty points redemption not yet implemented.');
+  },
+
 };

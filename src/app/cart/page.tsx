@@ -276,7 +276,7 @@ export default function CartPage() {
                                 return (
                                     <div key={item.cartItemId} className="flex gap-4 p-6 border-b last:border-b-0 bg-background dark:bg-zinc-900 transition-colors font-sans">
                                         <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl border border-border/50 shadow-sm">
-                                            <Image src={item.image} alt={item.name} fill className="object-cover" />
+                                            <Image src={item.image || '/placehold.webp'} alt={item.name ?? ''} fill className="object-cover" />
                                         </div>
                                         <div className="flex-grow flex flex-col justify-between py-1">
                                             <div className="flex justify-between items-start">
@@ -285,7 +285,7 @@ export default function CartPage() {
                                                     variant="ghost" 
                                                     size="icon" 
                                                     className="h-8 w-8 text-muted-foreground/40 hover:text-destructive transition-colors -mt-1 -mr-1" 
-                                                    onClick={() => removeFromCart(item.cartItemId)} 
+                                                    onClick={() => removeFromCart(item.cartItemId ?? String(item.id))}
                                                     disabled={isUpdating}
                                                 >
                                                     {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
@@ -293,12 +293,12 @@ export default function CartPage() {
                                             </div>
                                             <div className="flex items-center justify-between mt-auto">
                                                 <span className="text-primary font-bold text-base md:text-lg font-sans">
-                                                    {formatCurrency(item.price)}
+                                                    {formatCurrency(item.price ?? item.unitPrice)}
                                                 </span>
                                                 <div className="flex items-center bg-muted/50 dark:bg-zinc-800 rounded-full border border-border/50 p-1">
                                                     <button 
                                                         className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-primary active:scale-90 transition-all disabled:opacity-30" 
-                                                        onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)} 
+                                                        onClick={() => updateQuantity(item.cartItemId ?? String(item.id), item.quantity - 1)}
                                                         disabled={isUpdating || item.quantity <= 1}
                                                     >
                                                         <Minus className="h-3.5 w-3.5" />
@@ -306,7 +306,7 @@ export default function CartPage() {
                                                     <span className="w-8 text-center text-xs font-bold font-sans">{item.quantity}</span>
                                                     <button 
                                                         className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-primary active:scale-90 transition-all disabled:opacity-30" 
-                                                        onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)} 
+                                                        onClick={() => updateQuantity(item.cartItemId ?? String(item.id), item.quantity + 1)}
                                                         disabled={isUpdating}
                                                     >
                                                         <Plus className="h-3.5 w-3.5" />

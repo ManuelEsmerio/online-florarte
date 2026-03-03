@@ -45,20 +45,22 @@ export function ShippingCityModal({
     onConfirm,
 }: ShippingCityModalProps) {
     const { toast } = useToast();
-    const [selectedLocality, setSelectedLocality] = useState<string>('');
+    const [selectedMunicipality, setSelectedMunicipality] = useState<string>('');
 
-    const localities = useMemo(() => {
-        const uniqueLocalities = new Map<string, ShippingZone>();
+    const municipalities = useMemo(() => {
+        const uniqueMunicipalities = new Map<string, ShippingZone>();
         shippingZones.forEach(zone => {
-            if (!uniqueLocalities.has(zone.locality)) {
-                uniqueLocalities.set(zone.locality, zone);
+            const key = (zone.municipality ?? zone.locality ?? '').trim();
+            if (!key) return;
+            if (!uniqueMunicipalities.has(key)) {
+                uniqueMunicipalities.set(key, zone);
             }
         });
-        return Array.from(uniqueLocalities.values());
+        return Array.from(uniqueMunicipalities.entries()).map(([name, zone]) => ({ name, zone }));
     }, [shippingZones]);
 
     const handleConfirm = () => {
-        if (!selectedLocality) {
+        if (!selectedMunicipality) {
             toast({
                 title: 'Selección requerida',
                 description: 'Por favor, selecciona una ciudad de entrega.',
@@ -67,10 +69,14 @@ export function ShippingCityModal({
             return;
         }
 
-        const selectedZone = localities.find(l => l.locality === selectedLocality);
+        const selectedZone = shippingZones.find(zone => {
+            const key = (zone.municipality ?? zone.locality ?? '').trim();
+            return key === selectedMunicipality;
+        }) ?? municipalities.find(entry => entry.name === selectedMunicipality)?.zone;
+
         if (selectedZone) {
             onConfirm({
-                locality: selectedZone.locality,
+                locality: selectedZone.municipality ?? selectedZone.locality,
                 postalCode: selectedZone.postalCode,
                 shippingCost: selectedZone.shippingCost,
             });
@@ -111,16 +117,16 @@ export function ShippingCityModal({
                             </Label>
                             <div className="relative group">
                                 <Select
-                                    value={selectedLocality}
-                                    onValueChange={setSelectedLocality}
+                                    value={selectedMunicipality}
+                                    onValueChange={setSelectedMunicipality}
                                 >
                                     <SelectTrigger className="w-full h-14 px-5 py-4 bg-muted/30 border-none rounded-2xl text-foreground font-medium focus:ring-2 focus:ring-primary/20 transition-all">
                                         <SelectValue placeholder="Selecciona una ciudad" />
                                     </SelectTrigger>
-                                    <SelectContent className="z-[80] rounded-2xl border-none shadow-xl">
-                                        {localities.map(zone => (
-                                            <SelectItem key={zone.postalCode} value={zone.locality} className="rounded-lg py-3">
-                                                {zone.locality}
+                                    <SelectContent position="popper" className="z-[2000] rounded-2xl border-none shadow-xl">
+                                        {municipalities.map(({ name, zone }) => (
+                                            <SelectItem key={`${name}-${zone.postalCode}`} value={name} className="rounded-lg py-3">
+                                                {name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>

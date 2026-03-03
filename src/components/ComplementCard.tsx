@@ -18,7 +18,7 @@ interface ComplementCardProps {
 export function ComplementCard({ complement, parentCartItemId, onQuickView }: ComplementCardProps) {
   const { cart, toggleComplement, isTogglingComplement, updatingItemId } = useCart();
     const variantLabel = (complement as any).variantName || (complement as any).variant_name || null;
-    const hasVariantContext = Boolean(complement.has_variants && variantLabel);
+    const hasVariantContext = Boolean(complement.hasVariants && variantLabel);
     const displayTitle = hasVariantContext
         ? ((complement as any).variantProductName || (complement as any).product_name || complement.name)
         : complement.name;
@@ -43,7 +43,7 @@ export function ComplementCard({ complement, parentCartItemId, onQuickView }: Co
     >
         <div className="rounded-2xl mb-4 overflow-hidden aspect-[4/5] relative shadow-sm bg-muted/20">
             <Image
-                src={complement.image || '/placehold.webp'}
+                src={complement.mainImage || complement.images?.[0]?.src || '/placehold.webp'}
                 alt={complement.name}
                 fill
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"

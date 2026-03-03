@@ -12,7 +12,8 @@ import {
 import { Button } from './ui/button';
 import { CheckCircle, X } from 'lucide-react';
 import Image from 'next/image';
-import type { CartItem } from '@/lib/definitions';
+import { type CartItemCompat } from '@/context/CartContext';
+import type { Product } from '@/lib/definitions';
 import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
 import { Separator } from './ui/separator';
@@ -23,7 +24,7 @@ import { cn } from '@/lib/utils';
 interface AddedToCartSheetProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  product: CartItem;
+  product: CartItemCompat;
 }
 
 export function AddedToCartSheet({
@@ -50,16 +51,17 @@ export function AddedToCartSheet({
     if (product.images && product.images.length > 0) {
       return product.images[0].src;
     }
-    return product.image || '/placehold.webp';
+    return product.image || product.product?.mainImage || '/placehold.webp';
   }, [product]);
 
   const productName = useMemo(() => {
+    const displayName = product.name ?? product.product?.name ?? '';
     const hasCustomPhoto = !!product.customPhotoUrl;
     if (hasCustomPhoto) {
-      return `${product.name} (con mini foto)`;
+      return `${displayName} (con mini foto)`;
     }
-    return product.name;
-  }, [product.name, product.customPhotoUrl]);
+    return displayName;
+  }, [product.name, product.product?.name, product.customPhotoUrl]);
 
 
   return (
@@ -74,7 +76,7 @@ export function AddedToCartSheet({
                         <div className="relative h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0">
                             <Image
                                 src={imageToShow}
-                                alt={product.name}
+                                alt={product.name ?? product.product?.name ?? ''}
                                 fill
                                 className="rounded-md object-cover"
                                 sizes="80px"
@@ -94,7 +96,7 @@ export function AddedToCartSheet({
             <Separator />
             
             <div className="flex-grow overflow-y-auto px-6 py-6 min-h-0">
-                <ComplementSlider product={product} parentCartItemId={product.cartItemId} />
+                {product.product && <ComplementSlider product={product.product as Product} parentCartItemId={product.cartItemId} />}
             </div>
 
             <SheetFooter className="p-6 border-t bg-background flex-col sm:flex-row gap-2 mt-auto">

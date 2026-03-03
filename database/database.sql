@@ -252,12 +252,19 @@ CREATE TABLE `cart_items_stage` (
 CREATE INDEX `ix_cart_guest_filter` ON `cart_items_stage` (`session_id`, `user_id`, `updated_at`);
 
 CREATE TABLE `wishlist` (
-  `user_id`    INT UNSIGNED NOT NULL,
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` INT UNSIGNED NOT NULL,
   `product_id` INT UNSIGNED NOT NULL,
+  `variant_id` INT UNSIGNED NULL,
+  `selection_key` VARCHAR(80) NOT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`user_id`,`product_id`),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_wish_user_selection` (`user_id`, `selection_key`),
+  KEY `idx_wish_product` (`product_id`),
+  KEY `idx_wish_variant` (`variant_id`),
   CONSTRAINT `fk_wish_user`    FOREIGN KEY (`user_id`)    REFERENCES `users`(`id`)    ON DELETE CASCADE,
-  CONSTRAINT `fk_wish_product` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_wish_product` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_wish_variant` FOREIGN KEY (`variant_id`) REFERENCES `product_variants`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 /* ============================================================

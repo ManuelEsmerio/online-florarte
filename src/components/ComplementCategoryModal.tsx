@@ -60,7 +60,7 @@ export function ComplementCategoryModal({
   }, [cart]);
 
   const complementsTotal = useMemo(() => {
-    return selectedComplements.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    return selectedComplements.reduce((sum, item) => sum + ((item.price ?? item.unitPrice) * item.quantity), 0);
   }, [selectedComplements]);
 
   const { data: activeProducts = [], isFetching: isLoadingProducts } = useQuery<Product[]>({
@@ -171,7 +171,7 @@ export function ComplementCategoryModal({
                             >
                                 <div className="relative aspect-square rounded-2xl overflow-hidden mb-4 bg-muted/30">
                                     <Image
-                                        src={complement.image || '/placehold.webp'}
+                                        src={complement.mainImage || complement.images?.[0]?.src || '/placehold.webp'}
                                         alt={complement.name}
                                         fill
                                         className="object-cover group-hover:scale-105 transition-transform duration-700"
@@ -188,7 +188,7 @@ export function ComplementCategoryModal({
                                                 variant="ghost" 
                                                 size="icon" 
                                                 className="h-8 w-8 text-primary hover:bg-primary hover:text-white rounded-xl transition-all active:scale-90"
-                                                onClick={() => updateQuantity(cartItem.cartItemId, cartItem.quantity - 1)}
+                                                onClick={() => updateQuantity(cartItem.cartItemId ?? String(cartItem.id), cartItem.quantity - 1)}
                                                 disabled={isTogglingComplement}
                                             >
                                                 <Minus className="h-4 w-4" />
@@ -198,7 +198,7 @@ export function ComplementCategoryModal({
                                                 variant="ghost" 
                                                 size="icon" 
                                                 className="h-8 w-8 text-primary hover:bg-primary hover:text-white rounded-xl transition-all active:scale-90"
-                                                onClick={() => updateQuantity(cartItem.cartItemId, cartItem.quantity + 1)}
+                                                onClick={() => updateQuantity(cartItem.cartItemId ?? String(cartItem.id), cartItem.quantity + 1)}
                                                 disabled={isTogglingComplement}
                                             >
                                                 <Plus className="h-4 w-4" />

@@ -8,11 +8,23 @@ import { handleApiResponse } from '@/utils/handleApiResponse';
 import { useAuth } from './AuthContext';
 import type { SelectedCity } from '@/components/ShippingCityModal';
 
-type CartItemCompat = CartItem & {
+export type CartItemCompat = CartItem & {
   cartItemId?: string;
   name?: string;
   image?: string;
-  variants?: Array<{ id: number; name?: string }>;
+  code?: string;
+  slug?: string;
+  price?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  category?: any;
+  has_variants?: boolean;
+  status?: string;
+  sale_price?: number | null;
+  stock?: number;
+  images?: Array<{ src: string; alt?: string }>;
+  variants?: Array<{ id: number; name?: string; price?: number; stock?: number; images?: Array<{ src: string }> }>;
+  photoOption?: string;
+  deliveryTime?: string;
 };
 
 type CouponCompat = Coupon & {
@@ -47,7 +59,7 @@ interface AddToCartParams {
 }
 
 interface CartContextType {
-  cart: CartItem[];
+  cart: CartItemCompat[];
   isLoading: boolean;
   fetchCart: () => Promise<void>;
   addToCart: (params: AddToCartParams) => Promise<string | null>;

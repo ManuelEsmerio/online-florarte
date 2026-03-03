@@ -16,8 +16,8 @@ type DataFetcher = (from?: string, to?: string) => Promise<any[]>;
 // Mapea el tipo de dato a la función que obtiene los datos
 const dataFetchers: Record<string, DataFetcher> = {
   products: async () => (await productService.getAdminProductList()).products,
-  orders: async (from, to) => orderService.getAllOrdersForAdmin({ search: '', status: [], from, to }),
-  users: async (from, to) => userService.getAllUsersForAdmin({ status: 'all', searchTerm: '', roles: [], from, to }),
+  orders: async (from, to) => (await orderService.getAllOrdersForAdmin({ search: '', status: [], from, to })).orders,
+  users: async () => userService.getAllUsersForAdmin({ status: 'all', searchTerm: '', roles: [] }),
   coupons: async () => (await couponService.getAllCoupons({ search: '', status: [], page: 1, limit: 9999 })).coupons,
   categories: async () => categoryService.getAllCategories(),
   tags: async () => tagService.getAllTags(),

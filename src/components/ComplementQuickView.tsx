@@ -42,7 +42,7 @@ export function ComplementQuickView({
     onOpenChange(false);
   };
   
-  const productImage = complement.image || '/placehold.webp';
+  const productImage = complement.mainImage || complement.images?.[0]?.src || '/placehold.webp';
   const isUpdatingThis = isTogglingComplement && updatingItemId === `comp-${complement.id}`;
 
   const formatCurrency = (amount: number) => {
@@ -90,7 +90,7 @@ export function ComplementQuickView({
 
           <div className="mb-6 text-center">
             <span className="text-4xl font-bold text-primary tracking-tight font-sans">
-              {formatCurrency(complement.sale_price || complement.price)}
+              {formatCurrency(complement.salePrice || complement.price)}
             </span>
           </div>
 

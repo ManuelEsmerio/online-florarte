@@ -69,7 +69,7 @@ export default function TestimonialsPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Error al actualizar');
-      toast({ title: '¡Estado Actualizado!', description: `El testimonio ha sido ${status === 'approved' ? 'aprobado' : 'rechazado'}.` });
+      toast({ title: '¡Estado Actualizado!', description: `El testimonio ha sido ${status === 'APPROVED' ? 'aprobado' : 'rechazado'}.` });
       await loadTestimonials();
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
@@ -143,7 +143,7 @@ export default function TestimonialsPage() {
         <aside className="w-full xl:w-[32%]">
           <TestimonialPreview
             testimonial={previewTestimonial}
-            onUpdateStatus={handleUpdateStatus}
+            onUpdateStatus={(id, status) => { void handleUpdateStatus(id, status.toUpperCase() as TestimonialStatus) }}
             onDelete={handleDelete}
           />
         </aside>

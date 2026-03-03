@@ -279,13 +279,13 @@ function ProfilePageContent() {
     setIsAddressModalOpen(true);
   };
 
-  const handleSaveAddress = async (addressData: Address) => {
+  const handleSaveAddress = async (addressData: Omit<Address, 'id'> | Address) => {
     setIsSavingAddress(true);
     let result;
-    if (addressData.id && addressData.id > 0) {
-        result = await updateAddress(addressData);
+    if ('id' in addressData && (addressData as Address).id > 0) {
+        result = await updateAddress(addressData as Address);
     } else {
-        result = await addAddress(addressData);
+        result = await addAddress(addressData as Omit<Address, 'id'>);
     }
 
     if (result.success) {
@@ -625,7 +625,7 @@ function ProfilePageContent() {
                     </div>
                     <div className='flex flex-col items-center justify-center text-center space-y-2 bg-muted/30 p-8 rounded-2xl border border-border/50 mb-6'>
                         <p className='text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1'>Tu Saldo</p>
-                        <p className="text-5xl font-bold text-primary font-sans">{user.loyalty_points || 0}</p>
+                        <p className="text-5xl font-bold text-primary font-sans">{user.loyaltyPoints || 0}</p>
                         <p className='text-sm font-bold text-muted-foreground'>Puntos</p>
                     </div>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-tight leading-relaxed font-medium">
@@ -680,7 +680,7 @@ function ProfilePageContent() {
         onOpenChange={setIsAddressModalOpen}
         onAddressSelect={() => {}}
         onSaveAddress={handleSaveAddress}
-        onDeleteAddress={deleteAddress}
+        onDeleteAddress={(id) => deleteAddress(id).then(() => {})}
         addresses={user.addresses || []}
         isSaving={isSavingAddress}
         addressToEdit={addressToEdit}

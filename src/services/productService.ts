@@ -655,20 +655,20 @@ export const productService = {
                 value: String(spec?.value ?? '').trim(),
                 sortOrder: toInteger(spec?.sortOrder ?? spec?.sort_order, index),
               }))
-              .filter((spec) => spec.key && spec.value),
+              .filter((spec: any) => spec.key && spec.value),
           });
         }
 
         if (normalized.tagIds.length > 0) {
           await tx.productTag.createMany({
-            data: Array.from(new Set(normalized.tagIds)).map((tagId) => ({ productId: product.id, tagId })),
+            data: Array.from<number>(new Set(normalized.tagIds)).map((tagId) => ({ productId: product.id, tagId })),
             skipDuplicates: true,
           });
         }
 
         if (normalized.occasionIds.length > 0) {
           await tx.productOccasion.createMany({
-            data: Array.from(new Set(normalized.occasionIds)).map((occasionId) => ({ productId: product.id, occasionId })),
+            data: Array.from<number>(new Set(normalized.occasionIds)).map((occasionId) => ({ productId: product.id, occasionId })),
             skipDuplicates: true,
           });
         }
@@ -728,7 +728,7 @@ export const productService = {
                     value: String(spec?.value ?? '').trim(),
                     sortOrder: toInteger(spec?.sortOrder ?? spec?.sort_order, specIdx),
                   }))
-                  .filter((spec) => spec.key && spec.value),
+                  .filter((spec: any) => spec.key && spec.value),
               });
             }
           }
@@ -868,14 +868,14 @@ export const productService = {
               value: String(spec?.value ?? '').trim(),
               sortOrder: toInteger(spec?.sortOrder ?? spec?.sort_order, index),
             }))
-            .filter((spec) => spec.key && spec.value),
+            .filter((spec: any) => spec.key && spec.value),
         });
       }
 
       await tx.productTag.deleteMany({ where: { productId: updated.id } });
       if (normalized.tagIds.length > 0) {
         await tx.productTag.createMany({
-          data: Array.from(new Set(normalized.tagIds)).map((tagId) => ({ productId: updated.id, tagId })),
+          data: Array.from<number>(new Set(normalized.tagIds)).map((tagId) => ({ productId: updated.id, tagId })),
           skipDuplicates: true,
         });
       }
@@ -883,7 +883,7 @@ export const productService = {
       await tx.productOccasion.deleteMany({ where: { productId: updated.id } });
       if (normalized.occasionIds.length > 0) {
         await tx.productOccasion.createMany({
-          data: Array.from(new Set(normalized.occasionIds)).map((occasionId) => ({ productId: updated.id, occasionId })),
+          data: Array.from<number>(new Set(normalized.occasionIds)).map((occasionId) => ({ productId: updated.id, occasionId })),
           skipDuplicates: true,
         });
       }
@@ -988,7 +988,7 @@ export const productService = {
                 value: String(spec?.value ?? '').trim(),
                 sortOrder: toInteger(spec?.sortOrder ?? spec?.sort_order, specIdx),
               }))
-              .filter((spec) => spec.key && spec.value),
+              .filter((spec: any) => spec.key && spec.value),
           });
         }
       }

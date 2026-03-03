@@ -36,14 +36,14 @@ export async function POST(req: NextRequest) {
       return errorHandler(new Error('No autorizado. Debes iniciar sesión para guardar favoritos.'), 401);
     }
 
-    const { productId } = await req.json();
+    const { productId, variantId } = await req.json();
     if (!productId) {
       return errorHandler(new Error('El ID del producto es requerido.'), 400);
     }
 
-    const type = await wishlistService.toggleWishlist(session.dbId, productId);
+    const result = await wishlistService.toggleWishlist(session.dbId, productId, variantId);
 
-    return successResponse({ type }, 200);
+    return successResponse(result, 200);
 
   } catch (error) {
     console.error('[API_WISHLIST_POST_ERROR]', error);

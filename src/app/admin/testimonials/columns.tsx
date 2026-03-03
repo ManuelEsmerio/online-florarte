@@ -14,14 +14,14 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { TestimonialDetailModal } from '@/components/admin/testimonials/TestimonialDetailModal';
 
-export type TestimonialStatus = 'pending' | 'approved' | 'rejected';
+export type TestimonialStatus = 'pending' | 'APPROVED' | 'REJECTED';
 
 
 const getStatusVariant = (status: TestimonialStatus): 'success' | 'destructive' | 'secondary' => {
   switch (status) {
-    case 'approved':
+    case 'APPROVED':
       return 'success';
-    case 'rejected':
+    case 'REJECTED':
       return 'destructive';
     case 'pending':
       return 'secondary';
@@ -31,8 +31,8 @@ const getStatusVariant = (status: TestimonialStatus): 'success' | 'destructive' 
 }
 
 const statusIcons: { [key in TestimonialStatus]: React.ReactNode } = {
-  approved: <CheckCircle className="mr-2 h-4 w-4" />,
-  rejected: <XCircle className="mr-2 h-4 w-4" />,
+  APPROVED: <CheckCircle className="mr-2 h-4 w-4" />,
+  REJECTED: <XCircle className="mr-2 h-4 w-4" />,
   pending: <Clock className="mr-2 h-4 w-4" />,
 };
 
@@ -121,14 +121,14 @@ export const columns = ({ onUpdateStatus, onDelete }: ColumnsProps): ColumnDef<T
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => onUpdateStatus(testimonial.id, 'approved')}
-              disabled={testimonial.status === 'approved'}
+              onClick={() => onUpdateStatus(testimonial.id, 'APPROVED')}
+              disabled={testimonial.status === 'APPROVED'}
             >
               Aprobar
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() => onUpdateStatus(testimonial.id, 'rejected')}
-              disabled={testimonial.status === 'rejected'}
+              onClick={() => onUpdateStatus(testimonial.id, 'REJECTED')}
+              disabled={testimonial.status === 'REJECTED'}
             >
               Rechazar
             </DropdownMenuItem>

@@ -1,5 +1,5 @@
 // src/mappers/cartMapper.ts
-import type { CartItem } from '@/lib/definitions';
+import type { CartItemCompat } from '@/context/CartContext';
 import { getPublicUrlForPath } from '@/utils/file-utils';
 
 /**
@@ -18,7 +18,7 @@ function passThroughTimeSlot(timeSlot: string | null | undefined): string {
  * @param dbItem - El objeto de la fila de la base de datos.
  * @returns Un objeto CartItem para usar en el frontend.
  */
-export function mapDbCartItemToCartItem(dbItem: any): CartItem {
+export function mapDbCartItemToCartItem(dbItem: any): CartItemCompat {
   // Prioriza la imagen de la variante, si no, usa la del producto, y si no, un placeholder.
   const imageUrl = dbItem.variant_image 
     ? getPublicUrlForPath(dbItem.variant_image)
@@ -29,13 +29,17 @@ export function mapDbCartItemToCartItem(dbItem: any): CartItem {
 
   return {
     id: dbItem.product_id,
+    cartId: 0,
+    productId: dbItem.product_id,
+    unitPrice: parseFloat(dbItem.unit_price),
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
     cartItemId: dbItem.id.toString(), // El ID único del renglón en el carrito
     name: dbItem.product_name,
     slug: dbItem.product_slug,
     code: dbItem.variant_code || dbItem.product_sku_short,
-    description: null, 
-    price: parseFloat(dbItem.unit_price), 
-    sale_price: null, 
+    price: parseFloat(dbItem.unit_price),
+    sale_price: null,
     stock: -1,
     has_variants: !!dbItem.variant_id,
     status: 'publicado',

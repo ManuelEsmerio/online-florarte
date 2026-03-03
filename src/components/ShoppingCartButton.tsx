@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useCart } from "@/context/CartContext";
+import { useCart, type CartItemCompat } from "@/context/CartContext";
 import { Button } from "./ui/button";
 import { ShoppingBag, X, Minus, Plus, Trash2 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "./ui/sheet";
@@ -89,7 +89,7 @@ const ShoppingCartButton = () => {
                                         <div className="w-24 h-24 flex-shrink-0 bg-slate-50 dark:bg-zinc-900 rounded-lg overflow-hidden border border-slate-100 dark:border-zinc-800 relative">
                                             <Image
                                                 src={item.image || '/placehold.webp'}
-                                                alt={item.name}
+                                                alt={item.name ?? ''}
                                                 fill
                                                 className="object-cover"
                                                 sizes="96px"
@@ -102,7 +102,7 @@ const ShoppingCartButton = () => {
                                                     <p className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest font-mono">SKU: {item.code}</p>
                                                 </div>
                                                 <button 
-                                                    onClick={(e) => handleRemove(e, item.cartItemId)}
+                                                    onClick={(e) => handleRemove(e, item.cartItemId ?? String(item.id))}
                                                     className="text-slate-300 hover:text-primary transition-colors p-1"
                                                 >
                                                     <X className="h-4 w-4" />
@@ -112,7 +112,7 @@ const ShoppingCartButton = () => {
                                                 <div className="flex items-center border border-slate-200 dark:border-zinc-800 rounded-full p-1 bg-slate-50/50 dark:bg-zinc-900/50 h-9">
                                                     <button 
                                                         className="w-7 h-7 flex items-center justify-center hover:bg-white dark:hover:bg-zinc-800 rounded-full transition-all disabled:opacity-20"
-                                                        onClick={(e) => { e.stopPropagation(); updateQuantity(item.cartItemId, item.quantity - 1); }}
+                                                        onClick={(e) => { e.stopPropagation(); updateQuantity(item.cartItemId ?? String(item.id), item.quantity - 1); }}
                                                         disabled={item.quantity <= 1}
                                                     >
                                                         <Minus className="h-3 w-3" />
@@ -120,12 +120,12 @@ const ShoppingCartButton = () => {
                                                     <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
                                                     <button 
                                                         className="w-7 h-7 flex items-center justify-center hover:bg-white dark:hover:bg-zinc-800 rounded-full transition-all"
-                                                        onClick={(e) => { e.stopPropagation(); updateQuantity(item.cartItemId, item.quantity + 1); }}
+                                                        onClick={(e) => { e.stopPropagation(); updateQuantity(item.cartItemId ?? String(item.id), item.quantity + 1); }}
                                                     >
                                                         <Plus className="h-3 w-3" />
                                                     </button>
                                                 </div>
-                                                <span className="font-semibold text-lg">{formatCurrency(item.price * item.quantity)}</span>
+                                                <span className="font-semibold text-lg">{formatCurrency((item.price ?? item.unitPrice) * item.quantity)}</span>
                                             </div>
                                         </div>
                                     </div>

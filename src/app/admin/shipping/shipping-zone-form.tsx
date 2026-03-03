@@ -156,7 +156,7 @@ export function ShippingZoneForm({ isOpen, onOpenChange, onSave, zone, isSaving 
                   <FormItem>
                     <FormLabel>Municipio</FormLabel>
                     <FormControl>
-                      <Input placeholder="Tequila" {...field} />
+                      <Input placeholder="Tequila" {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -169,7 +169,7 @@ export function ShippingZoneForm({ isOpen, onOpenChange, onSave, zone, isSaving 
                   <FormItem>
                     <FormLabel>Estado</FormLabel>
                     <FormControl>
-                      <Input placeholder="Jalisco" {...field} />
+                      <Input placeholder="Jalisco" {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -185,7 +185,7 @@ export function ShippingZoneForm({ isOpen, onOpenChange, onSave, zone, isSaving 
                   <FormItem>
                     <FormLabel>Tipo de Asentamiento</FormLabel>
                     <FormControl>
-                      <Input placeholder="Colonia" {...field} />
+                      <Input placeholder="Colonia" {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -198,7 +198,7 @@ export function ShippingZoneForm({ isOpen, onOpenChange, onSave, zone, isSaving 
                   <FormItem>
                     <FormLabel>Clave Estado</FormLabel>
                     <FormControl>
-                      <Input placeholder="14" maxLength={5} {...field} />
+                      <Input placeholder="14" maxLength={5} {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -211,7 +211,7 @@ export function ShippingZoneForm({ isOpen, onOpenChange, onSave, zone, isSaving 
                   <FormItem>
                     <FormLabel>Clave Municipio</FormLabel>
                     <FormControl>
-                      <Input placeholder="084" maxLength={5} {...field} />
+                      <Input placeholder="084" maxLength={5} {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -227,7 +227,7 @@ export function ShippingZoneForm({ isOpen, onOpenChange, onSave, zone, isSaving 
                   <FormItem>
                     <FormLabel>Clave Oficina Postal</FormLabel>
                     <FormControl>
-                      <Input placeholder="47600" maxLength={10} {...field} />
+                      <Input placeholder="47600" maxLength={10} {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -240,7 +240,7 @@ export function ShippingZoneForm({ isOpen, onOpenChange, onSave, zone, isSaving 
                   <FormItem>
                     <FormLabel>Zona Logística</FormLabel>
                     <FormControl>
-                      <Input placeholder="urbana" {...field} />
+                      <Input placeholder="urbana" {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

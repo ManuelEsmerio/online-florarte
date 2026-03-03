@@ -3,7 +3,7 @@
 
 import { Suspense, useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ProductCard } from '@/components/ProductCard';
-import type { Product, ProductCategory, Occasion, Announcement, Tag, ProductRow } from '@/lib/definitions';
+import type { Product, ProductCategory, Occasion, Announcement, Tag } from '@/lib/definitions';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import {
@@ -247,7 +247,7 @@ function CategoryPageClientContent({
           if (!homeDataInFlight) {
             homeDataInFlight = (async () => {
               const homeDataRes = await apiFetch('/api/home');
-              const homeData = await handleApiResponse(homeDataRes);
+              const homeData = await handleApiResponse<HomeDataCache>(homeDataRes);
 
               return {
                 categories: homeData.categories || [],
@@ -264,7 +264,7 @@ function CategoryPageClientContent({
 
         const [productsRes, homeData] = await Promise.all([productsPromise, homeDataPromise]);
         
-        const productsData = await handleApiResponse(productsRes);
+        const productsData = await handleApiResponse<{ products: Product[] }>(productsRes);
         if (!cachedHomeData) {
           homeDataMemoryCache = homeData;
           homeDataInFlight = null;
@@ -301,7 +301,7 @@ function CategoryPageClientContent({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sortOption, setSortOption] = useState<SortOption>('recommended');
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const { currentCategory, subcategories } = useMemo(() => {
     let currentCategory: ProductCategory | null = null;
@@ -326,7 +326,7 @@ function CategoryPageClientContent({
   const maxPrice = useMemo(() => {
     if (allProducts.length === 0) return 5000;
     const allPrices = allProducts.flatMap(p =>
-      p.has_variants && p.variants ? p.variants.map(v => v.price) : [p.price]
+      p.hasVariants && p.variants ? p.variants.map(v => v.price) : [p.price]
     );
     return Math.ceil(Math.max(...allPrices, 0) / 100) * 100;
   }, [allProducts]);
@@ -335,7 +335,7 @@ function CategoryPageClientContent({
   const expandedProducts = useMemo(() => {
     const result: any[] = [];
     for (const product of allProducts) {
-      if (product.has_variants && product.variants && product.variants.length > 0) {
+      if (product.hasVariants && product.variants && product.variants.length > 0) {
         for (const variant of product.variants) {
           const imgs = (variant as any).images as any[] | undefined;
           const variantImg =
@@ -400,12 +400,12 @@ function CategoryPageClientContent({
             }
         }
         
-        const occasionMatch = selectedOccasions.length === 0 || product.occasions?.some(occ => selectedOccasions.includes(occ.slug));
-        const tagMatch = selectedTags.length === 0 || product.tags?.some(tag => selectedTags.includes(tag.name));
+        const occasionMatch = selectedOccasions.length === 0 || product.occasions?.some((occ: any) => selectedOccasions.includes(occ.slug ?? occ.occasion?.slug));
+        const tagMatch = selectedTags.length === 0 || product.tags?.some((tag: any) => selectedTags.includes(tag.name ?? tag.tag?.name));
 
         let initialOccasionMatch = true;
         if(pageType === 'occasion' && currentOccasion) {
-            initialOccasionMatch = product.occasions?.some(o => o.id === currentOccasion.id) || false;
+            initialOccasionMatch = product.occasions?.some((o: any) => o.id === currentOccasion.id || o.occasionId === currentOccasion.id) || false;
         }
 
         return searchMatch && priceMatch && categoryMatch && occasionMatch && tagMatch && initialOccasionMatch;
@@ -422,8 +422,8 @@ function CategoryPageClientContent({
                 return priceB - priceA;
             case 'recommended':
             default:
-                const isARecommended = a.tags?.some(t => t.name === 'más vendido');
-                const isBRecommended = b.tags?.some(t => t.name === 'más vendido');
+                const isARecommended = a.tags?.some((t: any) => (t.name ?? t.tag?.name) === 'más vendido');
+                const isBRecommended = b.tags?.some((t: any) => (t.name ?? t.tag?.name) === 'más vendido');
                 if (isARecommended && !isBRecommended) return -1;
                 if (!isARecommended && isBRecommended) return 1;
                 return 0; 
@@ -525,7 +525,7 @@ function CategoryPageClientContent({
   }, [displayedProducts, announcements]);
 
 
-  const handleQuickViewOpen = (product: ProductRow) => {
+  const handleQuickViewOpen = (product: Product) => {
     setSelectedProduct(product);
     setIsQuickViewOpen(true);
   };

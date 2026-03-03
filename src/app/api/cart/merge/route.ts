@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     const user: UserSession | null = await getDecodedToken(req);
     
     // 1. Validar que el usuario esté autenticado.
-    if (!user?.dbId || !user.firebaseUid) {
+    if (!user?.dbId) {
       return errorHandler(new Error('Acceso denegado. Se requiere autenticación.'), 401);
     }
     

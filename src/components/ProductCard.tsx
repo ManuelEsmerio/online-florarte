@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ProductRow } from '@/lib/definitions';
+import type { Product } from '@/lib/definitions';
 import { cn } from '@/lib/utils';
 import { Heart, Eye, ShoppingCart, Percent, Sparkles, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -16,23 +16,27 @@ import { ToastAction } from '@/components/ui/toast';
 import { useRef, useState } from 'react';
 
 interface ProductCardProps {
-  product: ProductRow;
+  product: Product;
   index?: number;
-  onQuickViewOpen?: (product: ProductRow) => void;
+  onQuickViewOpen?: (product: Product) => void;
   variant?: 'default' | 'compact';
 }
 
 export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'default' }: ProductCardProps) {
   const { toast } = useToast();
-  const { toggleWishlist, wishlist } = useAuth();
+    const { toggleWishlist, wishlist } = useAuth();
   const { addToCart, deliveryDate } = useCart();
-  const isProductInWishlist = wishlist.some(item => item.id === product.id);
+    const rawVariantId = (product as any)?.variantId;
+    const currentVariantId = rawVariantId != null ? Number(rawVariantId) : null;
+    const isProductInWishlist = wishlist.some(item =>
+        item.productId === product.id && (item.variantId ?? null) === (currentVariantId ?? null)
+    );
   const pressTimer = useRef<NodeJS.Timeout>();
   const [isAdding, setIsAdding] = useState(false);
 
   const isCompact = variant === 'compact';
     const variantLabel = (product as any)?.variantName ?? null;
-    const hasVariantContext = Boolean(product.has_variants && variantLabel);
+    const hasVariantContext = Boolean(product.hasVariants && variantLabel);
     const displayTitle = hasVariantContext
         ? ((product as any)?.variantProductName ?? product.name)
         : product.name;
@@ -40,13 +44,13 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
   let displayPrice: number;
   let displaySalePrice: number | null = null;
 
-  if (product.has_variants && product.variants && product.variants.length > 0) {
+  if (product.hasVariants && product.variants && product.variants.length > 0) {
     const firstVariant = product.variants[0];
     displayPrice = firstVariant.price;
-    displaySalePrice = firstVariant.sale_price ?? null;
+    displaySalePrice = firstVariant.salePrice ?? null;
   } else {
     displayPrice = product.price;
-    displaySalePrice = product.sale_price ?? null;
+    displaySalePrice = product.salePrice ?? null;
   }
 
   const priceAsNumber = parseFloat(displayPrice as any);
@@ -56,7 +60,16 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
   const handleWishlistToggle = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const result = await toggleWishlist(product.id, product as any);
+        const resolvedVariant = currentVariantId
+            ? (product.variants?.find(v => v.id === currentVariantId) ?? product.variants?.[0] ?? null)
+            : null;
+
+        const result = await toggleWishlist({
+            productId: product.id,
+            product: product as any,
+            variantId: currentVariantId,
+            variant: resolvedVariant as any,
+        });
     
     if (result.success) {
       toast({
@@ -87,7 +100,7 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
         return;
     }
 
-    if (product.has_variants) {
+    if (product.hasVariants) {
         onQuickViewOpen?.(product);
         return;
     }
@@ -201,7 +214,7 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
 
             <Link href={`/products/${product.slug}`} className="block h-full relative">
                 <Image
-                    src={product.image || '/placehold.webp'}
+                    src={product.mainImage || '/placehold.webp'}
                     alt={product.name}
                     fill
                     className="object-cover transition-transform duration-700 group-hover:scale-110"

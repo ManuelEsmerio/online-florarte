@@ -236,7 +236,7 @@ export const columns = ({
     cell: ({ row }) => {
         const product = row.original;
         if (product.isVariant) return null;
-        return <span className="capitalize text-slate-500">{product.category.name}</span>
+        return <span className="capitalize text-slate-500">{product.category?.name}</span>
     },
     filterFn: (row, id, value) => {
       const categorySlug = (row.original as any).category.slug;
@@ -250,7 +250,7 @@ export const columns = ({
     accessorKey: 'price',
     header: 'Precio',
     cell: ({ row }) => {
-      const price = parseFloat(row.getValue('price') || 0);
+      const price = parseFloat(row.getValue('price') ?? '0');
       const formatted = new Intl.NumberFormat('es-MX', {
         style: 'currency',
         currency: 'MXN',

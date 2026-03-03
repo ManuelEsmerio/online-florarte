@@ -137,9 +137,14 @@ model WishlistItem {
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId Int
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId Int?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  selectionKey String @db.VarChar(80)
   createdAt DateTime @default(now())
 
-  @@unique([userId, productId])
+  @@unique([userId, selectionKey])
+  @@index([variantId])
   @@map("wishlist_items")
 }
 
@@ -261,6 +266,7 @@ model Product {
   orderItems     OrderItem[]
   couponProducts CouponProduct[]
   cartItems      CartItem[]
+  wishlistItems  WishlistItem[]
 
   @@index([status, isDeleted])
   @@index([categoryId, status, isDeleted])
@@ -288,6 +294,7 @@ model ProductVariant {
   specifications ProductSpecification[]
   orderItems     OrderItem[]
   cartItems      CartItem[]
+  wishlistItems  WishlistItem[]
 
   @@map("product_variants")
 }
