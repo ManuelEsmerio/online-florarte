@@ -83,6 +83,14 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     // En modo demo el borrado es solo lógico en nuestro array local
     await userService.deleteUser(userIdToDelete, session.dbId);
 
+    console.info('[AUDIT] user_deleted', {
+      action: 'user_deleted',
+      targetUserId: userIdToDelete,
+      targetEmail: userToDelete.email,
+      performedBy: session.dbId,
+      timestamp: new Date().toISOString(),
+    });
+
     return successResponse({ message: 'Usuario eliminado correctamente (borrado lógico).' });
   } catch (error) {
     console.error(`[API_ADMIN_USER_DELETE_ERROR] ID: ${routeUserId}`, error);

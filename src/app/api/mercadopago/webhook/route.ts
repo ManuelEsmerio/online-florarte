@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { Payment } from 'mercadopago';
 import { mercadopago } from '@/lib/mercadopago';
 import { orderService } from '@/services/orderService';
@@ -25,11 +25,24 @@ function verifyWebhookSignature(
   const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
   const expected = createHmac('sha256', secret).update(manifest).digest('hex');
 
-  return expected === v1;
+  const expectedBuffer = Buffer.from(expected, 'hex');
+  const signatureBuffer = Buffer.from(v1, 'hex');
+
+  if (expectedBuffer.length !== signatureBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expectedBuffer, signatureBuffer);
 }
 
 export async function POST(req: Request) {
   const webhookSecret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
+
+  // En producción el secreto es OBLIGATORIO — sin él rechazamos todas las peticiones
+  if (!webhookSecret && process.env.NODE_ENV === 'production') {
+    console.error('[MERCADOPAGO_WEBHOOK] MERCADO_PAGO_WEBHOOK_SECRET no configurado en producción');
+    return NextResponse.json({ error: 'Webhook not configured.' }, { status: 500 });
+  }
 
   const xSignature = req.headers.get('x-signature') ?? '';
   const xRequestId = req.headers.get('x-request-id') ?? '';
@@ -43,7 +56,7 @@ export async function POST(req: Request) {
 
   const dataId = body?.data?.id ?? '';
 
-  // Validate signature when secret is configured
+  // Verificar firma cuando el secreto está disponible
   if (webhookSecret && dataId) {
     const isValid = verifyWebhookSignature(xSignature, xRequestId, dataId, webhookSecret);
     if (!isValid) {

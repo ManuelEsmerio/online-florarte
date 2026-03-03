@@ -4,8 +4,16 @@ import { prisma } from '@/lib/prisma';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { sendPasswordResetEmail } from '@/lib/email';
 import crypto from 'crypto';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export async function POST(req: NextRequest) {
+  // 3 solicitudes por IP cada hora (protege abuso del servicio de email)
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`forgot-password:${ip}`, 3, 60 * 60 * 1000);
+  if (!rl.allowed) {
+    return errorHandler(new Error('Demasiadas solicitudes de restablecimiento. Intenta más tarde.'), 429);
+  }
+
   try {
     const { email } = await req.json();
 

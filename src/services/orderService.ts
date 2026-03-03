@@ -497,6 +497,27 @@ export const orderService = {
         },
       });
 
+      // Deducir stock de cada ítem (atómico: si alguno falla, rollback completo)
+      for (const item of orderItemsToCreate) {
+        if (item.variantId) {
+          const result = await tx.productVariant.updateMany({
+            where: { id: item.variantId, stock: { gte: item.quantity } },
+            data: { stock: { decrement: item.quantity } },
+          });
+          if (result.count !== 1) {
+            throw new Error(`Stock insuficiente para "${item.productNameSnap}" (${item.variantNameSnap ?? 'variante'}).`);
+          }
+        } else {
+          const result = await tx.product.updateMany({
+            where: { id: item.productId, stock: { gte: item.quantity } },
+            data: { stock: { decrement: item.quantity } },
+          });
+          if (result.count !== 1) {
+            throw new Error(`Stock insuficiente para "${item.productNameSnap}".`);
+          }
+        }
+      }
+
       if (appliedCoupon) {
         const couponUpdateWhere: any = {
           id: appliedCoupon.id,
@@ -640,5 +661,49 @@ export const orderService = {
     }
 
     return { success: true, orderId: params.orderId };
+  },
+
+  async cancelAbandonedOrder(orderId: number): Promise<void> {
+    await prisma.$transaction(async (tx: any) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: {
+          id: true,
+          status: true,
+          couponId: true,
+          items: { select: { productId: true, variantId: true, quantity: true } },
+        },
+      });
+
+      if (!order || order.status !== 'PENDING') return;
+
+      // Restaurar stock de cada ítem
+      for (const item of order.items) {
+        if (item.variantId) {
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data: { stock: { increment: item.quantity } },
+          });
+        } else {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
+      }
+
+      // Revertir uso del cupón
+      if (order.couponId) {
+        await tx.coupon.updateMany({
+          where: { id: order.couponId, usesCount: { gt: 0 } },
+          data: { usesCount: { decrement: 1 } },
+        });
+      }
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'CANCELLED' },
+      });
+    });
   },
 };

@@ -6,9 +6,6 @@ export const mercadoPagoService: PaymentProvider = {
   async createCheckoutSession(params: CreateCheckoutParams): Promise<CheckoutResult> {
     const preference = new Preference(mercadopago);
 
-    // Preferencia con campos mínimos para aislar errores de política de MP.
-    // TODO (producción): Reactivar back_urls, auto_return, external_reference y notification_url
-    // una vez que las credenciales de producción estén configuradas.
     const response = await preference.create({
       body: {
         items: [

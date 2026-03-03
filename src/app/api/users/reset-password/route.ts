@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { successResponse, errorHandler } from '@/utils/api-utils';
+import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from '@/utils/passwordPolicy';
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,8 +13,8 @@ export async function POST(req: NextRequest) {
       return errorHandler(new Error('Token y contraseña son requeridos.'), 400);
     }
 
-    if (password.length < 6) {
-      return errorHandler(new Error('La contraseña debe tener al menos 6 caracteres.'), 400);
+    if (!isPasswordStrong(password)) {
+      return errorHandler(new Error(PASSWORD_POLICY_MESSAGE), 400);
     }
 
     const user = await prisma.user.findFirst({

@@ -3,7 +3,25 @@ import { errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
 import { shippingZoneService } from '@/services/shippingZoneService';
-import * as XLSX from 'xlsx';
+
+/** Escapa un valor para CSV: envuelve en comillas y escapa comillas internas. */
+function csvCell(value: unknown): string {
+  const str = String(value ?? '');
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function buildCSV(rows: Record<string, unknown>[]): string {
+  if (!rows.length) return '';
+  const headers = Object.keys(rows[0]);
+  const lines = [
+    headers.map(csvCell).join(','),
+    ...rows.map((row) => headers.map((h) => csvCell(row[h])).join(',')),
+  ];
+  return `\uFEFF${lines.join('\n')}`;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,7 +35,7 @@ export async function GET(req: NextRequest) {
       return errorHandler(new Error('No existen zonas de envío para exportar.'), 404);
     }
 
-    const worksheetData = zones.map((zone) => ({
+    const rows = zones.map((zone) => ({
       postalCode: zone.postalCode,
       locality: zone.locality,
       shippingCost: zone.shippingCost,
@@ -31,8 +49,7 @@ export async function GET(req: NextRequest) {
       zone: zone.zone ?? '',
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-    const csvContent = `\uFEFF${XLSX.utils.sheet_to_csv(worksheet)}`;
+    const csvContent = buildCSV(rows);
 
     return new NextResponse(csvContent, {
       status: 200,

@@ -3,8 +3,39 @@ import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
 import { shippingZoneService } from '@/services/shippingZoneService';
-import * as XLSX from 'xlsx';
 import { z, ZodError } from 'zod';
+
+/** Parser CSV robusto: maneja campos con comillas y comas dentro de valores. */
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+      else { inQuotes = !inQuotes; }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current); current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+function parseCSV(content: string): Record<string, string>[] {
+  // Eliminar BOM si existe
+  const clean = content.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  const lines = clean.split('\n').filter((l) => l.trim() !== '');
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]).map((h) => h.trim());
+  return lines.slice(1).map((line) => {
+    const values = parseCSVLine(line);
+    return Object.fromEntries(headers.map((h, i) => [h, (values[i] ?? '').trim()]));
+  });
+}
 
 const normalizeBool = (value: unknown) => {
   if (typeof value === 'boolean') return value;
@@ -86,14 +117,7 @@ export async function POST(req: NextRequest) {
     }
 
     const csvContent = await file.text();
-    const workbook = XLSX.read(csvContent, { type: 'string', raw: true });
-    const [firstSheetName] = workbook.SheetNames;
-    if (!firstSheetName) {
-      return errorHandler(new Error('El archivo no contiene hojas.'), 400);
-    }
-
-    const worksheet = workbook.Sheets[firstSheetName];
-    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+    const rows = parseCSV(csvContent);
 
     if (!rows.length) {
       return errorHandler(new Error('El archivo no contiene datos.'), 400);

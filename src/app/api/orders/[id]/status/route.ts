@@ -1,9 +1,11 @@
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { prisma } from '@/lib/prisma';
+import { getDecodedToken } from '@/utils/auth';
+import { getSessionId } from '@/utils/session';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -14,7 +16,31 @@ export async function GET(
       return errorHandler(new Error('orderId inválido'), 400);
     }
 
-    // Only query the PaymentTransaction — avoid loading the full Order.
+    // Verificar identidad del solicitante (usuario logueado o sesión de invitado)
+    const session = await getDecodedToken(req);
+    const sessionId = getSessionId(req);
+
+    if (!session?.dbId && !sessionId) {
+      return errorHandler(new Error('No autorizado.'), 401);
+    }
+
+    // Verificar que la orden pertenece al usuario o sesión que solicita
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        OR: [
+          ...(session?.dbId ? [{ userId: session.dbId }] : []),
+          ...(sessionId ? [{ sessionId }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (!order) {
+      return errorHandler(new Error('Pedido no encontrado.'), 404);
+    }
+
+    // Consultar PaymentTransaction tras verificar propiedad
     const tx = await prisma.paymentTransaction.findFirst({
       where: { orderId },
       select: { status: true },

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { saveProfilePicture } from "@/services/file.service";
 import bcrypt from "bcryptjs";
+import { assertPasswordStrength } from "@/utils/passwordPolicy";
 
 export const userService = {
 
@@ -264,7 +265,12 @@ export const userService = {
     const existing = await prisma.user.findFirst({ where: { email: data.email.toLowerCase(), isDeleted: false } });
     if (existing) throw new Error('El correo electrónico ya está en uso.');
 
-    const passwordHash = await bcrypt.hash(data.password || 'Florarte2024!', 12);
+    const rawPassword = data.password || 'Florarte2024!';
+    if (data.password) {
+      assertPasswordStrength(data.password);
+    }
+
+    const passwordHash = await bcrypt.hash(rawPassword, 12);
 
     const newUser = await prisma.user.create({
       data: {
@@ -296,7 +302,10 @@ export const userService = {
     };
 
     if (data.email) updateData.email = data.email.toLowerCase();
-    if (data.password) updateData.passwordHash = await bcrypt.hash(data.password, 12);
+    if (data.password) {
+      assertPasswordStrength(data.password);
+      updateData.passwordHash = await bcrypt.hash(data.password, 12);
+    }
 
     const updated = await prisma.user.update({ where: { id: userId }, data: updateData });
     const { passwordHash: _, ...userSafe } = updated;

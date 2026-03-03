@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getDecodedToken } from "@/utils/auth";
 import { successResponse, errorHandler } from "@/utils/api-utils";
 import * as z from "zod";
+import { PASSWORD_POLICY_MESSAGE, isPasswordStrong } from "@/utils/passwordPolicy";
 
 /* ===============================
    Validation
@@ -18,7 +19,8 @@ const schema = z.object({
 
   newPassword: z
     .string()
-    .min(6, "La nueva contraseña debe tener al menos 6 caracteres"),
+    .min(8, PASSWORD_POLICY_MESSAGE)
+    .refine(isPasswordStrong, { message: PASSWORD_POLICY_MESSAGE }),
 });
 
 /* ===============================

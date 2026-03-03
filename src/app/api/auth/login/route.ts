@@ -3,8 +3,16 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { errorHandler } from '@/utils/api-utils';
 import { signToken, COOKIE_NAME, COOKIE_MAX_AGE } from '@/lib/jwt';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export async function POST(req: NextRequest) {
+  // 5 intentos por IP cada 15 minutos
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`login:${ip}`, 5, 15 * 60 * 1000);
+  if (!rl.allowed) {
+    return errorHandler(new Error('Demasiados intentos. Espera 15 minutos e intenta de nuevo.'), 429);
+  }
+
   try {
     let body;
     try {
@@ -53,7 +61,7 @@ export async function POST(req: NextRequest) {
     res.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: COOKIE_MAX_AGE,
       path: '/',
     });

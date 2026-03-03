@@ -11,7 +11,7 @@ import { successResponse, errorHandler } from '@/utils/api-utils';
  */
 export async function GET(req: NextRequest) {
   try {
-    const q = new URL(req.url).searchParams.get('q') ?? '';
+    const q = (new URL(req.url).searchParams.get('q') ?? '').slice(0, 200);
 
     const products = await prisma.product.findMany({
       where: {

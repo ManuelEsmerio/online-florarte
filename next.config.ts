@@ -1,15 +1,21 @@
 
 import type {NextConfig} from 'next';
 
+// 'unsafe-eval' es necesario en desarrollo para el hot-module replacement de Next.js.
+// En producción se elimina para reducir la superficie de ataque XSS.
+const isDev = process.env.NODE_ENV === 'development';
+
 const ContentSecurityPolicy = `
   default-src 'self';
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' *.googletagmanager.com;
-  child-src 'self' *.google.com;
-  style-src 'self' 'unsafe-inline' fonts.googleapis.com;
+  script-src 'self' ${isDev ? "'unsafe-eval'" : ''} 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com;
+  child-src 'self' https://www.google.com;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   img-src 'self' https://placehold.co https://picsum.photos https://i.pravatar.cc https://res.cloudinary.com data: blob:;
-  font-src 'self' fonts.gstatic.com;
-  connect-src 'self' *.googleapis.com *.google.com;
-  frame-src 'self' *.google.com;
+  font-src 'self' https://fonts.gstatic.com;
+  connect-src 'self' https://www.googleapis.com https://www.google.com https://www.google-analytics.com;
+  frame-src 'self' https://www.google.com;
+  object-src 'none';
+  base-uri 'self';
 `;
 
 const securityHeaders = [
@@ -52,9 +58,6 @@ const nextConfig: NextConfig = {
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
   },
   images: {
     formats: ['image/avif', 'image/webp'],

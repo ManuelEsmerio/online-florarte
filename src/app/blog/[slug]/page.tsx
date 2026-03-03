@@ -1,5 +1,6 @@
 
 import { notFound } from 'next/navigation';
+import DOMPurify from 'isomorphic-dompurify';
 import Header from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { getPostBySlug, blogPosts } from '@/lib/blog-data';
@@ -108,7 +109,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             
             <div
               className="prose lg:prose-xl max-w-none text-foreground"
-              dangerouslySetInnerHTML={{ __html: post.content }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
             />
           </article>
         </div>

@@ -5,13 +5,26 @@ import { errorHandler } from '@/utils/api-utils';
 import { signToken, COOKIE_NAME, COOKIE_MAX_AGE } from '@/lib/jwt';
 import { sendVerificationEmail } from '@/lib/email';
 import crypto from 'crypto';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
+import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from '@/utils/passwordPolicy';
 
 export async function POST(req: NextRequest) {
+  // 10 registros por IP cada hora
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`register:${ip}`, 10, 60 * 60 * 1000);
+  if (!rl.allowed) {
+    return errorHandler(new Error('Demasiados registros desde esta dirección. Intenta más tarde.'), 429);
+  }
+
   try {
     const { name, email, password } = await req.json();
 
     if (!name || !email || !password) {
       return errorHandler(new Error('Todos los campos son requeridos.'), 400);
+    }
+
+    if (!isPasswordStrong(password)) {
+      return errorHandler(new Error(PASSWORD_POLICY_MESSAGE), 400);
     }
 
     const emailLower = email.toLowerCase();
@@ -54,7 +67,7 @@ export async function POST(req: NextRequest) {
     res.cookies.set(COOKIE_NAME, jwtToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: COOKIE_MAX_AGE,
       path: '/',
     });

@@ -18,7 +18,7 @@ export const tagService = {
     const validatedData = tagSchema.parse(data);
 
     const existing = await prisma.tag.findFirst({
-      where: { name: { equals: validatedData.name, mode: 'insensitive' } },
+      where: { name: { equals: validatedData.name } },
     });
     if (existing) throw new Error('Ya existe una etiqueta con este nombre.');
 
@@ -31,7 +31,7 @@ export const tagService = {
     const validatedData = tagSchema.parse(data);
 
     const existingName = await prisma.tag.findFirst({
-      where: { name: { equals: validatedData.name, mode: 'insensitive' } },
+      where: { name: { equals: validatedData.name } },
     });
     if (existingName && existingName.id !== id) {
       throw new Error('Ya existe otra etiqueta con este nombre.');

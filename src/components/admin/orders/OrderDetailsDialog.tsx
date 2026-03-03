@@ -6,6 +6,9 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import type { AdminOrderDetailsDTO, OrderStatus } from '@/lib/definitions';
@@ -95,9 +98,12 @@ const normalizeOrderStatus = (value: unknown): OrderStatus | null => {
 export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus }: OrderDetailsDialogProps) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const normalizedStatus = normalizeOrderStatus(order?.status) ?? 'PENDING';
   const nextStatus = nextStatusMap[normalizedStatus];
   const canCancelOrder = normalizedStatus === 'PENDING';
+  const isUnpaidOrder = order?.hasPaymentTransaction === false;
+  const currentStatusLabel = statusLabels[normalizedStatus];
   const couponTypeRaw = String(order?.couponType ?? '').toUpperCase();
   const couponTypeLabel = couponTypeRaw === 'PERCENTAGE' ? 'Porcentaje' : couponTypeRaw === 'FIXED' ? 'Monto fijo' : null;
   const couponValue = order?.couponValue ?? null;
@@ -122,16 +128,20 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
     }
   };
 
-  const handleCancelOrder = async () => {
+  const handleRequestCancel = () => {
     if (!order?.id || !canCancelOrder || isCancelling) return;
     if (typeof onUpdateStatus !== 'function') return;
+    setIsCancelDialogOpen(true);
+  };
 
-    const confirmed = window.confirm('¿Seguro que deseas cancelar este pedido? Esta acción no se puede deshacer.');
-    if (!confirmed) return;
+  const confirmCancelOrder = async () => {
+    if (!order?.id || !canCancelOrder || isCancelling) return;
+    if (typeof onUpdateStatus !== 'function') return;
 
     setIsCancelling(true);
     try {
       await onUpdateStatus(order.id, 'CANCELLED', {});
+      setIsCancelDialogOpen(false);
     } finally {
       setIsCancelling(false);
     }
@@ -160,9 +170,16 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
                     Realizado el {format(parseISO(order.createdAt), "d 'de' MMMM, yyyy", { locale: es })}
                   </p>
                 </div>
-                <span className={cn('px-4 py-1.5 rounded-full border text-xs font-bold tracking-wide uppercase w-fit', statusColors[normalizedStatus])}>
-                  {statusLabels[normalizedStatus]}
-                </span>
+                <div className="flex flex-wrap items-center gap-3 justify-end">
+                  <span className={cn('px-4 py-1.5 rounded-full border text-xs font-bold tracking-wide uppercase w-fit', statusColors[normalizedStatus])}>
+                    {currentStatusLabel}
+                  </span>
+                  {isUnpaidOrder ? (
+                    <span className="px-4 py-1.5 rounded-full border text-xs font-bold tracking-wide uppercase w-fit bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/40 dark:text-rose-200 dark:border-rose-800">
+                      Sin pagar
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </header>
 
@@ -172,7 +189,7 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
                   <div className="flex items-center justify-between mb-6 gap-3">
                     <h2 className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground">Artículos ({order.items?.length ?? 0})</h2>
                     <span className={cn('px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider', statusColors[normalizedStatus])}>
-                      {statusLabels[normalizedStatus]}
+                      {currentStatusLabel}
                     </span>
                   </div>
                   <div className="space-y-4">
@@ -340,7 +357,7 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
                 {canCancelOrder && (
                   <Button
                     variant="ghost"
-                    onClick={handleCancelOrder}
+                    onClick={handleRequestCancel}
                     disabled={isCancelling || typeof onUpdateStatus !== 'function'}
                     className="flex-1 sm:flex-none gap-2 border border-primary/30 text-primary hover:bg-primary/10 hover:text-primary transition-all font-medium h-11 rounded-xl"
                   >
@@ -360,6 +377,46 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
           </>
         )}
       </DialogContent>
+
+      <Dialog open={isCancelDialogOpen} onOpenChange={(open) => { if (!isCancelling) setIsCancelDialogOpen(open); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancelar pedido</DialogTitle>
+            <DialogDescription>
+              Esta acción no se puede deshacer. Se notificará al cliente y el pedido #{order?.id} quedará marcado como cancelado.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p><span className="font-semibold text-foreground">Cliente:</span> {order?.customerName}</p>
+            <p><span className="font-semibold text-foreground">Total:</span> {formatCurrency(order?.total)}</p>
+            <p><span className="font-semibold text-foreground">Estado actual:</span> {currentStatusLabel}</p>
+            {order?.createdAt ? (
+              <p><span className="font-semibold text-foreground">Creado:</span> {format(parseISO(order.createdAt), "d 'de' MMMM, yyyy HH:mm", { locale: es })}</p>
+            ) : null}
+            {order?.deliveryDate ? (
+              <p><span className="font-semibold text-foreground">Entrega programada:</span> {format(parseISO(order.deliveryDate), "d 'de' MMMM, yyyy", { locale: es })}</p>
+            ) : null}
+          </div>
+          <DialogFooter className="sm:justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setIsCancelDialogOpen(false)}
+              disabled={isCancelling}
+              className="h-11 rounded-xl"
+            >
+              Mantener pedido
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmCancelOrder}
+              disabled={isCancelling}
+              className="h-11 rounded-xl"
+            >
+              {isCancelling ? 'Cancelando...' : 'Sí, cancelar pedido'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 };
