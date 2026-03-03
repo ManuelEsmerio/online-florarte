@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \":*)",
+      "Bash(npx tsx -e \":*)",
+      "Bash(node -e \"require\\(''mercadopago''\\); console.log\\(''MP SDK OK''\\)\")",
+      "Bash(npx prisma migrate dev --create-only --name rename_stripePaymentId_to_externalPaymentId)",
+      "Bash(npx prisma migrate deploy)",
+      "Bash(npx prisma generate)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npm install @tanstack/react-query --legacy-peer-deps)",
+      "Bash(while read f)",
+      "Bash(do if ! grep -q \"getDecodedToken\\\\|getIdentity\" \"$f\")",
+      "Bash(then echo \"$f\")",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(npm ls)",
+      "Bash(npm audit)",
+      "Bash(npm uninstall xlsx)",
+      "Bash(npm install next@latest)",
+      "Bash(node -e \"const p = require\\(''./package.json''\\); console.log\\(''next:'', p.dependencies.next\\)\")",
+      "Bash(node -e \"const p = require\\(''./node_modules/next/package.json''\\); console.log\\(''next installed:'', p.version\\)\")",
+      "Bash(npm install isomorphic-dompurify)",
+      "Bash(npm install --save-dev @types/dompurify)",
+      "Read(//c/Users/Manuel Esmerio G/Documents/Projects/online-florarte/**)",
+      "Bash(node -e \"const pkg = require\\(''./node_modules/next/package.json''\\); console.log\\(pkg.version\\)\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Manuel Esmerio G\\.claude\\projects\\c--Users-Manuel-Esmerio-G-Documents-Projects-online-florarte\\memory"
+    ]
+  }
+}

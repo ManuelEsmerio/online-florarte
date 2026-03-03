@@ -9,7 +9,7 @@ import Stripe from 'stripe';
 import { ZodError } from 'zod';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
+  apiVersion: '2026-02-25.clover',
   typescript: true,
 });
 
@@ -23,15 +23,15 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 export async function POST(req: NextRequest) {
   try {
     const session: UserSession | null = await getDecodedToken(req);
-    if (!session?.dbId) {
-      return errorHandler(new Error('Acceso denegado. Se requiere autenticación.'), 401);
+    const sessionId = getSessionId(req);
+    if (!session?.dbId && !sessionId) {
+      return errorHandler(new Error('No se pudo identificar la sesión para checkout.'), 401);
     }
 
-    const sessionId = getSessionId(req);
     const body = await req.json();
 
     const orderInput = {
-        userId: session.dbId,
+        userId: session?.dbId ?? null,
         sessionId,
         ...body,
         gateway: 'stripe',
@@ -39,9 +39,9 @@ export async function POST(req: NextRequest) {
     };
     
     // 1. Llama al SP para validar y crear la orden preliminar
-    const { orderId, total, customerEmail, orderToken } = await orderService.initializeCheckout(orderInput);
+    const { orderId, total, orderToken } = await orderService.initializeCheckout(orderInput);
     
-    if(!orderId || !total || !customerEmail || !orderToken) {
+    if(!orderId || !total || !orderToken) {
         throw new Error("No se pudo inicializar la orden en la base de datos.");
     }
     
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         order_id: orderId,
         order_token: orderToken, // Para trazabilidad
-        user_id: session.dbId,
+        ...(session?.dbId ? { user_id: session.dbId } : {}),
       }
     }, {
       idempotencyKey: `pi_init_${orderToken}`,

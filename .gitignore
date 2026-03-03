@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+src/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -56,3 +57,4 @@ firestore-debug.log
 *.gif
 public/assets/
 public/images/
+/generated/prisma

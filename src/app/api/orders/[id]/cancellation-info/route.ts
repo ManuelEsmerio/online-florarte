@@ -6,7 +6,7 @@ import { orderService } from '@/services/orderService';
 import { getCancellationInfo } from '@/lib/business-logic/order-logic';
 
 interface RouteParams {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /**
@@ -14,21 +14,28 @@ interface RouteParams {
  * Obtiene la información sobre si un pedido puede ser cancelado y el mensaje correspondiente.
  */
 export async function GET(req: NextRequest, { params }: RouteParams) {
+  let routeOrderId = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
 
-    const orderId = parseInt(params.id, 10);
+    const { id } = await params;
+    routeOrderId = id;
+
+    const orderId = parseInt(id, 10);
     const order = await orderService.getOrderDetails(orderId);
 
     if (!order) {
       return errorHandler(new Error('Pedido no encontrado.'), 404);
     }
+
+    const ownerUserId = Number((order as any).user_id ?? (order as any).userId ?? 0);
     
     // Asegurarse de que el usuario solo pueda ver la información de sus propios pedidos
-    if (order.user_id !== session.dbId) {
+    if (!ownerUserId || ownerUserId !== session.dbId) {
         return errorHandler(new Error('Acceso prohibido. No puedes ver este pedido.'), 403);
     }
 
@@ -36,7 +43,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     return successResponse(cancellationInfo);
   } catch (error) {
-    console.error(`[API_CANCELLATION_INFO_ERROR] ID: ${params.id}`, error);
+    console.error(`[API_CANCELLATION_INFO_ERROR] ID: ${routeOrderId}`, error);
     return errorHandler(error);
   }
 }

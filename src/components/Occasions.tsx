@@ -9,7 +9,6 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/components/ui/carousel';
-import { Card } from './ui/card';
 import { Skeleton } from './ui/skeleton';
 import { Occasion } from '@/lib/definitions';
 
@@ -25,7 +24,7 @@ const OccasionSkeleton = () => (
 )
 
 export function Occasions({ occasions, isLoading }: OccasionsProps) {
-  const homeOccasions = occasions.filter(o => o.show_on_home);
+  const homeOccasions = occasions.filter(o => o.showOnHome);
 
   if (!isLoading && homeOccasions.length === 0) {
     return null;
@@ -56,10 +55,11 @@ export function Occasions({ occasions, isLoading }: OccasionsProps) {
                     <Link href={`/products/all?occasion=${occasion.slug}`} className="group block h-full text-center">
                         <div className="relative aspect-square w-full rounded-full overflow-hidden mb-4 border-4 border-transparent group-hover:border-primary/40 group-hover:ring-4 group-hover:ring-primary/10 transition-all duration-500 shadow-lg group-hover:shadow-2xl">
                             <Image
-                                src={occasion.image_url || '/placehold.webp'}
+                                src={occasion.imageUrl || '/placehold.webp'}
                                 alt={`Flores para ${occasion.name}`}
                                 fill
                                 className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-110"
+                                sizes="(max-width: 640px) 45vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
                                 data-ai-hint={occasion.name}
                             />
                             <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />

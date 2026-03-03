@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Isotype } from './icons/Isotype';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { SearchDialog } from './SearchDialog';
@@ -35,7 +35,7 @@ const ShoppingCartButton = dynamic(() => import('./ShoppingCartButton'), {
 });
 
 
-const Header = () => {
+const HeaderContent = () => {
   const { user, logout, wishlist, loading } = useAuth();
   const [isClient, setIsClient] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -46,13 +46,20 @@ const Header = () => {
   useEffect(() => {
     setIsClient(true);
 
+    let rafId: number | null = null;
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        setIsScrolled(window.scrollY > 10);
+        rafId = null;
+      });
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   const navLinks = [
@@ -83,6 +90,11 @@ const Header = () => {
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   ];
 
+  const normalizedRole = String(user?.role ?? '').toUpperCase();
+  const isAdmin = normalizedRole === 'ADMIN';
+  const isCustomer = normalizedRole === 'CUSTOMER';
+  const accountLinks = isAdmin ? [...adminLinks, ...userLinks] : userLinks;
+
   const isLinkActive = (href: string) => {
     const [hrefPath] = href.split('?');
     return pathname.startsWith(hrefPath);
@@ -102,25 +114,24 @@ const Header = () => {
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-             <Button variant="default" className="flex gap-2 relative overflow-hidden group transition-all duration-300">
+            <Button variant="ghost" className="flex gap-2 relative overflow-hidden group transition-all duration-300 rounded-xl dark:hover:bg-primary dark:hover:text-white hover:bg-primary/5 hover:text-primary">
               <User className="h-5 w-5" />
               <span className="font-semibold text-base">¡Hola, {user.name.split(' ')[0]}!</span>
-              <div className="absolute bottom-0 left-0 w-full h-0.5 bg-destructive scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="rounded-2xl p-2 border-none shadow-2xl min-w-[200px] animate-in fade-in slide-in-from-top-2 duration-300">
             <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-3 py-2">Mi Cuenta</DropdownMenuLabel>
-            {user.role === 'customer' && (
+            {isCustomer && (
               <>
                 <DropdownMenuSeparator className="bg-muted/50" />
                 <DropdownMenuItem disabled className="!opacity-100 !cursor-default focus:bg-transparent rounded-xl">
                   <Gem className="mr-2 h-4 w-4 text-blue-500" />
-                  <span className="font-medium">{user.loyalty_points || 0} Puntos</span>
+                  <span className="font-medium">{user.loyaltyPoints || 0} Puntos</span>
                 </DropdownMenuItem>
               </>
             )}
             <DropdownMenuSeparator className="bg-muted/50" />
-            {(user.role === 'admin' ? adminLinks : userLinks).map(link => (
+            {accountLinks.map(link => (
               <DropdownMenuItem key={link.href} asChild className="rounded-xl">
                 <Link href={link.href} className="w-full flex items-center py-2 transition-all duration-300">
                   <link.icon className="mr-2 h-4 w-4 transition-colors" />
@@ -180,21 +191,35 @@ const Header = () => {
           <Isotype className="h-12 w-auto" />
         </Link>
         <nav className="hidden items-center space-x-6 md:flex">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={cn(
-                "link-underline text-sm font-medium transition-all duration-300 hover:text-primary",
-                isLinkActive(link.href) ? 'text-primary' : 'text-foreground/80'
-              )}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link) => {
+            const isActive = isLinkActive(link.href);
+
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "relative text-sm font-medium transition-colors duration-300",
+
+                  // Texto
+                  isActive ? "text-primary" : "text-foreground/80 hover:text-primary",
+
+                  // Línea animada
+                  "after:absolute after:left-1/2 after:-bottom-1 after:h-[2px] after:w-0 after:bg-primary after:rounded-full after:transition-all after:duration-300 after:-translate-x-1/2",
+
+                  // Hover
+                  "hover:after:w-full",
+
+                  // Activo fijo
+                  isActive && "after:w-full"
+                )}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
         <div className="hidden items-center space-x-2 md:flex">
-          {isClient && (
             <>
               <SearchDialog />
               <ThemeToggle />
@@ -202,7 +227,7 @@ const Header = () => {
                 variant="ghost"
                 size="icon"
                 asChild
-                className="relative group transition-all duration-300 hover:bg-primary/5 hover:text-primary rounded-xl"
+                className="relative group transition-all duration-300 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary dark:hover:text-white rounded-xl"
               >
                 <Link href="/wishlist" aria-label="Wishlist">
                   <Heart className={cn("h-5 w-5 transition-all group-hover:scale-110", wishlist.length > 0 && "fill-primary text-primary")} />
@@ -215,7 +240,6 @@ const Header = () => {
               </Button>
               {renderUserAuth()}
             </>
-          )}
           <ShoppingCartButton />
         </div>
         <div className="md:hidden flex items-center gap-2">
@@ -223,7 +247,7 @@ const Header = () => {
           <ThemeToggle />
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Open Menu" className="rounded-xl">
+              <Button variant="ghost" size="icon" aria-label="Open Menu" className="rounded-xl hover:bg-primary/5 hover:text-primary">
                 <Menu className="h-6 w-6" />
               </Button>
             </SheetTrigger>
@@ -242,13 +266,13 @@ const Header = () => {
                 {isClient && user && user.name && (
                   <nav className="flex flex-col space-y-4 border-b border-border/50 pb-6">
                     <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-[0.2em]">Mi Cuenta</p>
-                    {user.role === 'customer' && (
+                    {isCustomer && (
                       <div className="flex items-center gap-3 text-lg font-medium text-foreground/80">
                         <Gem className="w-5 h-5 text-blue-500" />
-                        <span>{user.loyalty_points || 0} Puntos</span>
+                        <span>{user.loyaltyPoints || 0} Puntos</span>
                       </div>
                     )}
-                    {(user.role === 'admin' ? adminLinks : userLinks).map((link) => (
+                    {accountLinks.map((link) => (
                       <Link
                         key={link.href}
                         href={link.href}
@@ -348,6 +372,12 @@ const Header = () => {
     </header>
   );
 };
+
+const Header = () => (
+  <Suspense fallback={<div className="h-20" />}>
+    <HeaderContent />
+  </Suspense>
+);
 
 const RefreshCw = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>

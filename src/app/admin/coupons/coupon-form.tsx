@@ -17,7 +17,6 @@ import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon, Check, ChevronsUpDown, Dices, Users, Package, LayoutList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Coupon, User, ProductCategory, Product } from '@/lib/definitions';
-import { CouponScope, DiscountType } from '@/lib/definitions';
 import { Textarea } from '@/components/ui/textarea';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -26,15 +25,34 @@ import { Stepper } from '@/components/ui/stepper';
 import { Badge } from '@/components/ui/badge';
 import MultiSelect from '@/components/MultiSelect';
 
+const DiscountType = {
+  PERCENTAGE: 'PERCENTAGE',
+  FIXED: 'FIXED',
+} as const;
+
+const CouponScope = {
+  GLOBAL: 'GLOBAL',
+  USERS: 'USERS',
+  PRODUCTS: 'PRODUCTS',
+  CATEGORIES: 'CATEGORIES',
+} as const;
+
+const normalizeCouponScope = (scope?: Coupon['scope']) => {
+  if (scope === CouponScope.USERS || scope === CouponScope.PRODUCTS || scope === CouponScope.CATEGORIES) {
+    return scope;
+  }
+  return CouponScope.GLOBAL;
+};
+
 
 const couponSchema = z.object({
   id: z.number().optional(),
   code: z.string().min(3, 'El código debe tener al menos 3 caracteres.'),
   description: z.string().min(10, 'La descripción es muy corta.'),
-  discount_type: z.nativeEnum(DiscountType, { required_error: 'Debes seleccionar un tipo de descuento.'}),
+  discount_type: z.enum([DiscountType.PERCENTAGE, DiscountType.FIXED], { required_error: 'Debes seleccionar un tipo de descuento.'}),
   discount_value: z.coerce.number().positive('El valor del descuento debe ser positivo.'),
   
-  scope: z.nativeEnum(CouponScope, { required_error: 'Debes seleccionar un ámbito.'}),
+  scope: z.enum([CouponScope.GLOBAL, CouponScope.USERS, CouponScope.PRODUCTS, CouponScope.CATEGORIES], { required_error: 'Debes seleccionar un ámbito.'}),
   user_ids: z.array(z.number()).optional(),
   product_ids: z.array(z.number()).optional(),
   category_ids: z.array(z.number()).optional(),
@@ -46,7 +64,7 @@ const couponSchema = z.object({
   noExpiry: z.boolean().optional(),
   max_uses: z.union([z.coerce.number().int().min(0, 'El límite de usos no puede ser negativo.'), z.literal('')]).optional(),
 }).superRefine((data, ctx) => {
-    if (data.discount_type === 'percentage' && data.discount_value > 99) {
+  if (data.discount_type === DiscountType.PERCENTAGE && data.discount_value > 99) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'El descuento no puede ser mayor al 99%.', path: ['discount_value'] });
     }
     if (data.scope === CouponScope.USERS && (!data.user_ids || data.user_ids.length === 0)) {
@@ -110,8 +128,8 @@ const Step1 = () => {
             />
             <FormField control={control} name="description" render={({ field }) => (<FormItem><FormLabel>Descripción</FormLabel><FormControl><Textarea placeholder="Ej: 25% de descuento en toda la tienda." {...field} /></FormControl><FormMessage /></FormItem>)} />
              <div className="grid grid-cols-2 gap-4">
-                <FormField control={control} name="discount_type" render={({ field }) => (<FormItem><FormLabel>Tipo de Descuento</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona un tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="percentage">Porcentaje (%)</SelectItem><SelectItem value="fixed">Fijo (MXN)</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-                <FormField control={control} name="discount_value" render={({ field }) => (<FormItem><FormLabel>Valor</FormLabel><FormControl><Input type="number" min="0" max={discountType === 'percentage' ? "99" : undefined} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={control} name="discount_type" render={({ field }) => (<FormItem><FormLabel>Tipo de Descuento</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona un tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value={DiscountType.PERCENTAGE}>Porcentaje (%)</SelectItem><SelectItem value={DiscountType.FIXED}>Fijo (MXN)</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                <FormField control={control} name="discount_value" render={({ field }) => (<FormItem><FormLabel>Valor</FormLabel><FormControl><Input type="number" min="0" max={discountType === DiscountType.PERCENTAGE ? "99" : undefined} {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
         </div>
     )
@@ -161,7 +179,7 @@ const Step2 = ({ customers, products, categories }: Pick<CouponFormProps, 'custo
                 <FormField control={control} name="product_ids" render={({ field }) => (<FormItem><FormLabel>Productos</FormLabel><FormControl><MultiSelect options={products.map(p => ({ value: p.id, label: p.name }))} selected={field.value ?? []} onChange={field.onChange} placeholder="Selecciona productos..." /></FormControl><FormMessage /></FormItem>)} />
             )}
              {couponScope === CouponScope.CATEGORIES && (
-                <FormField control={control} name="category_ids" render={({ field }) => (<FormItem><FormLabel>Categorías</FormLabel><FormControl><MultiSelect options={categories.filter(c=>!c.parent_id).map(c => ({ value: c.id, label: c.name }))} selected={field.value ?? []} onChange={field.onChange} placeholder="Selecciona categorías..." /></FormControl><FormMessage /></FormItem>)} />
+               <FormField control={control} name="category_ids" render={({ field }) => (<FormItem><FormLabel>Categorías</FormLabel><FormControl><MultiSelect options={categories.filter(c => !c.parentId).map(c => ({ value: c.id, label: c.name }))} selected={field.value ?? []} onChange={field.onChange} placeholder="Selecciona categorías..." /></FormControl><FormMessage /></FormItem>)} />
             )}
         </div>
     )
@@ -181,12 +199,6 @@ const Step3 = () => {
         }
     }
   
-    useEffect(() => {
-        if (noExpiry) {
-            setValue('validity', { from: new Date(), to: null });
-        }
-    }, [noExpiry, setValue]);
-    
     return (
         <div className="space-y-4">
              <FormField control={control} name="max_uses" render={({ field }) => (<FormItem><FormLabel>Límite de Usos Totales</FormLabel><FormControl><Input type="number" min="0" placeholder="Ilimitado" {...field} /></FormControl><FormDescription className="text-xs">Dejar en blanco para usos ilimitados en total.</FormDescription><FormMessage /></FormItem>)} />
@@ -194,14 +206,16 @@ const Step3 = () => {
                 <FormItem className="flex flex-col"><FormLabel>Vigencia</FormLabel>
                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                       <PopoverTrigger asChild>
-                        <Button id="date" variant={"outline"} disabled={noExpiry} className={cn("w-full justify-start text-left font-normal", !field.value?.from && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value?.from ? (field.value.to ? (<>{format(field.value.from, "LLL dd, y", { locale: es })} - {format(field.value.to, "LLL dd, y", { locale: es })}</>) : (format(field.value.from, "LLL dd, y", { locale: es }))) : (<span>Selecciona un rango de fechas</span>)}</Button>
+                        <FormControl>
+                          <Button id="date" variant={"outline"} disabled={noExpiry} className={cn("w-full justify-start text-left font-normal", !field.value?.from && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value?.from ? (field.value.to ? (<>{format(field.value.from, "LLL dd, y", { locale: es })} - {format(field.value.to, "LLL dd, y", { locale: es })}</>) : (format(field.value.from, "LLL dd, y", { locale: es }))) : (<span>Selecciona un rango de fechas</span>)}</Button>
+                        </FormControl>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-50" align="start"><Calendar initialFocus mode="range" defaultMonth={field.value?.from} selected={field.value} onSelect={handleDateSelect} numberOfMonths={1} locale={es} /></PopoverContent>
+                      <PopoverContent className="w-auto p-0 z-50" align="start"><Calendar initialFocus mode="range" defaultMonth={field.value?.from} selected={field.value ? { from: field.value.from, to: field.value.to ?? undefined } : undefined} onSelect={handleDateSelect} numberOfMonths={1} locale={es} /></PopoverContent>
                     </Popover><FormMessage />
                 </FormItem>
               )}
             />
-             <FormField control={control} name="noExpiry" render={({ field }) => (<FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>Sin fecha de vencimiento</FormLabel></div></FormItem>)} />
+             <FormField control={control} name="noExpiry" render={({ field }) => (<FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={(checked) => { field.onChange(checked); if (checked) setValue('validity', { from: new Date(), to: null }); }} /></FormControl><div className="space-y-1 leading-none"><FormLabel>Sin fecha de vencimiento</FormLabel></div></FormItem>)} />
         </div>
     )
 }
@@ -224,15 +238,15 @@ export function CouponForm({ isOpen, onOpenChange, onSave, coupon, isSaving, cus
                 id: coupon.id,
                 code: coupon.code,
                 description: coupon.description,
-                discount_type: coupon.discount_type,
-                discount_value: coupon.discount_value,
-                scope: coupon.scope,
+              discount_type: coupon.discountType,
+              discount_value: coupon.discountValue,
+                scope: normalizeCouponScope(coupon.scope),
                 user_ids: coupon.details?.users?.map(u => u.id) || [],
                 product_ids: coupon.details?.products?.map(p => p.id) || [],
                 category_ids: coupon.details?.categories?.map(c => c.id) || [],
-                validity: { from: new Date(coupon.valid_from), to: coupon.valid_until ? new Date(coupon.valid_until) : null },
-                noExpiry: !coupon.valid_until,
-                max_uses: coupon.max_uses ?? '',
+              validity: { from: new Date(coupon.validFrom), to: coupon.validUntil ? new Date(coupon.validUntil) : null },
+              noExpiry: !coupon.validUntil,
+              max_uses: coupon.maxUses ?? '',
             });
         } else {
             form.reset({
@@ -259,7 +273,7 @@ export function CouponForm({ isOpen, onOpenChange, onSave, coupon, isSaving, cus
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl flex flex-col h-auto max-h-[90vh]">
+      <DialogContent className="sm:max-w-2xl flex flex-col h-auto max-h-[90vh]" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader><DialogTitle className="font-headline text-2xl">{coupon ? 'Editar Cupón' : 'Crear Cupón'}</DialogTitle><DialogDescription>{coupon ? 'Modifica los detalles del cupón.' : 'Completa los pasos para crear un nuevo cupón.'}</DialogDescription></DialogHeader>
         <FormProvider {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col min-h-0">
@@ -267,7 +281,7 @@ export function CouponForm({ isOpen, onOpenChange, onSave, coupon, isSaving, cus
               {(stepperProps) => (
                 <>
                   <div className="px-6 pt-4 border-b"><Stepper.Navigation /></div>
-                  <div className="flex-grow overflow-y-auto p-6 min-h-0">
+                  <div className="flex-grow overflow-y-auto custom-scrollbar p-6 min-h-0">
                     <Stepper.Step index={0}><Step1 /></Stepper.Step>
                     <Stepper.Step index={1}><Step2 customers={customers} products={products} categories={categories} /></Stepper.Step>
                     <Stepper.Step index={2}><Step3 /></Stepper.Step>

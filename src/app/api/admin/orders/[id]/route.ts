@@ -1,7 +1,7 @@
 // src/app/api/admin/orders/[id]/route.ts
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
-import { getDecodedToken, UserSession } from '@/utils/auth';
+import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
 import { orderService } from '@/services/orderService';
 import { ZodError } from 'zod';
@@ -9,7 +9,7 @@ import { OrderStatus } from '@/lib/definitions';
 
 
 interface RouteParams {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /**
@@ -17,17 +17,22 @@ interface RouteParams {
  * Obtiene los detalles completos de un pedido para el panel de administración.
  */
 export async function GET(req: NextRequest, { params }: RouteParams) {
+  let routeOrderId = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') {
+    if (!isAdminRole(user?.role)) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 
-    const orderId = parseInt(params.id, 10);
+    const { id } = await params;
+    routeOrderId = id;
+
+    const orderId = parseInt(id, 10);
     const order = await orderService.getOrderDetails(orderId);
 
     if (!order) {
@@ -36,7 +41,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     return successResponse(order);
   } catch (error) {
-    console.error(`[API_ADMIN_ORDER_GET_ERROR] ID: ${params.id}`, error);
+    console.error(`[API_ADMIN_ORDER_GET_ERROR] ID: ${routeOrderId}`, error);
     return errorHandler(error);
   }
 }
@@ -46,21 +51,26 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
  * Actualiza el estado de un pedido.
  */
 export async function PUT(req: NextRequest, { params }: RouteParams) {
+  let routeOrderId = '';
+
     try {
         const session: UserSession | null = await getDecodedToken(req);
         if (!session?.dbId) {
             return errorHandler(new Error('Acceso denegado.'), 401);
         }
         const user = await userService.getUserById(session.dbId);
-        if (user?.role !== 'admin') {
+        if (!isAdminRole(user?.role)) {
             return errorHandler(new Error('Acceso prohibido.'), 403);
         }
 
-        const orderId = parseInt(params.id, 10);
+        const { id } = await params;
+        routeOrderId = id;
+
+        const orderId = parseInt(id, 10);
         const body = await req.json();
 
         // Validar que el código de estado sea uno de los permitidos
-        const validStatusCodes: OrderStatus[] = ['procesando', 'en_reparto', 'completado', 'cancelado'];
+        const validStatusCodes: OrderStatus[] = ['PENDING', 'PROCESSING', 'DELIVERED', 'SHIPPED', 'CANCELLED'];
         if (!body.status || !validStatusCodes.includes(body.status)) {
             return errorHandler(new Error('Código de estado no válido.'), 400);
         }
@@ -70,7 +80,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
             deliveryNotes: body.deliveryNotes || null,
         };
 
-        const success = await orderService.updateOrderStatus(orderId, body.status, payload, session.dbId);
+        const success = await orderService.updateOrderStatus(orderId, body.status, payload);
 
         if (!success) {
             throw new Error('No se pudo actualizar el estado del pedido.');
@@ -82,7 +92,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         if (error instanceof ZodError) {
             return errorHandler(error, 400);
         }
-        console.error(`[API_ADMIN_ORDER_UPDATE_ERROR] ID: ${params.id}`, error);
+      console.error(`[API_ADMIN_ORDER_UPDATE_ERROR] ID: ${routeOrderId}`, error);
         return errorHandler(error);
   }
 }

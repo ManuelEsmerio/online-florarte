@@ -42,6 +42,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Image from 'next/image';
 import { ShippingCityModal, type SelectedCity } from '@/components/ShippingCityModal';
+import type { ShippingZone } from '@/lib/definitions';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DeliveryDateModal } from '@/components/DeliveryDateModal';
 import { format } from 'date-fns';
@@ -131,7 +132,8 @@ export default function CartPage() {
     subtotal 
   } = useCart();
   
-  const { shippingZones } = useAuth();
+    const { shippingZones: authShippingZones, user } = useAuth();
+    const [shippingZones, setShippingZones] = useState<ShippingZone[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [isShippingDateModalOpen, setIsShippingDateModalOpen] = useState(false);
   const [isShippingCityModalOpen, setIsShippingCityModalOpen] = useState(false);
@@ -146,6 +148,12 @@ export default function CartPage() {
     setIsClient(true);
   }, []);
 
+    useEffect(() => {
+        if (authShippingZones?.length) {
+            setShippingZones(authShippingZones);
+        }
+    }, [authShippingZones]);
+
   const isShippingInfoComplete = useMemo(() => {
     return deliveryDate && !deliveryDate.includes('No especificada');
   }, [deliveryDate]);
@@ -153,6 +161,8 @@ export default function CartPage() {
   const canProceed = useMemo(() => {
     return isShippingInfoComplete && selectedCity !== null && cart.length > 0;
   }, [isShippingInfoComplete, selectedCity, cart]);
+
+    const isAuthenticated = useMemo(() => Boolean(user?.id), [user?.id]);
 
   const handleSaveShippingDate = (date: Date) => {
     if (setDeliveryDate) {
@@ -179,6 +189,15 @@ export default function CartPage() {
   };
 
   const handleApplyCoupon = async () => {
+        if (!isAuthenticated) {
+            toast({
+                title: 'Inicia sesión para usar cupones',
+                description: 'Los cupones están disponibles únicamente para usuarios autenticados.',
+                variant: 'info',
+            });
+            return;
+        }
+
     if (!isShippingInfoComplete) {
         toast({
             title: 'Fecha requerida',
@@ -368,31 +387,33 @@ export default function CartPage() {
                                 </div>
                             </div>
 
-                            <div className="pt-6 border-t border-border/50">
-                                {appliedCoupon ? (
-                                    <div className="flex items-center justify-between px-5 py-4 bg-green-50 dark:bg-green-950/20 rounded-2xl border border-green-100 dark:border-green-900/30">
-                                        <div className="flex items-center gap-3">
-                                            <TicketIcon className="w-5 h-5 text-green-600" />
-                                            <span className="text-sm font-bold text-green-700 dark:text-green-400 font-sans">{appliedCoupon.code}</span>
-                                        </div>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-green-700 hover:bg-green-100" onClick={handleRemoveCoupon}>
-                                            <X className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ) : (
-                                    <button 
-                                        className="w-full flex items-center justify-between px-5 py-4 bg-muted/30 dark:bg-zinc-800 rounded-2xl active:bg-muted/50 transition-all group"
-                                        onClick={() => isShippingInfoComplete && setIsCouponModalOpen(true)}
-                                        disabled={!isShippingInfoComplete}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <TicketIcon className="w-5 h-5 text-primary/60 group-hover:text-primary transition-colors" />
-                                            <span className={cn("text-sm font-medium transition-colors", !isShippingInfoComplete ? "text-muted-foreground/40" : "text-muted-foreground group-hover:text-foreground")}>Tengo un cupón</span>
-                                        </div>
-                                        <ChevronRightIcon className="w-4 h-4 text-muted-foreground/40 group-hover:text-primary" />
-                                    </button>
-                                )}
-                            </div>
+                            {isAuthenticated && (
+                              <div className="pt-6 border-t border-border/50">
+                                  {appliedCoupon ? (
+                                      <div className="flex items-center justify-between px-5 py-4 bg-green-50 dark:bg-green-950/20 rounded-2xl border border-green-100 dark:border-green-900/30">
+                                          <div className="flex items-center gap-3">
+                                              <TicketIcon className="w-5 h-5 text-green-600" />
+                                              <span className="text-sm font-bold text-green-700 dark:text-green-400 font-sans">{appliedCoupon.code}</span>
+                                          </div>
+                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-green-700 hover:bg-green-100" onClick={handleRemoveCoupon}>
+                                              <X className="h-4 w-4" />
+                                          </Button>
+                                      </div>
+                                  ) : (
+                                      <button 
+                                          className="w-full flex items-center justify-between px-5 py-4 bg-muted/30 dark:bg-zinc-800 rounded-2xl active:bg-muted/50 transition-all group"
+                                          onClick={() => isShippingInfoComplete && setIsCouponModalOpen(true)}
+                                          disabled={!isShippingInfoComplete}
+                                      >
+                                          <div className="flex items-center gap-3">
+                                              <TicketIcon className="w-5 h-5 text-primary/60 group-hover:text-primary transition-colors" />
+                                              <span className={cn("text-sm font-medium transition-colors", !isShippingInfoComplete ? "text-muted-foreground/40" : "text-muted-foreground group-hover:text-foreground")}>Tengo un cupón</span>
+                                          </div>
+                                          <ChevronRightIcon className="w-4 h-4 text-muted-foreground/40 group-hover:text-primary" />
+                                      </button>
+                                  )}
+                              </div>
+                            )}
 
                             <div className="pt-6 space-y-4">
                                 <h2 className="text-[10px] font-bold tracking-[0.2em] text-muted-foreground uppercase">Resumen de Compra</h2>

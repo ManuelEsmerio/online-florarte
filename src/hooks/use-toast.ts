@@ -1,6 +1,7 @@
 
 "use client"
 
+import { useCallback, useMemo } from "react"
 import { toast as sonner } from "sonner"
 
 /**
@@ -8,29 +9,30 @@ import { toast as sonner } from "sonner"
  * Permite que toda la aplicación use Sonner sin cambiar cada archivo.
  */
 export function useToast() {
-  return {
-    toast: ({ title, description, variant, action, duration, ...props }: any) => {
-      const options = {
-        description,
-        duration: duration || 4000,
-      };
+  const toastFn = useCallback(({ title, description, variant, duration, ...props }: any) => {
+    const options = {
+      description,
+      duration: duration || 4000,
+    };
 
-      if (variant === 'destructive' || variant === 'error') {
-        return sonner.error(title, options);
-      }
-      if (variant === 'success') {
-        return sonner.success(title, options);
-      }
-      if (variant === 'info') {
-        return sonner.info(title, options);
-      }
-      if (variant === 'warning') {
-        return sonner.warning(title, options);
-      }
-      return sonner(title, options);
-    },
-    dismiss: (id?: string | number) => sonner.dismiss(id),
-  }
+    if (variant === 'destructive' || variant === 'error') {
+      return sonner.error(title, options);
+    }
+    if (variant === 'success') {
+      return sonner.success(title, options);
+    }
+    if (variant === 'info') {
+      return sonner.info(title, options);
+    }
+    if (variant === 'warning') {
+      return sonner.warning(title, options);
+    }
+    return sonner(title, options);
+  }, []);
+
+  const dismiss = useCallback((id?: string | number) => sonner.dismiss(id), []);
+
+  return useMemo(() => ({ toast: toastFn, dismiss }), [toastFn, dismiss]);
 }
 
 // Exportamos una versión directa para componentes que no necesitan el hook

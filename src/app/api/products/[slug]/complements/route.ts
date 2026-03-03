@@ -4,7 +4,7 @@ import { successResponse, errorHandler } from '@/utils/api-utils';
 import { productService } from '@/services/productService';
 
 interface RouteParams {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 /**
@@ -12,8 +12,10 @@ interface RouteParams {
  * Obtiene una lista de productos complementarios sugeridos para un producto principal.
  */
 export async function GET(req: NextRequest, { params }: RouteParams) {
+  let slug = '';
   try {
-    const { slug } = params;
+    const resolvedParams = await params;
+    slug = resolvedParams.slug;
     
     // Obtener el producto principal para analizar sus etiquetas y ocasiones
     const mainProduct = await productService.getCompleteProductDetailsBySlug(slug);
@@ -26,7 +28,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     
     return successResponse({ complements: complementProducts });
   } catch (error) {
-    console.error(`[API_COMPLEMENTS_GET_ERROR] Slug: ${params.slug}`, error);
+    console.error(`[API_COMPLEMENTS_GET_ERROR] Slug: ${slug}`, error);
     return errorHandler(error);
   }
 }

@@ -4,7 +4,7 @@ import { Table } from "@tanstack/react-table"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { SlidersHorizontal, ChevronDown, CheckCircle, EyeOff, Trash2 } from "lucide-react"
+import { SlidersHorizontal, ChevronDown, CheckCircle, EyeOff, Trash2, Search, Filter } from "lucide-react"
 import { useEffect, useState } from "react"
 import type { ProductStatus } from "@/lib/definitions"
 import type { ProductCategory } from "@/lib/definitions"
@@ -19,9 +19,9 @@ interface ProductTableToolbarProps<TData> {
 }
 
 const statusTranslations: Record<ProductStatus, string> = {
-    publicado: "Publicado",
-    oculto: "Oculto",
-    borrador: "Borrador"
+    PUBLISHED: "Publicado",
+    HIDDEN: "Oculto",
+    DRAFT: "Borrador",
 }
 
 export function ProductTableToolbar<TData>({
@@ -30,15 +30,32 @@ export function ProductTableToolbar<TData>({
   onBulkAction,
   isDeleting
 }: ProductTableToolbarProps<TData>) {
+  const searchValue = (table.getColumn("name")?.getFilterValue() as string) ?? "";
+  const [searchInput, setSearchInput] = useState(searchValue);
+
+  useEffect(() => {
+    setSearchInput(searchValue);
+  }, [searchValue]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      table.getColumn("name")?.setFilterValue(searchInput);
+    }, 180);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, table]);
   
   const selectedCategorySlugs = (table.getColumn("category")?.getFilterValue() as string[]) ?? [];
   const selectedRowsCount = table.getFilteredSelectedRowModel().rows.length;
 
-  const mainCategories = categories.filter(c => !c.parent_id);
+  const mainCategories = categories.filter(c => !(c as any).parent_id && !(c as any).parentId);
 
   const handleCategoryFilterChange = (category: ProductCategory) => {
-    const isParent = !category.parent_id;
-    const childrenSlugs = isParent ? categories.filter(c => c.parent_id === category.id).map(c => c.slug) : [];
+    const categoryParentId = (category as any).parent_id ?? (category as any).parentId;
+    const isParent = !categoryParentId;
+    const childrenSlugs = isParent
+      ? categories.filter(c => ((c as any).parent_id ?? (c as any).parentId) === category.id).map(c => c.slug)
+      : [];
 
     let newFilter = [...selectedCategorySlugs];
     const isSelected = newFilter.includes(category.slug);
@@ -72,17 +89,20 @@ export function ProductTableToolbar<TData>({
   const selectedStatuses = (table.getColumn("status")?.getFilterValue() as string[]) ?? [];
 
   return (
-    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-      <div className="flex flex-col md:flex-row flex-1 items-center space-y-2 md:space-y-0 md:space-x-2 w-full">
-        <Input
-          placeholder="Filtrar por nombre o código..."
-          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-          onChange={(event) => table.getColumn("name")?.setFilterValue(event.target.value)}
-          className="h-8 w-full md:w-[250px]"
-        />
+    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row flex-1 items-start lg:items-center gap-3 w-full">
+        <div className="relative w-full lg:max-w-md">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Filtrar por nombre o código..."
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            className="h-11 w-full pl-11 rounded-xl bg-background border-border/60"
+          />
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-8 w-full md:w-auto">
+            <Button variant="outline" className="h-11 px-5 w-full lg:w-auto rounded-xl border-border/60">
               <SlidersHorizontal className="mr-2 h-4 w-4" />
               Categoría
             </Button>
@@ -91,7 +111,7 @@ export function ProductTableToolbar<TData>({
             <DropdownMenuLabel>Filtrar por categoría</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {mainCategories.map((category, index) => {
-                const children = categories.filter(c => c.parent_id === category.id);
+                const children = categories.filter(c => ((c as any).parent_id ?? (c as any).parentId) === category.id);
                 const allChildrenSelected = children.length > 0 && children.every(c => selectedCategorySlugs.includes(c.slug));
                 return (
                     <React.Fragment key={category.id}>
@@ -120,8 +140,8 @@ export function ProductTableToolbar<TData>({
         </DropdownMenu>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-8 w-full md:w-auto">
-              <SlidersHorizontal className="mr-2 h-4 w-4" />
+            <Button variant="outline" className="h-11 px-5 w-full lg:w-auto rounded-xl border-border/60">
+              <Filter className="mr-2 h-4 w-4" />
               Estado
             </Button>
           </DropdownMenuTrigger>

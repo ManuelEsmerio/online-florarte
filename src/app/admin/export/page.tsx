@@ -13,7 +13,15 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/context/AuthContext';
+
+import { allProducts } from '@/lib/data/product-data';
+import { allOrders } from '@/lib/data/order-data';
+import { allUsers } from '@/lib/data/user-data';
+import { allCoupons } from '@/lib/data/coupon-data';
+import { productCategories } from '@/lib/data/categories-data';
+import { allTags } from '@/lib/data/tag-data';
+import { allOccasions } from '@/lib/data/occasion-data';
+import { allShippingZones } from '@/lib/data/shipping-zones';
 
 const exportOptions = [
   { value: 'products', label: 'Productos' },
@@ -70,42 +78,165 @@ const DateRangePicker = ({ date, setDate, className }: { date: DateRange | undef
     );
 };
 
+function escapeCSV(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+}
+
+function toCSV(rows: Record<string, unknown>[]): string {
+    if (rows.length === 0) return '';
+    const headers = Object.keys(rows[0]);
+    const lines = [
+        headers.join(','),
+        ...rows.map(row => headers.map(h => escapeCSV(row[h])).join(',')),
+    ];
+    return lines.join('\n');
+}
+
+function isInRange(dateStr: string | Date | undefined | null, from: Date | undefined, to: Date | undefined): boolean {
+    if (!from) return true;
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    const end = to ?? from;
+    return d >= from && d <= end;
+}
+
+function getRows(dataType: string, dateRange: DateRange | undefined): Record<string, unknown>[] {
+    const from = dateRange?.from;
+    const to = dateRange?.to;
+
+    switch (dataType) {
+        case 'products':
+            return allProducts.map(p => ({
+                id: p.id,
+                nombre: p.name,
+                codigo: p.code,
+                slug: p.slug,
+                precio: p.price,
+                precio_oferta: p.sale_price ?? '',
+                stock: p.stock,
+                estado: p.status,
+                categoria: p.category?.name ?? '',
+                creado_en: p.created_at ?? '',
+            }));
+
+        case 'orders':
+            return allOrders
+                .filter(o => isInRange(o.created_at, from, to))
+                .map(o => ({
+                    id: o.id,
+                    cliente: o.customerName,
+                    email: o.customerEmail,
+                    estado: o.status,
+                    subtotal: o.subtotal,
+                    envio: o.shipping_cost,
+                    total: o.total,
+                    fecha_entrega: o.delivery_date ?? '',
+                    creado_en: o.created_at,
+                }));
+
+        case 'users':
+            return allUsers
+                .filter(u => !u.is_deleted)
+                .filter(u => isInRange((u as any).created_at, from, to))
+                .map(u => ({
+                    id: u.id,
+                    nombre: u.name,
+                    email: u.email,
+                    telefono: u.phone ?? '',
+                    rol: u.role,
+                    puntos_fidelidad: u.loyalty_points ?? 0,
+                    creado_en: (u as any).created_at ?? '',
+                }));
+
+        case 'coupons':
+            return allCoupons
+                .filter(c => isInRange(c.created_at, from, to))
+                .map(c => ({
+                    id: c.id,
+                    codigo: c.code,
+                    tipo_descuento: c.discount_type,
+                    valor_descuento: c.discount_value,
+                    min_compra: c.min_purchase_amount ?? '',
+                    max_usos: c.max_uses ?? '',
+                    usos: c.times_used,
+                    activo: c.is_active ? 'sí' : 'no',
+                    inicio: c.start_date ?? '',
+                    fin: c.end_date ?? '',
+                    creado_en: c.created_at ?? '',
+                }));
+
+        case 'categories':
+            return productCategories.map(c => ({
+                id: c.id,
+                nombre: c.name,
+                slug: c.slug,
+                prefijo: c.prefix ?? '',
+                descripcion: c.description ?? '',
+                padre_id: c.parent_id ?? '',
+                mostrar_en_inicio: c.show_on_home ? 'sí' : 'no',
+            }));
+
+        case 'tags':
+            return allTags.map(t => ({
+                id: t.id,
+                nombre: t.name,
+            }));
+
+        case 'occasions':
+            return allOccasions.map(o => ({
+                id: o.id,
+                nombre: o.name,
+                slug: o.slug,
+                descripcion: o.description ?? '',
+                mostrar_en_inicio: o.show_on_home ? 'sí' : 'no',
+            }));
+
+        case 'shipping_zones':
+            return allShippingZones.map((z: any) => ({
+                id: z.id,
+                codigo_postal: z.postal_code,
+                localidad: z.locality,
+                costo_envio: z.shipping_cost,
+            }));
+
+        default:
+            return [];
+    }
+}
+
 export default function ExportPage() {
-    const { apiFetch } = useAuth();
     const { toast } = useToast();
     const [dataType, setDataType] = useState<string>('');
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [isExporting, setIsExporting] = useState(false);
 
-    const handleExport = async () => {
+    const handleExport = () => {
         if (!dataType) {
             toast({ title: 'Selección requerida', description: 'Por favor, elige qué datos quieres exportar.', variant: 'info' });
             return;
         }
         setIsExporting(true);
         try {
-            const params = new URLSearchParams();
-            params.append('dataType', dataType);
-            if (dateRange?.from) params.append('from', dateRange.from.toISOString());
-            if (dateRange?.to) params.append('to', dateRange.to.toISOString());
-
-            const res = await apiFetch(`/api/admin/export?${params.toString()}`);
-
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.message || 'No se pudo generar el archivo.');
+            const rows = getRows(dataType, dateRange);
+            if (rows.length === 0) {
+                toast({ title: 'Sin datos', description: 'No hay registros que coincidan con el filtro seleccionado.', variant: 'info' });
+                return;
             }
-
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
+            const csv = toCSV(rows);
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
             a.download = `export_${dataType}_${new Date().toISOString().split('T')[0]}.csv`;
             document.body.appendChild(a);
             a.click();
             a.remove();
-            window.URL.revokeObjectURL(url);
-
+            URL.revokeObjectURL(url);
             toast({ title: '¡Éxito!', description: 'La descarga de tu archivo ha comenzado.', variant: 'success' });
         } catch (error: any) {
             toast({ title: 'Error de exportación', description: error.message, variant: 'destructive' });

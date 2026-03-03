@@ -1,37 +1,33 @@
 // src/utils/auth.ts
 import { NextRequest } from 'next/server';
-import { userRepository } from '@/repositories/userRepository';
+import { verifyToken, COOKIE_NAME } from '@/lib/jwt';
 
-/**
- * Representa la sesión simulada del usuario.
- */
 export interface UserSession {
-  dbId: number; // ID numérico de tu base de datos
+  dbId: number;
+  role: string;
+}
+
+export function isAdminRole(role: unknown): boolean {
+  return String(role ?? '').trim().toUpperCase() === 'ADMIN';
 }
 
 /**
- * Obtiene la sesión simulada del usuario desde un encabezado personalizado.
- * En modo demo, reemplaza la verificación de token de Firebase.
- * 
- * @param req La petición entrante de Next.js.
- * @returns Un objeto UserSession o null si no se proporciona el encabezado.
+ * Verifica el JWT almacenado en la cookie httpOnly y retorna la sesión del usuario.
  */
 export async function getDecodedToken(req: NextRequest): Promise<UserSession | null> {
-  const userIdHeader = req.headers.get("X-Demo-User-Id");
-  if (!userIdHeader) {
-    return null;
-  }
+  const token = req.cookies.get(COOKIE_NAME)?.value;
 
-  const userId = parseInt(userIdHeader, 10);
-  if (isNaN(userId)) {
-    return null;
-  }
+  if (!token) return null;
 
-  // Opcional: Podrías verificar si el usuario realmente existe en la BD
-  // const userExists = await userRepository.findById(userId);
-  // if (!userExists) return null;
+  const payload = await verifyToken(token);
+
+  if (!payload?.sub) return null;
+
+  const userId = parseInt(payload.sub, 10);
+  if (isNaN(userId)) return null;
 
   return {
     dbId: userId,
+    role: payload.role,
   };
 }

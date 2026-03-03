@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { useFormContext } from 'react-hook-form';
-import { CheckoutFormValues } from '@/app/checkout/page';
+import { CheckoutFormValues } from '@/app/checkout/CheckoutClientPage';
 import { cn } from '@/lib/utils';
-import { CheckCircle, Phone, ArrowRight } from 'lucide-react';
+import { CheckCircle, ArrowRight, BookOpenText } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 interface StepPhoneProps {
   isActive: boolean;
@@ -19,12 +20,21 @@ interface StepPhoneProps {
 
 export function StepPhone({ isActive, setActiveStep, disabled = false, currentStep }: StepPhoneProps) {
   const { control, trigger, watch } = useFormContext<CheckoutFormValues>();
+  const { user } = useAuth();
+  const isGuestCheckout = !user?.id;
+
+  const guestName = watch('guestName');
+  const guestEmail = watch('guestEmail');
   const phone = watch('phone');
-  
-  const isCompleted = (!!phone && /^\d{10}$/.test(phone)) || currentStep > 1;
+
+  const isStepValid = isGuestCheckout
+    ? (!!guestName && guestName.trim().length >= 3 && !!guestEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail.trim().toLowerCase()) && !!phone && /^\d{10}$/.test(phone))
+    : (!!phone && /^\d{10}$/.test(phone));
+
+  const isCompleted = isStepValid || currentStep > 1;
 
   const handleNext = async () => {
-    const isValid = await trigger('phone');
+    const isValid = await trigger(isGuestCheckout ? ['guestName', 'guestEmail', 'phone'] : 'phone');
     if (isValid) {
       setActiveStep(2);
     }
@@ -47,10 +57,10 @@ export function StepPhone({ isActive, setActiveStep, disabled = false, currentSt
                 isCompleted && !isActive ? "bg-green-500/10 text-green-600" : "bg-primary/10 text-primary",
                 isActive && "bg-primary text-white"
             )}>
-              {isCompleted && !isActive ? <CheckCircle className="w-5 h-5 md:w-6 md:h-6"/> : <Phone className="w-5 h-5" />}
+              {isCompleted && !isActive ? <CheckCircle className="w-5 h-5 md:w-6 md:h-6"/> : <BookOpenText className="w-5 h-5" />}
             </div>
             <div className="min-w-0">
-              <h3 className="text-base md:text-xl font-bold font-headline truncate">Confirma tu teléfono</h3>
+              <h3 className="text-base md:text-xl font-bold font-headline truncate">Confirma tus datos</h3>
               {!isActive && isCompleted && (
                   <p className="text-xs md:text-sm font-medium text-muted-foreground mt-0.5 tracking-tight truncate">+52 {phone}</p>
               )}
@@ -73,6 +83,49 @@ export function StepPhone({ isActive, setActiveStep, disabled = false, currentSt
           <p className="text-sm text-muted-foreground leading-relaxed font-medium">
             Lo usaremos para comunicarnos contigo de forma inmediata si hay algún detalle con la entrega de tus flores.
           </p>
+
+          {isGuestCheckout && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={control}
+                name="guestName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre completo</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Nombre y apellidos"
+                        {...field}
+                        className="h-12 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-semibold"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={control}
+                name="guestEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="correo@ejemplo.com"
+                        type="email"
+                        autoComplete="email"
+                        {...field}
+                        onChange={(e) => field.onChange(e.target.value.trim())}
+                        className="h-12 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-semibold"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          )}
+
           <div className="flex gap-3">
             <div className="flex items-center justify-center bg-muted/30 rounded-2xl border border-border/50 px-5 font-bold text-sm text-foreground shrink-0">+52</div>
             <FormField
@@ -102,7 +155,7 @@ export function StepPhone({ isActive, setActiveStep, disabled = false, currentSt
             <Button 
                 type="button" 
                 onClick={handleNext} 
-                disabled={!(!!phone && /^\d{10}$/.test(phone))}
+              disabled={!isStepValid}
                 className="w-full sm:w-auto h-14 px-10 rounded-2xl font-bold shadow-lg shadow-primary/20 gap-2 transition-all active:scale-95 bg-primary hover:bg-[#E6286B]"
             >
                 Continuar

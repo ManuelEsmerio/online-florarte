@@ -11,7 +11,7 @@ export const columns: ColumnDef<LoyaltyHistory>[] = [
   {
     accessorKey: 'createdAt',
     header: ({ column }) => (
-      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+      <Button variant="ghost" className="hover:bg-primary/10 hover:text-primary" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
         Fecha
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>

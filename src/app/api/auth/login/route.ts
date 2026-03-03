@@ -1,27 +1,75 @@
-// src/app/api/auth/login/route.ts
-import { NextRequest } from 'next/server';
-import { successResponse, errorHandler } from '@/lib/http';
-import * as authService from '@/features/auth/auth.service';
-import { loginSchema } from '@/features/auth/auth.schema';
-import { ZodError } from 'zod';
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
+import { errorHandler } from '@/utils/api-utils';
+import { signToken, COOKIE_NAME, COOKIE_MAX_AGE } from '@/lib/jwt';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export async function POST(req: NextRequest) {
+  // 5 intentos por IP cada 15 minutos
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`login:${ip}`, 5, 15 * 60 * 1000);
+  if (!rl.allowed) {
+    return errorHandler(new Error('Demasiados intentos. Espera 15 minutos e intenta de nuevo.'), 429);
+  }
+
   try {
-    const body = await req.json();
-    const credentials = loginSchema.parse(body);
-    
-    const user = authService.login(credentials);
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return errorHandler(new Error('Formato de solicitud inválido.'), 400);
+    }
 
-    // No hay cookies que establecer en modo demo
-    return successResponse(user);
+    const { email, password } = body;
 
-  } catch (error) {
-    if (error instanceof ZodError) {
+    if (!email || !password) {
       return errorHandler(new Error('Email y contraseña son requeridos.'), 400);
     }
-    if (error instanceof Error) {
-        return errorHandler(error, 401);
+
+    const emailLower = email.toLowerCase();
+
+    const user = await prisma.user.findUnique({
+      where: { email: emailLower },
+      include: {
+        addresses: {
+          where: { isDeleted: false },
+          orderBy: { isDefault: 'desc' },
+        },
+      },
+    });
+
+    if (!user || !user.passwordHash) {
+      return errorHandler(new Error('Credenciales inválidas.'), 401);
     }
-    return errorHandler(error);
+
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+
+    if (!isMatch) {
+      return errorHandler(new Error('Credenciales inválidas.'), 401);
+    }
+
+    const { passwordHash: _, ...userSafe } = user;
+
+    const token = await signToken({
+      sub: String(user.id),
+      role: user.role,
+    });
+
+    const res = NextResponse.json({ success: true, data: userSafe });
+
+    res.cookies.set(COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: COOKIE_MAX_AGE,
+      path: '/',
+    });
+
+    return res;
+
+  } catch (error) {
+    console.error('Login error:', error);
+    return errorHandler(error, 500);
   }
 }

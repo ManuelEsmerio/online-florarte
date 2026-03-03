@@ -71,6 +71,12 @@ const customerSchema = z.object({
 
 type FormValues = z.infer<typeof customerSchema>;
 
+const toFormRole = (role?: UserType['role']): FormValues['role'] => {
+    if (role === 'ADMIN') return 'admin';
+    if (role === 'DELIVERY') return 'delivery';
+    return 'customer';
+};
+
 const CustomProgressHeader = ({ activeStep, totalSteps, title }: { activeStep: number, totalSteps: number, title: string }) => {
     const progress = ((activeStep + 1) / totalSteps) * 100;
     return (
@@ -159,9 +165,9 @@ const Step1_Info = () => {
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent className="rounded-[1.5rem] border-none shadow-2xl p-2 bg-background">
-                                    <SelectItem value="admin" className="rounded-xl py-3 font-medium cursor-pointer">Administrador General</SelectItem>
-                                    <SelectItem value="delivery" className="rounded-xl py-3 font-medium cursor-pointer">Repartidor Especializado</SelectItem>
-                                    <SelectItem value="customer" className="rounded-xl py-3 font-medium cursor-pointer">Cliente Premium</SelectItem>
+                                    <SelectItem value="admin" className="rounded-xl py-3 font-medium cursor-pointer data-[highlighted]:bg-primary/90 data-[highlighted]:text-white">Administrador General</SelectItem>
+                                    <SelectItem value="delivery" className="rounded-xl py-3 font-medium cursor-pointer data-[highlighted]:bg-primary/90 data-[highlighted]:text-white">Repartidor Especializado</SelectItem>
+                                    <SelectItem value="customer" className="rounded-xl py-3 font-medium cursor-pointer data-[highlighted]:bg-primary/90 data-[highlighted]:text-white">Cliente</SelectItem>
                                 </SelectContent>
                             </Select>
                             <FormMessage className="ml-5" />
@@ -310,7 +316,7 @@ export function CustomerForm({
               name: user.name,
               email: user.email,
               phone: user.phone || '',
-              role: user.role,
+                            role: toFormRole(user.role),
               password: '',
               generatePassword: false,
             });
@@ -344,6 +350,7 @@ export function CustomerForm({
       <DialogContent 
         className="w-[95vw] sm:max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-xl bg-background dark:bg-[#1a1a1a] flex flex-col max-h-[95vh] font-sans"
         hideCloseButton={true}
+                onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogHeader className="sr-only">
             <DialogTitle>{isEditing ? 'Editar Usuario' : 'Crear Usuario'}</DialogTitle>
@@ -434,11 +441,6 @@ export function CustomerForm({
             </form>
         </FormProvider>
       </DialogContent>
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: hsl(var(--primary) / 0.2); border-radius: 10px; }
-      `}</style>
     </Dialog>
   );
 }

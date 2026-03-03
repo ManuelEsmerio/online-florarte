@@ -31,6 +31,11 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
   const [isAdding, setIsAdding] = useState(false);
 
   const isCompact = variant === 'compact';
+    const variantLabel = (product as any)?.variantName ?? null;
+    const hasVariantContext = Boolean(product.has_variants && variantLabel);
+    const displayTitle = hasVariantContext
+        ? ((product as any)?.variantProductName ?? product.name)
+        : product.name;
 
   let displayPrice: number;
   let displaySalePrice: number | null = null;
@@ -59,6 +64,11 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
           description: `${product.name} ha sido ${result.type === 'added' ? 'añadido a' : 'eliminado de'} tu lista de deseos.`,
           action: <ToastAction altText="Ver Wishlist" asChild><Link href="/wishlist">Ver Wishlist</Link></ToastAction>,
       })
+        } else if (result.message) {
+            toast({
+                title: 'Inicia sesión para continuar',
+                description: result.message,
+            });
     }
   }
 
@@ -109,7 +119,8 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
   };
 
   const renderTag = () => {
-    const tag = product.tag_visible;
+        const rawTag = (product as any)?.tag_visible ?? (product as any)?.badgeText ?? (product as any)?.badge_text ?? null;
+        const tag = rawTag ? String(rawTag).trim().toUpperCase() : null;
     if (!tag) return null;
 
     if (tag === 'OFERTA') {
@@ -145,7 +156,14 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
         );
     }
 
-    return null;
+        return (
+            <div className="absolute top-4 left-4 z-20">
+                <span className="bg-white/95 dark:bg-zinc-800 text-slate-800 dark:text-slate-100 text-[10px] font-bold tracking-widest px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xl border border-primary/20">
+                    <Sparkles className="w-3 h-3 text-primary" />
+                    {tag}
+                </span>
+            </div>
+        );
   };
 
   return (
@@ -187,6 +205,7 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
                     alt={product.name}
                     fill
                     className="object-cover transition-transform duration-700 group-hover:scale-110"
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60"></div>
             </Link>
@@ -205,8 +224,13 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
 
             <Link href={`/products/${product.slug}`} className="block mb-4">
                 <h3 className="font-headline text-lg md:text-2xl font-bold text-slate-900 dark:text-white transition-colors duration-300 leading-tight line-clamp-2">
-                    {product.name}
+                    {displayTitle}
                 </h3>
+                {hasVariantContext && (
+                    <p className="mt-1 text-sm md:text-base text-slate-500 dark:text-slate-400 leading-tight line-clamp-1">
+                        {variantLabel}
+                    </p>
+                )}
             </Link>
 
             <div className="mt-auto">

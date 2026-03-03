@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, PlusCircle } from 'lucide-react';
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from '@/components/ui/carousel';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { ComplementQuickView } from './ComplementQuickView';
 import { ComplementCategoryModal } from './ComplementCategoryModal';
 import { ComplementCard, ComplementCardSkeleton } from './ComplementCard';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
 
 interface ComplementSliderProps {
   product: Product;
@@ -18,30 +19,21 @@ interface ComplementSliderProps {
 }
 
 export function ComplementSlider({ product, parentCartItemId }: ComplementSliderProps) {
-  const [complements, setComplements] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [activeComplement, setActiveComplement] = useState<Product | null>(null);
   const [api, setApi] = useState<CarouselApi>();
   const [progress, setProgress] = useState(0);
 
-  useEffect(() => {
-    const fetchComplements = async () => {
-      setIsLoading(true);
-      try {
-        const res = await fetch(`/api/products/${product.slug}/complements`);
-        const data = await handleApiResponse(res, { complements: [] });
-        setComplements(data.complements || []);
-      } catch (error) {
-        console.error("Failed to fetch complements:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchComplements();
-  }, [product.slug]);
+  const { data: complements = [], isLoading } = useQuery<Product[]>({
+    queryKey: ['complements', product.slug],
+    queryFn: async () => {
+      const res = await fetch(`/api/products/${product.slug}/complements`);
+      const data = await handleApiResponse<{ complements?: Product[] }>(res, { complements: [] });
+      return data.complements || [];
+    },
+    staleTime: Infinity,
+  });
 
   useEffect(() => {
     if (!api) return;

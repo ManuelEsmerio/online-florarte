@@ -42,9 +42,6 @@ export function CategoryForm({ isOpen, onOpenChange, onSave, category, allCatego
     }
   });
   
-  const { watch, setValue } = form;
-  const nameValue = watch('name');
-
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -55,12 +52,12 @@ export function CategoryForm({ isOpen, onOpenChange, onSave, category, allCatego
             form.reset({
                 name: category.name,
                 prefix: category.prefix,
-                description: category.description,
-                image_url: category.image_url,
-                parent_id: category.parent_id,
-                show_on_home: category.show_on_home,
+            description: category.description ?? '',
+            image_url: category.imageUrl ?? '',
+            parent_id: category.parentId ?? null,
+                show_on_home: category.showOnHome,
             });
-            setImagePreview(category.image_url);
+            setImagePreview(category.imageUrl ?? null);
         } else {
             form.reset({ name: '', prefix: '', description: '', image_url: '', parent_id: null, show_on_home: false });
             setImagePreview(null);
@@ -88,17 +85,19 @@ export function CategoryForm({ isOpen, onOpenChange, onSave, category, allCatego
     onSave(data, imageFile, category?.id);
   };
   
-  const parentCategories = allCategories.filter(c => !c.parent_id && c.id !== category?.id);
+  const parentCategories = allCategories.filter(c => !c.parentId && c.id !== category?.id);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="font-headline text-2xl">{category ? 'Editar Categoría' : 'Crear Categoría'}</DialogTitle>
-          <DialogDescription>{category ? 'Modifica los detalles de la categoría.' : 'Completa el formulario para crear una nueva categoría.'}</DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-2">
+      <DialogContent className="w-full sm:max-w-xl max-h-[90vh] overflow-hidden border border-border/60 p-0" onInteractOutside={(e) => e.preventDefault()}>
+        <div className="flex flex-col h-full">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle className="font-headline text-2xl">{category ? 'Editar Categoría' : 'Crear Categoría'}</DialogTitle>
+            <DialogDescription>{category ? 'Modifica los detalles de la categoría.' : 'Completa el formulario para crear una nueva categoría.'}</DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1">
+              <div className="flex-1 space-y-4 overflow-y-auto px-6 pb-6 custom-scrollbar">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                 control={form.control}
@@ -156,7 +155,7 @@ export function CategoryForm({ isOpen, onOpenChange, onSave, category, allCatego
                         <SelectValue placeholder="Ninguna (es categoría principal)" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent className="z-[130]">
                       <SelectItem value="null">Ninguna (es categoría principal)</SelectItem>
                       {parentCategories.map(cat => (
                         <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>
@@ -170,8 +169,8 @@ export function CategoryForm({ isOpen, onOpenChange, onSave, category, allCatego
             <div className="space-y-2">
               <FormLabel htmlFor="image">Imagen de la Categoría</FormLabel>
               {imagePreview && (
-                <div className="relative w-full h-32">
-                   <Image src={imagePreview} alt="Previsualización" layout="fill" objectFit="contain" className="rounded-md" />
+                <div className="relative w-full h-40 overflow-hidden rounded-2xl border border-border/40 bg-muted/30">
+                   <Image src={imagePreview} alt="Previsualización" fill sizes="(max-width: 768px) 100vw, 420px" className="object-cover" />
                 </div>
               )}
               <FormControl>
@@ -205,14 +204,16 @@ export function CategoryForm({ isOpen, onOpenChange, onSave, category, allCatego
                 </FormItem>
               )}
             />
-            <DialogFooter className="pt-4 sticky bottom-0 bg-background py-3 -mx-2 px-2">
-              <DialogClose asChild>
-                <Button type="button" variant="secondary" disabled={isSaving}>Cancelar</Button>
-              </DialogClose>
-              <Button type="submit" loading={isSaving}>Guardar</Button>
-            </DialogFooter>
-          </form>
-        </Form>
+              </div>
+              <DialogFooter className="flex-shrink-0 px-6 py-4 border-t border-border/60 bg-muted/30">
+                <DialogClose asChild>
+                  <Button type="button" variant="secondary" disabled={isSaving}>Cancelar</Button>
+                </DialogClose>
+                <Button type="submit" loading={isSaving}>Guardar</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -36,7 +36,7 @@ export const columns = ({ onEdit, onDelete, onViewDetails, onSendCredentials, is
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
         aria-label="Select row"
-        disabled={row.original.is_deleted}
+        disabled={row.original.isDeleted}
       />
     ),
     enableSorting: false,
@@ -49,6 +49,7 @@ export const columns = ({ onEdit, onDelete, onViewDetails, onSendCredentials, is
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="hover:bg-primary/10 hover:text-primary"
         >
           Nombre
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -66,18 +67,19 @@ export const columns = ({ onEdit, onDelete, onViewDetails, onSendCredentials, is
     cell: ({ row }) => row.getValue("phone") || 'N/A'
   },
   {
-    accessorKey: "loyalty_points",
+    accessorKey: "loyaltyPoints",
     header: ({ column }) => (
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="hover:bg-primary/10 hover:text-primary"
       >
         Puntos
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
     cell: ({ row }) => {
-        const points = row.getValue("loyalty_points") as number;
+        const points = row.getValue("loyaltyPoints") as number;
         return (
             <div className="flex items-center justify-center font-semibold">
                 {points}
@@ -97,10 +99,10 @@ export const columns = ({ onEdit, onDelete, onViewDetails, onSendCredentials, is
     },
   },
   {
-    accessorKey: "is_deleted",
+    accessorKey: "isDeleted",
     header: "Estado",
     cell: ({ row }) => {
-      const isDeleted = row.getValue("is_deleted") as boolean;
+      const isDeleted = row.getValue("isDeleted") as boolean;
       return (
         <Badge variant={isDeleted ? "destructive" : "success"}>
           {isDeleted ? "Eliminado" : "Activo"}
@@ -117,7 +119,7 @@ export const columns = ({ onEdit, onDelete, onViewDetails, onSendCredentials, is
   {
     id: "actions",
     cell: ({ row }) => <CustomerActionsCell 
-        row={row} 
+        user={row.original} 
         onEdit={onEdit} 
         onDelete={onDelete} 
         onViewDetails={onViewDetails}

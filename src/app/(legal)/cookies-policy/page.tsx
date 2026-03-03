@@ -287,7 +287,7 @@ export default function CookiesPolicyPage() {
           </div>
           
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto p-6 max-h-[65vh] space-y-6 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-6 max-h-[65vh] space-y-6 custom-scrollbar custom-scrollbar--contrast">
             {/* Intro Text */}
             <div className="space-y-2">
               <p className="text-muted-foreground text-sm md:text-base leading-relaxed">
@@ -413,19 +413,6 @@ export default function CookiesPolicyPage() {
           </div>
         </DialogContent>
       </Dialog>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #444;
-          border-radius: 10px;
-        }
-      `}</style>
     </div>
   );
 }

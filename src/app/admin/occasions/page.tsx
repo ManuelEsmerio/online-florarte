@@ -11,111 +11,144 @@ import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleto
 import { Occasion } from '@/lib/definitions';
 import { columns } from './columns';
 import { OccasionForm } from './occasion-form';
-import { useAuth } from '@/context/AuthContext';
-import { handleApiResponse } from '@/utils/handleApiResponse';
-import { useProductContext } from '@/context/ProductContext';
+import { OccasionPreview, OccasionPreviewSkeleton } from './occasion-preview';
 
 
 export default function OccasionsPage() {
   const { toast } = useToast();
-  const { apiFetch } = useAuth();
-  const { occasions, fetchAppData, isLoading: isContextLoading } = useProductContext();
+  const [occasions, setOccasions] = useState<Occasion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [updatingVisibilityId, setUpdatingVisibilityId] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedOccasion, setSelectedOccasion] = useState<Occasion | null>(null);
+  const [previewOccasion, setPreviewOccasion] = useState<Occasion | null>(null);
+  const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
 
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  useEffect(() => {
-    setIsLoading(isContextLoading);
-  }, [isContextLoading]);
+  const loadOccasions = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/admin/occasions');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al cargar ocasiones');
+      setOccasions(json.data ?? []);
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
+  useEffect(() => {
+    loadOccasions();
+  }, [loadOccasions]);
+
+  useEffect(() => {
+    if (!occasions.length) {
+      setPreviewOccasion(null);
+      setFocusedRowId(null);
+      return;
+    }
+
+    setPreviewOccasion((prev) => {
+      if (!prev) return occasions[0];
+      const match = occasions.find((occasion) => occasion.id === prev.id);
+      return match ?? occasions[0];
+    });
+  }, [occasions]);
+
+  useEffect(() => {
+    if (!previewOccasion) return;
+    const rowId = `occasion-${previewOccasion.id}`;
+    if (focusedRowId !== rowId) {
+      setFocusedRowId(rowId);
+    }
+  }, [previewOccasion, focusedRowId]);
 
   const handleAdd = () => {
     setSelectedOccasion(null);
     setIsFormOpen(true);
   };
 
-  const handleEdit = (occasion: Occasion) => {
+  const handleEdit = useCallback((occasion: Occasion) => {
     setSelectedOccasion(occasion);
     setIsFormOpen(true);
-  };
+  }, []);
 
-  const handleDelete = async (id: number) => {
+  const handleRowPreview = useCallback((occasion: Occasion) => {
+    setPreviewOccasion(occasion);
+    setFocusedRowId(`occasion-${occasion.id}`);
+  }, []);
+
+  const handleDelete = useCallback(async (id: number) => {
     setIsDeletingId(id);
-     try {
-      const res = await apiFetch(`/api/admin/occasions/${id}`, { method: 'DELETE' });
-      await handleApiResponse(res);
+    try {
+      const res = await fetch(`/api/admin/occasions/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar');
       toast({ title: '¡Ocasión Eliminada!', description: 'La ocasión se ha eliminado correctamente.', variant: 'success' });
-      await fetchAppData();
-    } catch (error: any) {
-      toast({ title: 'Error al eliminar', description: error.message, variant: 'destructive' });
+      await loadOccasions();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
       setIsDeletingId(null);
     }
-  };
-  
-  const handleSave = async (data: Omit<Occasion, 'id' | 'slug' | 'image_url'> & {slug?:string, image_url?: string}, imageFile: File | null, id?: number) => {
+  }, [loadOccasions, toast]);
+
+  const handleSave = async (data: any, imageFile: File | null, id?: number) => {
     setIsSaving(true);
-    
-    const formData = new FormData();
-    formData.append('occasionData', JSON.stringify(data));
-    if (imageFile) {
-        formData.append('image', imageFile);
-    }
-    
     const isEditing = !!id;
-    const url = isEditing ? `/api/admin/occasions/${id}` : '/api/admin/occasions';
-    const method = isEditing ? 'PUT' : 'POST';
-    
     try {
-        const res = await apiFetch(url, { 
-            method,
-            body: formData 
-        });
-        await handleApiResponse(res);
-        toast({ title: isEditing ? '¡Ocasión Actualizada!' : '¡Ocasión Creada!', description: 'La ocasión ha sido guardada.', variant: 'success'});
-        setIsFormOpen(false);
-        await fetchAppData();
-    } catch (error: any) {
-        toast({ title: 'Error al guardar', description: error.message, variant: 'destructive' });
+      const fd = new FormData();
+      fd.append('occasionData', JSON.stringify({
+        name: data.name,
+        description: data.description ?? '',
+        showOnHome: (data as any).show_on_home ?? data.showOnHome ?? false,
+      }));
+      if (imageFile) fd.append('image', imageFile);
+
+      const url = isEditing ? `/api/admin/occasions/${id}` : '/api/admin/occasions';
+      const method = isEditing ? 'PUT' : 'POST';
+      const res = await fetch(url, { method, body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al guardar');
+      toast({ title: isEditing ? '¡Ocasión Actualizada!' : '¡Ocasión Creada!', description: 'La ocasión ha sido guardada.', variant: 'success' });
+      setIsFormOpen(false);
+      await loadOccasions();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
-        setIsSaving(false);
+      setIsSaving(false);
     }
   };
 
   const handleToggleShowOnHome = useCallback(async (occasion: Occasion) => {
     setUpdatingVisibilityId(occasion.id);
-    const updatedData = { ...occasion, show_on_home: !occasion.show_on_home };
-    
-    const formData = new FormData();
-    formData.append('occasionData', JSON.stringify(updatedData));
-
     try {
-      const res = await apiFetch(`/api/admin/occasions/${occasion.id}`, {
-        method: 'PUT',
-        body: formData,
-      });
-      await handleApiResponse(res);
+      const fd = new FormData();
+      fd.append('occasionData', JSON.stringify({ showOnHome: !occasion.showOnHome }));
+      const res = await fetch(`/api/admin/occasions/${occasion.id}`, { method: 'PUT', body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al actualizar');
       toast({
         title: 'Visibilidad Actualizada',
-        description: `La ocasión "${occasion.name}" ahora ${updatedData.show_on_home ? 'se mostrará' : 'no se mostrará'} en la página de inicio.`,
+        description: `La ocasión "${occasion.name}" ahora ${!occasion.showOnHome ? 'se mostrará' : 'no se mostrará'} en la página de inicio.`,
         variant: 'success'
       });
-      await fetchAppData();
-    } catch (error: any) {
-      toast({ title: 'Error al actualizar', description: error.message, variant: 'destructive' });
+      await loadOccasions();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
       setUpdatingVisibilityId(null);
     }
-  }, [apiFetch, fetchAppData, toast]);
+  }, [loadOccasions, toast]);
 
-  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, onToggleShowOnHome: handleToggleShowOnHome, isDeletingId, updatingVisibilityId }), [handleEdit, handleDelete, isDeletingId, handleToggleShowOnHome, updatingVisibilityId]);
+  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, onToggleShowOnHome: handleToggleShowOnHome, isDeletingId, updatingVisibilityId }), [handleEdit, handleDelete, handleToggleShowOnHome, isDeletingId, updatingVisibilityId]);
 
   const table = useReactTable({
     data: occasions,
@@ -127,6 +160,7 @@ export default function OccasionsPage() {
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     state: { pagination, sorting, rowSelection },
+    getRowId: (row) => `occasion-${row.id}`,
   });
 
   if (isLoading) {
@@ -136,7 +170,11 @@ export default function OccasionsPage() {
             <h2 className="text-4xl font-bold font-headline tracking-tight text-slate-900 dark:text-white">Ocasiones Especiales</h2>
             <Button disabled className="rounded-2xl h-11 px-6 font-bold shadow-lg shadow-primary/20"><PlusCircle className="mr-2 h-4 w-4" />Crear Ocasión</Button>
         </div>
-        <DataTableSkeleton columnCount={4} />
+        <div className="flex flex-col xl:flex-row gap-6 min-h-[calc(100vh-230px)]">
+          <div className="flex-1 min-w-0"><DataTableSkeleton columnCount={6} className="h-full" /></div>
+          <div className="hidden xl:block w-px bg-border/40" />
+          <aside className="w-full xl:w-[32%]"><OccasionPreviewSkeleton /></aside>
+        </div>
       </div>
     );
   }
@@ -159,7 +197,30 @@ export default function OccasionsPage() {
         occasion={selectedOccasion}
         isSaving={isSaving}
       />
-      <DataTable table={table} columns={tableColumns} data={occasions} isLoading={isLoading} />
+      <div className="flex flex-col xl:flex-row gap-6 min-h-[calc(100vh-230px)]">
+        <div className="flex-1 min-w-0">
+          <DataTable
+            table={table}
+            columns={tableColumns}
+            data={occasions}
+            isLoading={isLoading}
+            onRowClick={handleRowPreview}
+            selectedRowId={focusedRowId}
+            className="h-full"
+          />
+        </div>
+        <div className="hidden xl:block w-px bg-border/40" />
+        <aside className="w-full xl:w-[32%]">
+          <OccasionPreview
+            occasion={previewOccasion}
+            onEdit={handleEdit}
+            onToggleShowOnHome={handleToggleShowOnHome}
+            onDelete={(occasion) => handleDelete(occasion.id)}
+            isToggling={previewOccasion ? updatingVisibilityId === previewOccasion.id : false}
+            isDeleting={previewOccasion ? isDeletingId === previewOccasion.id : false}
+          />
+        </aside>
+      </div>
     </div>
   );
 }

@@ -1,30 +1,57 @@
 // src/lib/db.ts
-import mysql from 'mysql2/promise';
-import type { Pool, PoolConnection } from 'mysql2/promise';
 
-// Declara una variable global para el pool.
-// Esto es clave para reutilizar la misma instancia en un entorno serverless.
+// Mock types to replace mysql2/promise
+export interface Pool {
+  getConnection(): Promise<PoolConnection>;
+  query<T extends RowDataPacket[][] | RowDataPacket[] | ResultSetHeader>(sql: string, params?: any[]): Promise<[T, any]>;
+  execute<T extends RowDataPacket[][] | RowDataPacket[] | ResultSetHeader>(sql: string, params?: any[]): Promise<[T, any]>;
+}
+
+export interface PoolConnection {
+  beginTransaction(): Promise<void>;
+  commit(): Promise<void>;
+  rollback(): Promise<void>;
+  release(): void;
+  query<T extends RowDataPacket[][] | RowDataPacket[] | ResultSetHeader>(sql: string, params?: any[]): Promise<[T, any]>;
+  execute<T extends RowDataPacket[][] | RowDataPacket[] | ResultSetHeader>(sql: string, params?: any[]): Promise<[T, any]>;
+}
+
+export interface RowDataPacket {
+  [key: string]: any;
+}
+
+export interface ResultSetHeader {
+  fieldCount: number;
+  affectedRows: number;
+  insertId: number;
+  info: string;
+  serverStatus: number;
+  warningStatus: number;
+}
+
+// Global pool mock
 declare global {
   var pool: Pool | null;
 }
 
 function getPool(): Pool {
-  // Si el pool ya existe en el ámbito global, lo reutilizamos.
   if (global.pool) {
     return global.pool;
   }
   
-  // Si no, creamos uno nuevo y lo asignamos a la variable global.
-  console.log("Creando un nuevo pool de conexiones MySQL...");
-  global.pool = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
-  });
+  console.log('Using Mock DB Pool');
+  global.pool = {
+    getConnection: async () => ({
+      beginTransaction: async () => {},
+      commit: async () => {},
+      rollback: async () => {},
+      release: () => {},
+      query: async () => [[], {}],
+      execute: async () => [[], {}]
+    } as unknown as PoolConnection),
+    query: async () => [[], {}],
+    execute: async () => [[], {}]
+  } as unknown as Pool;
 
   return global.pool;
 }
@@ -33,28 +60,15 @@ export async function dbWithAudit<T>(
   userId: number,
   queryFn: (connection: PoolConnection) => Promise<T>
 ): Promise<T> {
-  let connection: PoolConnection | undefined;
   const currentPool = getPool();
+  const connection = await currentPool.getConnection();
   try {
-    connection = await currentPool.getConnection();
-    await connection.beginTransaction(); // Iniciar transacción
-    await connection.query('SET @audit_user_id = ?', [userId]);
-    
-    const result = await queryFn(connection);
-    
-    await connection.commit(); // Confirmar transacción
-    return result;
+    return await queryFn(connection);
   } catch (error) {
-    if (connection) {
-      await connection.rollback(); // Revertir en caso de error
-    }
-    console.error("Error en la transacción auditada:", error);
+    console.error('Error in mock dbWithAudit:', error);
     throw error;
   } finally {
-    if (connection) {
-      await connection.query('SET @audit_user_id = NULL');
-      connection.release();
-    }
+     connection.release();
   }
 }
 

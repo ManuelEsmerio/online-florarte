@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ShippingZone } from '@/lib/definitions';
 import React from 'react';
+import { Badge } from '@/components/ui/badge';
 
 type ColumnsProps = {
   onEdit: (zone: ShippingZone) => void;
@@ -21,7 +22,7 @@ export const columns = ({ onEdit, onDelete, isDeletingId }: ColumnsProps): Colum
   {
     accessorKey: 'postalCode',
     header: ({ column }) => (
-      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+      <Button variant="ghost" className="hover:bg-primary/10 hover:text-primary" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
         Código Postal
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
@@ -33,12 +34,31 @@ export const columns = ({ onEdit, onDelete, isDeletingId }: ColumnsProps): Colum
     header: 'Localidad',
   },
   {
+    accessorKey: 'municipality',
+    header: 'Municipio',
+    cell: ({ row }) => row.original.municipality ?? '—',
+  },
+  {
+    accessorKey: 'zone',
+    header: 'Zona',
+    cell: ({ row }) => row.original.zone ?? '—',
+  },
+  {
     accessorKey: 'shippingCost',
     header: () => <div className="text-right">Costo de Envío</div>,
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue('shippingCost'));
       return <div className="text-right font-medium">{formatCurrency(amount)}</div>;
     },
+  },
+  {
+    accessorKey: 'isActive',
+    header: 'Estado',
+    cell: ({ row }) => (
+      <Badge variant={row.original.isActive ? 'success' : 'secondary'}>
+        {row.original.isActive ? 'Activo' : 'Inactivo'}
+      </Badge>
+    ),
   },
   {
     id: 'actions',
@@ -50,7 +70,7 @@ export const columns = ({ onEdit, onDelete, isDeletingId }: ColumnsProps): Colum
         <div className="text-right">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0" disabled={isDeleting}>
+              <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary" disabled={isDeleting}>
                 <span className="sr-only">Abrir menú</span>
                 {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
               </Button>

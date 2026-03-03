@@ -23,6 +23,11 @@
     --destructive-foreground: 0 0% 98%;
     --success: 142.1 76.2% 36.3%;
     --success-foreground: 142.1 76.2% 98%;
+    --warning: 38 92% 50%;           /* amber-500 */
+    --warning-foreground: 0 0% 0%;
+    --info: 217 91% 60%;             /* blue-500 */
+    --info-foreground: 0 0% 100%;
+    --rating: 45 100% 51%;           /* yellow-400 — star/rating color */
     --border: 336 20% 90%;
     --input: 336 20% 92%;
     --ring: 339 100% 59%;
@@ -77,6 +82,11 @@
     --destructive-foreground: 0 0% 98%;
     --success: 142.1 70.2% 46.3%;
     --success-foreground: 142.1 76.2% 98%;
+    --warning: 38 85% 55%;           /* amber-400 for dark mode */
+    --warning-foreground: 0 0% 0%;
+    --info: 217 91% 65%;             /* blue-400 for dark mode */
+    --info-foreground: 0 0% 100%;
+    --rating: 45 100% 55%;           /* yellow-300 for dark mode */
     --border: 0 0% 18%;
     --input: 0 0% 18%;
     --ring: 339 100% 59%;
@@ -168,6 +178,15 @@
     50% { transform: translate(-50%, -50%) scale(1.02); }
   }
 
+  @keyframes skeleton-soft-pulse {
+    0%, 100% {
+      opacity: 0.65;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
   .animate-shake {
     animation: shake 0.5s ease-in-out;
   }
@@ -182,5 +201,52 @@
 
   .animate-fade-in-up {
     animation: fade-in-up 0.4s ease-out forwards;
+  }
+}
+
+@layer base {
+  .custom-scrollbar {
+    --scrollbar-width: 4px;
+    --scrollbar-track-color: transparent;
+    --scrollbar-thumb-color: hsl(var(--primary) / 0.2);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: var(--scrollbar-width);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: var(--scrollbar-track-color);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb-color);
+    border-radius: 10px;
+  }
+
+  .custom-scrollbar--strong {
+    --scrollbar-thumb-color: hsl(var(--primary) / 0.3);
+  }
+
+  .custom-scrollbar--muted {
+    --scrollbar-thumb-color: #e2e8f0;
+  }
+
+  .dark .custom-scrollbar--muted {
+    --scrollbar-thumb-color: #333;
+  }
+
+  .custom-scrollbar--contrast {
+    --scrollbar-thumb-color: #444;
+  }
+}
+
+@layer utilities {
+  .animate-pulse {
+    animation: skeleton-soft-pulse 1.7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  .bg-radial-gradient {
+    background: radial-gradient(circle, var(--tw-gradient-from) 0%, var(--tw-gradient-to) 70%);
   }
 }

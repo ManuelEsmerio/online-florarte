@@ -1,126 +1,165 @@
 // src/app/verify-email/page.tsx
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
-import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MailCheck, MailWarning, Loader2 } from 'lucide-react';
+import { MailCheck, MailWarning, Loader2, Mail } from 'lucide-react';
 import Link from 'next/link';
+import { Isotype } from '@/components/icons/Isotype';
+import { useQuery } from '@tanstack/react-query';
+
+type Status = 'pending' | 'loading' | 'success' | 'error';
 
 const VerifyEmailContent = () => {
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const { handleVerifyEmail, sendVerificationEmail, user } = useAuth();
-    const { toast } = useToast();
-    
-    const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-    const [message, setMessage] = useState('Verificando tu correo electrónico...');
-    const [isResending, setIsResending] = useState(false);
-    
-    const emailToVerify = searchParams.get('email');
-    const actionCode = searchParams.get('oobCode');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
 
-    useEffect(() => {
-        if (user) {
-            router.push('/'); // Si ya está logueado, no debería estar aquí.
-            return;
-        }
+  const token = searchParams.get('token');
+  const email = searchParams.get('email');
 
-        if (actionCode) {
-            handleVerifyEmail(actionCode)
-                .then(result => {
-                    if (result.success) {
-                        setStatus('success');
-                        setMessage(result.message);
-                        toast({ title: "¡Éxito!", description: result.message });
-                        setTimeout(() => router.push('/login'), 3000);
-                    } else {
-                        setStatus('error');
-                        setMessage(result.message);
-                    }
-                });
-        } else {
-            setStatus('error');
-            setMessage("No se proporcionó un código de verificación. Por favor, revisa el enlace en tu correo.");
-        }
-    }, [actionCode, handleVerifyEmail, router, toast, user]);
-    
-    const handleResend = async () => {
-        setIsResending(true);
-        const result = await sendVerificationEmail();
-        if (result.success) {
-            toast({ title: 'Correo Enviado', description: 'Se ha enviado un nuevo enlace de verificación.'});
-        } else {
-            toast({ title: 'Error', description: result.message, variant: 'destructive'});
-        }
-        setIsResending(false);
+  const [isResending, setIsResending] = useState(false);
+
+  const { data, isLoading: isVerifying } = useQuery({
+    queryKey: ['verify-email', token],
+    queryFn: () =>
+      fetch(`/api/auth/verify-email?token=${token}`).then(res => res.json()),
+    enabled: !!token,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  // Derivar status desde react-query
+  const status: Status = !token
+    ? 'pending'
+    : isVerifying
+    ? 'loading'
+    : data?.success
+    ? 'success'
+    : 'error';
+
+  const errorMessage = (!data?.success && data?.error) || 'El enlace no es válido o ha expirado.';
+
+  // Side-effects al verificar exitosamente
+  useEffect(() => {
+    if (data?.success) {
+      toast({ title: '¡Correo verificado!', description: data.data?.message, variant: 'success' });
+      setTimeout(() => router.push('/'), 3000);
     }
+  }, [data?.success, data?.data?.message, toast, router]);
 
-    const renderContent = () => {
-        switch (status) {
-            case 'loading':
-                return (
-                    <div className="flex flex-col items-center justify-center space-y-4">
-                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                        <p className="text-muted-foreground">{message}</p>
-                    </div>
-                );
-            case 'success':
-                return (
-                    <div className="flex flex-col items-center justify-center space-y-4 text-center">
-                        <MailCheck className="h-12 w-12 text-green-500" />
-                        <p className="font-semibold text-foreground">{message}</p>
-                        <p className="text-muted-foreground">Serás redirigido para iniciar sesión en unos segundos...</p>
-                        <Button asChild><Link href="/login">Iniciar Sesión Ahora</Link></Button>
-                    </div>
-                );
-            case 'error':
-                 return (
-                    <div className="flex flex-col items-center justify-center space-y-4 text-center">
-                        <MailWarning className="h-12 w-12 text-destructive" />
-                        <p className="font-semibold text-destructive">{message}</p>
-                        <p className="text-muted-foreground">
-                            {emailToVerify
-                                ? `¿No has recibido el correo? Podemos reenviarlo a ${emailToVerify}.`
-                                : 'Si el problema persiste, intenta registrarte de nuevo.'
-                            }
-                        </p>
-                        {emailToVerify && (
-                             <Button onClick={handleResend} loading={isResending}>
-                                Reenviar enlace
-                            </Button>
-                        )}
-                    </div>
-                );
-        }
+  const handleResend = async () => {
+    setIsResending(true);
+    try {
+      const res = await fetch('/api/auth/resend-verification', { method: 'POST' });
+      const resData = await res.json();
+      if (res.ok) {
+        toast({ title: 'Correo enviado', description: 'Revisa tu bandeja de entrada.', variant: 'success' });
+      } else {
+        toast({ title: 'Error', description: resData.error || 'No se pudo reenviar.', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error de conexión', variant: 'destructive' });
+    } finally {
+      setIsResending(false);
     }
+  };
 
-    return (
-        <Card className="mx-auto max-w-md">
-            <CardHeader>
-                <CardTitle className="text-2xl font-bold font-headline text-center">Verificación de Correo</CardTitle>
-            </CardHeader>
-            <CardContent>
-                {renderContent()}
-            </CardContent>
-        </Card>
-    );
+  return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+      <div className="mb-8">
+        <div className="bg-card p-3 rounded-2xl shadow-sm border border-border inline-block">
+          <Isotype className="h-10 w-10" />
+        </div>
+      </div>
+
+      <div className="w-full max-w-md bg-card rounded-[2.5rem] p-8 shadow-xl border border-border animate-fade-in-up text-center">
+
+        {/* ESTADO: Verificando con token */}
+        {status === 'loading' && (
+          <>
+            <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+            <h2 className="text-xl font-bold mb-2">Verificando tu correo...</h2>
+            <p className="text-muted-foreground text-sm">Espera un momento.</p>
+          </>
+        )}
+
+        {/* ESTADO: Éxito */}
+        {status === 'success' && (
+          <>
+            <div className="inline-flex p-4 bg-green-100 rounded-full mb-4">
+              <MailCheck className="h-10 w-10 text-green-600" />
+            </div>
+            <h2 className="text-xl font-bold mb-2">¡Correo verificado!</h2>
+            <p className="text-muted-foreground text-sm mb-6">
+              Tu cuenta está activa. Serás redirigido en unos segundos...
+            </p>
+            <Button asChild className="w-full h-12 rounded-2xl font-bold">
+              <Link href="/">Ir al inicio</Link>
+            </Button>
+          </>
+        )}
+
+        {/* ESTADO: Error al verificar */}
+        {status === 'error' && (
+          <>
+            <div className="inline-flex p-4 bg-red-100 rounded-full mb-4">
+              <MailWarning className="h-10 w-10 text-destructive" />
+            </div>
+            <h2 className="text-xl font-bold mb-2 text-destructive">Enlace inválido</h2>
+            <p className="text-muted-foreground text-sm mb-6">{errorMessage}</p>
+            <div className="flex flex-col gap-3">
+              <Button onClick={handleResend} loading={isResending} className="w-full h-12 rounded-2xl font-bold">
+                Reenviar enlace de verificación
+              </Button>
+              <Button asChild variant="ghost" className="w-full h-12 rounded-2xl">
+                <Link href="/">Ir al inicio</Link>
+              </Button>
+            </div>
+          </>
+        )}
+
+        {/* ESTADO: Pendiente (sin token, solo email) */}
+        {status === 'pending' && (
+          <>
+            <div className="inline-flex p-4 bg-primary/10 rounded-full mb-4">
+              <Mail className="h-10 w-10 text-primary" />
+            </div>
+            <h2 className="text-xl font-bold mb-2">Revisa tu correo</h2>
+            <p className="text-muted-foreground text-sm mb-1">
+              Enviamos un enlace de verificación a:
+            </p>
+            {email && (
+              <p className="font-semibold text-foreground mb-6">{email}</p>
+            )}
+            <p className="text-muted-foreground text-xs mb-6">
+              Haz clic en el enlace del correo para activar tu cuenta. Si no lo ves, revisa tu carpeta de spam.
+            </p>
+            <div className="flex flex-col gap-3">
+              <Button onClick={handleResend} loading={isResending} variant="outline" className="w-full h-12 rounded-2xl font-bold">
+                Reenviar correo
+              </Button>
+              <Button asChild variant="ghost" className="w-full h-12 rounded-2xl">
+                <Link href="/">Continuar sin verificar</Link>
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default function VerifyEmailPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-secondary">
-       <main className="flex-grow flex items-center justify-center">
-        <div className="container mx-auto px-4 py-16">
-            <Suspense fallback={<div className='flex justify-center'><Loader2 className="h-12 w-12 animate-spin text-primary"/></div>}>
-                <VerifyEmailContent />
-            </Suspense>
-        </div>
-       </main>
-    </div>
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    }>
+      <VerifyEmailContent />
+    </Suspense>
   );
 }

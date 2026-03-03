@@ -124,7 +124,7 @@ export function ImportModal({ isOpen, onOpenChange }: ImportModalProps) {
     
     try {
       const res = await apiFetch('/api/admin/import', { method: 'POST', body: formData });
-      const apiResult = await handleApiResponse(res);
+      const apiResult = await handleApiResponse<ImportResult>(res);
       setResult(apiResult);
       setView('results');
     } catch (error: any) {
@@ -241,7 +241,7 @@ export function ImportModal({ isOpen, onOpenChange }: ImportModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg" hideCloseButton={view === 'processing'}>
+      <DialogContent className="sm:max-w-lg" hideCloseButton={view === 'processing'} onInteractOutside={(e) => e.preventDefault()}>
         {view === 'form' && renderFormView()}
         {view === 'confirm' && renderConfirmView()}
         {view === 'processing' && renderProcessingView()}

@@ -1,7 +1,7 @@
 // src/app/api/admin/import/route.ts
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
-import { getDecodedToken, UserSession } from '@/utils/auth';
+import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
 import { z, ZodError } from 'zod';
 import { Readable } from 'stream';
@@ -39,10 +39,27 @@ const tagSchema = z.object({
   name: z.string().min(3),
 });
 
+const normalizeBool = (val: unknown) => {
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'string') {
+    const normalized = val.toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'sí' || normalized === 'si';
+  }
+  return undefined;
+};
+
 const shippingZoneSchema = z.object({
-    postalCode: z.string().length(5),
-    locality: z.string().min(3),
-    shippingCost: z.coerce.number().int()
+  postalCode: z.string().min(3).max(10),
+  locality: z.string().min(3),
+  shippingCost: z.coerce.number().nonnegative(),
+  isActive: z.preprocess(normalizeBool, z.boolean()).optional().default(true),
+  settlementType: z.string().optional().nullable(),
+  municipality: z.string().optional().nullable(),
+  state: z.string().optional().nullable(),
+  stateCode: z.string().optional().nullable(),
+  municipalityCode: z.string().optional().nullable(),
+  postalOfficeCode: z.string().optional().nullable(),
+  zone: z.string().optional().nullable(),
 });
 
 const peakDateSchema = z.object({
@@ -78,7 +95,7 @@ export async function POST(req: NextRequest) {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') return errorHandler(new Error('Acceso prohibido.'), 403);
+    if (!isAdminRole(user?.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const formData = await req.formData();
     const dataType = formData.get('dataType') as keyof typeof importSchemas;
@@ -120,11 +137,7 @@ export async function POST(req: NextRequest) {
         } else if (dataType === 'tags') {
             await tagService.createTag(validatedData, session.dbId);
         } else if (dataType === 'shipping_zones') {
-            await shippingZoneService.createShippingZone({
-                postal_code: validatedData.postalCode,
-                locality: validatedData.locality,
-                shipping_cost: validatedData.shippingCost
-            }, session.dbId);
+          await shippingZoneService.createShippingZone(validatedData, session.dbId);
         } else if(dataType === 'peak_dates') {
             await peakDateService.createPeakDate(validatedData, session.dbId);
         } else if (dataType === 'coupons') {

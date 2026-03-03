@@ -2,7 +2,7 @@
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession } from '@/utils/auth';
-import { userService } from '@/services/userService';
+import { addressService } from '@/services/addressService';
 import { ZodError } from 'zod';
 
 /**
@@ -17,10 +17,10 @@ export async function POST(req: NextRequest) {
     }
     const body = await req.json();
 
-    // El servicio maneja la lógica de añadir la dirección y devolver el usuario actualizado
-    const updatedUser = await userService.addOrUpdateAddress(session.dbId, body);
+    // El servicio maneja la lógica de añadir la dirección
+    const newAddress = await addressService.addOrUpdateAddress(session.dbId, body);
     
-    return successResponse(updatedUser, 201);
+    return successResponse(newAddress, 201);
 
   } catch (error) {
     if (error instanceof ZodError) {

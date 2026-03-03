@@ -1,7 +1,7 @@
 // src/lib/data/testimonials-data.ts
 import { Testimonial } from "../definitions";
 
-export const testimonials: Testimonial[] = [
+export const testimonials: any[] = [
   {
     id: 1,
     userId: 2,

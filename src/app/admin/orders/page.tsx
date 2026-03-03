@@ -1,17 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { columns } from './columns';
-import { Order, OrderStatus } from '@/lib/definitions';
-import type { User as DeliveryUser } from '@/lib/definitions';
-import { 
-  useReactTable, 
-  getCoreRowModel, 
-  getFilteredRowModel, 
-  getPaginationRowModel, 
-  getSortedRowModel, 
-  flexRender,
-  ColumnFiltersState,
+import type { AdminOrderDetailsDTO, AdminOrderListDTO, OrderStatus } from '@/lib/definitions';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
   SortingState,
   VisibilityState,
   PaginationState,
@@ -30,57 +27,198 @@ import { SlidersHorizontal } from 'lucide-react';
 import { DataTable } from '@/components/ui/data-table/data-table';
 import { useToast } from '@/hooks/use-toast';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
-import { useProductContext } from '@/context/ProductContext';
 import { useAuth } from '@/context/AuthContext';
+import { OrderDetailsDialog } from '../../../components/admin/orders/OrderDetailsDialog';
+
+const EMPTY_DRIVERS: any[] = [];
 
 export default function OrdersPage() {
-  const { orders, isLoading, fetchAppData } = useProductContext();
-  const { allUsers } = useAuth(); // Repartidores se filtran de aquí en un caso real
+  const { apiFetch } = useAuth();
   const { toast } = useToast();
+  const [orders, setOrders] = useState<AdminOrderListDTO[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const apiFetchRef = useRef(apiFetch);
+  const toastRef = useRef(toast);
+  const ordersRef = useRef<AdminOrderListDTO[]>([]);
   
   const [sorting, setSorting] = useState<SortingState>([{ id: 'id', desc: true }]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [rowSelection, setRowSelection] = useState({});
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [isSendingUpdateFor, setIsSendingUpdateFor] = useState<number | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<AdminOrderDetailsDTO | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
-  // Simulación de repartidores (filtrados de la lista de usuarios con rol 'delivery')
+const fetchOrders = useCallback(async () => {
+  setIsLoading(true);
+
+  try {
+    const response = await apiFetchRef.current('/api/admin/orders?limit=200');
+    const result = await response.json();
+
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.message || 'No se pudieron cargar los pedidos');
+    }
+
+    const fetched = (result.data?.orders ?? []).map((order: any) => ({
+      id: Number(order.id),
+      userId: order.userId ?? order.user_id ?? null,
+      isGuest: Boolean(order.isGuest ?? order.is_guest ?? false),
+      guestName: order.guestName ?? order.guest_name ?? null,
+      guestEmail: order.guestEmail ?? order.guest_email ?? null,
+      guestPhone: order.guestPhone ?? order.guest_phone ?? null,
+      deliveryDriverId: order.deliveryDriverId ?? order.delivery_driver_id ?? null,
+      status: String(order.status ?? 'PENDING').toUpperCase() as OrderStatus,
+      subtotal: Number(order.subtotal ?? 0),
+      couponDiscount: Number(order.couponDiscount ?? order.coupon_discount ?? 0),
+      shippingCost: Number(order.shippingCost ?? order.shipping_cost ?? 0),
+      total: Number(order.total ?? 0),
+      deliveryDate: String(order.deliveryDate ?? order.delivery_date ?? ''),
+      deliveryTimeSlot: String(order.deliveryTimeSlot ?? order.delivery_time_slot ?? ''),
+      deliveryNotes: order.deliveryNotes ?? order.delivery_notes ?? '',
+      createdAt: String(order.createdAt ?? order.created_at ?? ''),
+      updatedAt: String(order.updatedAt ?? order.updated_at ?? ''),
+      customerName: order.customerName ?? order.user?.name ?? order.guestName ?? order.guest_name ?? 'Cliente invitado',
+      customerEmail: order.customerEmail ?? order.user?.email ?? order.guestEmail ?? order.guest_email ?? '',
+      customerPhone: order.customerPhone ?? order.user?.phone ?? order.guestPhone ?? order.guest_phone ?? null,
+      recipientName: order.recipientName ?? null,
+      recipientPhone: order.recipientPhone ?? null,
+      shippingAddress: order.shippingAddress ?? '',
+      deliveryDriverName: order.deliveryDriverName ?? order.deliveryDriver?.name ?? null,
+      paymentGateway: order.paymentGateway ?? order.payment_gateway ?? null,
+      items: (order.items ?? []).map((item: any) => ({
+        productId: Number(item.productId ?? item.product_id ?? 0),
+        quantity: Number(item.quantity ?? 0),
+        unitPrice: Number(item.unitPrice ?? item.price ?? 0),
+        productNameSnap: item.productNameSnap ?? item.product_name ?? 'Producto',
+        variantNameSnap: item.variantNameSnap ?? item.variant_name ?? null,
+        imageSnap:
+          item.imageSnap ??
+          item.image ??
+          item.product?.mainImage ??
+          item.product?.main_image ??
+          item.mainImage ??
+          '',
+        customPhotoUrl: item.customPhotoUrl ?? null,
+      })),
+    })) as AdminOrderListDTO[];
+    setOrders(fetched);
+    ordersRef.current = fetched;
+  } catch (error: any) {
+    toastRef.current({
+      title: 'Error al cargar pedidos',
+      description: error?.message || 'Ocurrió un problema al obtener los pedidos.',
+      variant: 'destructive',
+    });
+    setOrders([]);
+  } finally {
+    setIsLoading(false);
+  }
+}, []); // ✅ SIN DEPENDENCIAS
+  
+  const columnFilters = useMemo(() => {
+     return statusFilter.length > 0 ? [{ id: 'status', value: statusFilter }] : [];
+  }, [statusFilter]);
+
   const deliveryDrivers = useMemo(() => {
-      // En el prototipo, buscamos los usuarios que tengan rol de repartidor
-      return []; // Por ahora vacío si no hay datos de repartidores en AuthContext
+      return [];
   }, []);
 
-  const handleUpdateStatus = useCallback(async (orderId: number, newStatus: OrderStatus, payload: any) => {
-    // Simulación de actualización local
-    toast({
-        title: '¡Estado Actualizado!',
-        description: `El pedido ORD${String(orderId).padStart(4, '0')} ha cambiado a ${newStatus}.`,
-        variant: 'success'
-    });
-    // En un prototipo real, actualizaríamos el estado global o el archivo local
-  }, [toast]);
+  const handleUpdateStatus = useCallback(
+    async (orderId: number, newStatus: OrderStatus, payload: any) => {
+      try {
+        const response = await apiFetchRef.current(`/api/admin/orders/${orderId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: newStatus,
+            deliveryDriverId: payload?.deliveryDriverId,
+            deliveryNotes: payload?.deliveryNotes,
+          }),
+        });
 
-  const handleCancelOrder = useCallback(async (orderId: number) => {
-    await handleUpdateStatus(orderId, 'cancelado', {});
-  }, [handleUpdateStatus]);
+        const result = await response.json();
 
-  const handleSendUpdate = useCallback(async (order: Order) => {
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.message);
+        }
+
+        toastRef.current({
+          title: '¡Estado actualizado!',
+          description: `Pedido actualizado correctamente.`,
+          variant: 'success',
+        });
+
+        // ✅ update local ONLY
+        setOrders(prev => {
+          const next = prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+          ordersRef.current = next;
+          return next;
+        });
+        setSelectedOrder(prev => prev?.id === orderId ? { ...prev, status: newStatus } : prev);
+
+      } catch (error: any) {
+        toastRef.current({
+          title: 'Error al actualizar estado',
+          description: error?.message,
+          variant: 'destructive',
+        });
+      }
+    },
+    [] // 🚨 SIN DEPENDENCIAS
+  );
+
+  const handleCancelOrder = useCallback(
+    (orderId: number) => {
+      handleUpdateStatus(orderId, 'CANCELLED', {});
+    },
+    [handleUpdateStatus]
+  );
+
+  const handleSendUpdate = useCallback(async (order: AdminOrderListDTO) => {
     setIsSendingUpdateFor(order.id);
     await new Promise(resolve => setTimeout(resolve, 1000));
-    toast({ title: 'Correo enviado (Simulación)', description: `Actualización enviada a ${order.customerEmail}`, variant: 'success' });
+    toastRef.current({ title: 'Correo enviado (Simulación)', description: `Actualización enviada a ${order.customerEmail || 'cliente'}`, variant: 'success' });
     setIsSendingUpdateFor(null);
-  }, [toast]);
+  }, []);
+
+  const handleViewDetails = useCallback((orderId: number) => {
+    const found = ordersRef.current.find(o => o.id === orderId) ?? null;
+    if (!found) return;
+
+    setSelectedOrder({
+      ...found,
+      couponId: null,
+      couponCodeSnap: null,
+      couponType: null,
+      couponValue: null,
+      dedication: null,
+      isAnonymous: false,
+      signature: null,
+      paymentStatus: 'PENDING',
+      paymentGateway: found.paymentGateway ?? null,
+      hasPaymentTransaction: false,
+    });
+    setIsDetailsOpen(true);
+  }, []);
   
   const tableColumns = useMemo(() => columns({ 
     onUpdateStatus: handleUpdateStatus, 
     onCancelOrder: handleCancelOrder, 
-    deliveryDrivers: [] as any, // Mock
+    onViewDetails: handleViewDetails,
+    deliveryDrivers: EMPTY_DRIVERS,
     onSendUpdate: handleSendUpdate,
     isSendingUpdateFor,
-  }), [handleUpdateStatus, handleCancelOrder, handleSendUpdate, isSendingUpdateFor]);
+  }), [handleUpdateStatus, handleCancelOrder, handleViewDetails, handleSendUpdate, isSendingUpdateFor]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  useEffect(() => { apiFetchRef.current = apiFetch }, [apiFetch]);
+  useEffect(() => { toastRef.current = toast }, [toast]);
 
   const table = useReactTable({
     data: orders,
@@ -88,7 +226,7 @@ export default function OrdersPage() {
     state: {
       sorting,
       columnVisibility,
-      columnFilters: statusFilter.length > 0 ? [{ id: 'status', value: statusFilter }] : [],
+      columnFilters,
       globalFilter: searchTerm,
       pagination
     },
@@ -102,13 +240,13 @@ export default function OrdersPage() {
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const statusOptions: OrderStatus[] = ['pendiente', 'procesando', 'en_reparto', 'completado', 'cancelado'];
+  const statusOptions: OrderStatus[] = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
   const statusTranslations: { [key in OrderStatus]: string } = {
-    'pendiente': 'Pendiente',
-    'procesando': 'En Proceso',
-    'en_reparto': 'En Camino',
-    'completado': 'Completado',
-    'cancelado': 'Cancelado',
+    'PENDING': 'Pendiente',
+    'PROCESSING': 'En Proceso',
+    'SHIPPED': 'En Reparto',
+    'DELIVERED': 'Completado',
+    'CANCELLED': 'Cancelado',
   }
 
   if (isLoading && orders.length === 0) {
@@ -177,6 +315,16 @@ export default function OrdersPage() {
             </div>
           </div>
         }
+      />
+
+      <OrderDetailsDialog
+        order={selectedOrder}
+        isOpen={isDetailsOpen}
+        onOpenChange={(open: boolean) => {
+          setIsDetailsOpen(open);
+          if (!open) setSelectedOrder(null);
+        }}
+        onUpdateStatus={handleUpdateStatus}
       />
     </div>
   );

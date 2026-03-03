@@ -4,6 +4,60 @@ import { successResponse, errorHandler } from '@/utils/api-utils';
 import { userService } from '@/services/userService';
 import { getDecodedToken, UserSession } from '@/utils/auth';
 
+const ALLOWED_PROFILE_FIELDS = new Set([
+  'name',
+  'email',
+  'phone',
+  'birthdate',
+  'acceptsMarketing',
+  'profilePic',
+]);
+
+const ALLOWED_ADDRESS_FIELDS = new Set([
+  'id',
+  'alias',
+  'recipientName',
+  'recipientPhone',
+  'streetName',
+  'streetNumber',
+  'interiorNumber',
+  'neighborhood',
+  'city',
+  'state',
+  'country',
+  'postalCode',
+  'addressType',
+  'referenceNotes',
+  'isDefault',
+  'latitude',
+  'longitude',
+  'googlePlaceId',
+]);
+
+const sanitizeProfilePayload = (body: any) => {
+  const sanitized: Record<string, any> = {};
+
+  ALLOWED_PROFILE_FIELDS.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(body, field)) {
+      sanitized[field] = body[field];
+    }
+  });
+
+  if (Array.isArray(body?.addresses)) {
+    sanitized.addresses = body.addresses.map((address: Record<string, any>) => {
+      const sanitizedAddress: Record<string, any> = {};
+      ALLOWED_ADDRESS_FIELDS.forEach((field) => {
+        if (Object.prototype.hasOwnProperty.call(address, field)) {
+          sanitizedAddress[field] = address[field];
+        }
+      });
+      return sanitizedAddress;
+    });
+  }
+
+  return sanitized;
+};
+
 /**
  * GET /api/users/profile
  * Obtiene los datos del usuario autenticado.
@@ -45,9 +99,10 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
+    const sanitizedBody = sanitizeProfilePayload(body);
     
     // El servicio se encarga de la lógica de actualización usando el ID de la sesión.
-    const updatedUser = await userService.updateUser(session.dbId, body);
+    const updatedUser = await userService.updateUser(session.dbId, sanitizedBody);
 
     return successResponse(updatedUser, 200);
 

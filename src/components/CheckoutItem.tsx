@@ -52,6 +52,7 @@ const CheckoutItem = ({ item, isOutOfStock, onRemove, isValidating }: CheckoutIt
                 alt={item.name}
                 fill
                 className="object-cover"
+                sizes="64px"
             />
         </div>
         

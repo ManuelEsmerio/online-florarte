@@ -117,7 +117,7 @@ export function ShippingCityModal({
                                     <SelectTrigger className="w-full h-14 px-5 py-4 bg-muted/30 border-none rounded-2xl text-foreground font-medium focus:ring-2 focus:ring-primary/20 transition-all">
                                         <SelectValue placeholder="Selecciona una ciudad" />
                                     </SelectTrigger>
-                                    <SelectContent className="rounded-2xl border-none shadow-xl">
+                                    <SelectContent className="z-[80] rounded-2xl border-none shadow-xl">
                                         {localities.map(zone => (
                                             <SelectItem key={zone.postalCode} value={zone.locality} className="rounded-lg py-3">
                                                 {zone.locality}

@@ -19,7 +19,7 @@ export const useRecentlyViewed = (currentSlug: string) => {
             try {
                 if (slugs.length > 0) {
                     const res = await fetch(`/api/products?slugs=${slugs.join(',')}`);
-                    const data = await handleApiResponse(res);
+                    const data = await handleApiResponse<{ products?: Product[] }>(res, { products: [] });
                     // El endpoint devuelve { products: [...] }, nos aseguramos de manejarlo
                     const fetchedProducts = data.products || [];
                     // Ordenamos los productos según el orden de los slugs en localStorage

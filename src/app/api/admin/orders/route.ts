@@ -1,7 +1,7 @@
 // src/app/api/admin/orders/route.ts
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
-import { getDecodedToken, UserSession } from '@/utils/auth';
+import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
 import { orderService } from '@/services/orderService';
 
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') {
+    if (!isAdminRole(user?.role)) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 

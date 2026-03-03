@@ -94,11 +94,12 @@ export function OrderSuccessModal({ isOpen, orderId }: OrderSuccessModalProps) {
                     {/* Tarjeta de Resumen del Pedido */}
                     <div className="w-full bg-muted/30 dark:bg-white/5 rounded-3xl p-5 border border-border/50 flex items-center space-x-5 text-left transition-all hover:bg-muted/40">
                         <div className="w-20 h-20 rounded-2xl overflow-hidden shadow-lg flex-shrink-0 relative">
-                            <Image 
-                                src="https://picsum.photos/seed/success/200/200" 
-                                alt="Ramo de flores frescas" 
-                                fill 
+                            <Image
+                                src="https://picsum.photos/seed/success/200/200"
+                                alt="Ramo de flores frescas"
+                                fill
                                 className="object-cover"
+                                sizes="80px"
                                 data-ai-hint="flower bouquet"
                             />
                         </div>

@@ -14,16 +14,15 @@ import { ZodError } from 'zod';
 export async function POST(req: NextRequest) {
   try {
     const session: UserSession | null = await getDecodedToken(req);
-    // Para el checkout, el usuario DEBE estar autenticado.
-    if (!session?.dbId) {
-      return errorHandler(new Error('Acceso denegado. Se requiere autenticación.'), 401);
+    const sessionId = getSessionId(req);
+    if (!session?.dbId && !sessionId) {
+      return errorHandler(new Error('No se pudo identificar la sesión para checkout.'), 401);
     }
 
-    const sessionId = getSessionId(req);
     const body = await req.json();
 
     const orderInput = {
-        userId: session.dbId,
+        userId: session?.dbId ?? null,
         sessionId,
         ...body,
         gateway: body.gateway || 'stripe', // 'stripe' o 'paypal'

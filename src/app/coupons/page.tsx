@@ -51,14 +51,27 @@ export default function CouponsPage() {
   const [selectedStatus, setSelectedStatus] = useState<CouponStatus | 'todos'>('todos');
   const [currentPage, setCurrentPage] = useState(1);
 
+  const getEffectiveStatus = (coupon: Coupon): CouponStatus => {
+    const isUsed = coupon.maxUses !== null && coupon.maxUses !== undefined && coupon.usesCount >= coupon.maxUses;
+    if (isUsed) return 'USED';
+
+    const isExpired = coupon.validUntil ? new Date() > new Date(coupon.validUntil) : false;
+    if (isExpired) return 'EXPIRED';
+
+    return coupon.status;
+  };
+
+  // user?.id en lugar del objeto completo: fetchCouponsData solo se re-dispara
+  // al cambiar la identidad del usuario (login/logout), no al actualizar perfil.
+  const userId = user?.id;
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authLoading && !userId) {
       router.push('/login?redirect=/coupons');
       return;
     }
 
     const fetchCouponsData = async () => {
-      if (!getCoupons || !user) return;
+      if (!getCoupons || !userId) return;
       setIsLoading(true);
       try {
         const data = await getCoupons();
@@ -69,10 +82,11 @@ export default function CouponsPage() {
         setIsLoading(false);
       }
     };
-    
-    if (user) fetchCouponsData();
 
-  }, [user, getCoupons, router, authLoading]);
+    if (userId) fetchCouponsData();
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, getCoupons, router, authLoading]);
 
   const filteredCoupons = useMemo(() => {
     return coupons
@@ -80,13 +94,15 @@ export default function CouponsPage() {
         const searchTermMatch = 
           coupon.code.toLowerCase().includes(searchTerm.toLowerCase()) || 
           coupon.description.toLowerCase().includes(searchTerm.toLowerCase());
-        const statusMatch = selectedStatus === 'todos' || coupon.status === selectedStatus;
+        const statusMatch = selectedStatus === 'todos' || getEffectiveStatus(coupon) === selectedStatus;
         return searchTermMatch && statusMatch;
       })
       .sort((a, b) => {
-          if (a.status === 'vigente' && b.status !== 'vigente') return -1;
-          if (a.status !== 'vigente' && b.status === 'vigente') return 1;
-          return new Date(a.valid_until || '').getTime() - new Date(b.valid_until || '').getTime();
+          const aStatus = getEffectiveStatus(a);
+          const bStatus = getEffectiveStatus(b);
+          if (aStatus === 'ACTIVE' && bStatus !== 'ACTIVE') return -1;
+          if (aStatus !== 'ACTIVE' && bStatus === 'ACTIVE') return 1;
+          return new Date(a.validUntil || '').getTime() - new Date(b.validUntil || '').getTime();
       });
   }, [coupons, searchTerm, selectedStatus]);
 
@@ -114,12 +130,13 @@ export default function CouponsPage() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  const statusOptions: (CouponStatus | 'todos')[] = ['todos', 'vigente', 'vencido', 'utilizado'];
+  const statusOptions: (CouponStatus | 'todos')[] = ['todos', 'ACTIVE', 'EXPIRED', 'USED', 'PAUSED'];
   const statusTranslations: { [key in CouponStatus | 'todos']: string } = {
     'todos': 'Todos',
-    'vigente': 'Vigente',
-    'vencido': 'Vencido',
-    'utilizado': 'Utilizado',
+    'ACTIVE': 'Vigente',
+    'EXPIRED': 'Vencido',
+    'USED': 'Utilizado',
+    'PAUSED': 'Pausado',
   }
 
   if (authLoading || (!user && !authLoading)) {
@@ -188,10 +205,11 @@ export default function CouponsPage() {
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {paginatedCoupons.map((coupon, index) => {
+                      const effectiveStatus = getEffectiveStatus(coupon);
                       const isCopied = copiedCode === coupon.code;
-                      const isActive = coupon.status === 'vigente';
-                      const isExpired = coupon.status === 'vencido';
-                      const isUsed = coupon.status === 'utilizado';
+                      const isActive = effectiveStatus === 'ACTIVE';
+                      const isExpired = effectiveStatus === 'EXPIRED';
+                      const isUsed = effectiveStatus === 'USED';
 
                       return (
                           <div 
@@ -229,9 +247,9 @@ export default function CouponsPage() {
                                               "text-sm font-bold",
                                               isActive ? "text-slate-700 dark:text-slate-200" : "text-slate-400"
                                           )}>
-                                              {coupon.discount_type === 'percentage' 
-                                                  ? `${coupon.discount_value}% de descuento`
-                                                  : `${new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(coupon.discount_value)} de descuento`
+                                              {coupon.discountType === 'PERCENTAGE'
+                                                ? `${coupon.discountValue}% de descuento`
+                                                : `${new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(coupon.discountValue)} de descuento`
                                               }
                                           </p>
                                       </div>
@@ -249,7 +267,7 @@ export default function CouponsPage() {
                                   <div className="flex justify-between items-center text-[10px] font-bold tracking-widest uppercase">
                                       <span className="text-muted-foreground/70">
                                           {isExpired ? 'Venció: ' : isUsed ? 'Usado: ' : 'Vence: '}
-                                          {coupon.valid_until ? format(new Date(coupon.valid_until), "d 'de' MMM, yyyy", { locale: es }) : 'Nunca'}
+                                        {coupon.validUntil ? format(new Date(coupon.validUntil), "d 'de' MMM, yyyy", { locale: es }) : 'Nunca'}
                                       </span>
                                       <Badge 
                                           variant="outline" 
@@ -260,7 +278,7 @@ export default function CouponsPage() {
                                               isUsed && "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
                                           )}
                                       >
-                                          {statusTranslations[coupon.status]}
+                                              {statusTranslations[effectiveStatus]}
                                       </Badge>
                                   </div>
                               </div>

@@ -1,22 +1,24 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Textarea } from './ui/textarea';
 import type { Address } from '@/lib/definitions';
 import { CheckCircle, AlertCircle } from 'lucide-react';
+import { ADDRESS_TYPE_OPTIONS } from '@/utils/constants';
+import { useAuth } from '@/context/AuthContext';
 
 const addressFormSchema = z.object({
   id: z.number().optional(),
   alias: z.string().min(3, 'El alias de la dirección es requerido.'),
   recipientName: z.string().min(3, 'El nombre del destinatario es requerido.'),
-  recipient_phone: z.string().min(10, 'El teléfono debe tener 10 dígitos.').max(10, 'El teléfono debe tener 10 dígitos.'),
+  recipientPhone: z.string().min(10, 'El teléfono debe tener 10 dígitos.').max(10, 'El teléfono debe tener 10 dígitos.'),
   streetName: z.string().min(3, 'El nombre de la calle es requerido.'),
   streetNumber: z.string().min(1, 'El número exterior es requerido.'),
   interiorNumber: z.string().optional(),
@@ -24,10 +26,8 @@ const addressFormSchema = z.object({
   city: z.string().min(3, 'La ciudad es requerida.'),
   state: z.string().min(3, 'El estado es requerido.'),
   postalCode: z.string().min(5, 'El código postal es requerido.'),
-  addressType: z.enum([
-      'casa', 'hotel', 'restaurante', 'oficina', 'hospital', 'capilla-funeral', 'escuela-universidad', 'banco', 'departamento', 'otro'
-    ], { required_error: 'Debes seleccionar un tipo de domicilio.' }),
-  reference_notes: z.string().optional(),
+  addressType: z.enum(ADDRESS_TYPE_OPTIONS.map(option => option.value) as [string, ...string[]], { required_error: 'Debes seleccionar un tipo de domicilio.' }),
+  referenceNotes: z.string().optional(),
 });
 
 type AddressFormValues = z.infer<typeof addressFormSchema>;
@@ -40,12 +40,13 @@ interface AddressFormProps {
 }
 
 export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: AddressFormProps) {
+    const { shippingZones } = useAuth();
   const form = useForm<AddressFormValues>({
     resolver: zodResolver(addressFormSchema),
     defaultValues: {
         alias: '',
         recipientName: '',
-        recipient_phone: '',
+        recipientPhone: '',
         streetName: '',
         streetNumber: '',
         interiorNumber: '',
@@ -53,24 +54,54 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
         city: 'Tequila',
         state: 'Jalisco',
         postalCode: '',
-        addressType: 'casa',
-        reference_notes: '',
-    }
+        addressType: 'HOME',
+        referenceNotes: '',
+    },
+    values: addressToEdit ? {
+        ...addressToEdit,
+        recipientPhone: addressToEdit.recipientPhone || '',
+        interiorNumber: addressToEdit.interiorNumber || '',
+        state: 'Jalisco',
+        referenceNotes: addressToEdit.referenceNotes || '',
+    } : undefined,
   });
 
-  useEffect(() => {
-    if (addressToEdit) {
-      form.reset({
-        ...addressToEdit,
-        recipient_phone: addressToEdit.phone,
-        interiorNumber: addressToEdit.interiorNumber || '',
-        reference_notes: addressToEdit.reference_notes || '',
-      });
-    }
-  }, [addressToEdit, form]);
+    useEffect(() => {
+        if (form.getValues('state') !== 'Jalisco') {
+            form.setValue('state', 'Jalisco', { shouldValidate: true });
+        }
+    }, [form]);
+
+    const cityValue = useWatch({ control: form.control, name: 'city' });
+    const postalCodeValue = useWatch({ control: form.control, name: 'postalCode' });
+
+    const cityOptions = useMemo(
+        () => Array.from(new Set((shippingZones || []).map(zone => zone.locality).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+        [shippingZones]
+    );
+
+    useEffect(() => {
+        if (!cityValue && cityOptions.length > 0) {
+            form.setValue('city', cityOptions[0], { shouldValidate: true });
+        }
+    }, [cityOptions, cityValue, form]);
+
+    useEffect(() => {
+        if (!postalCodeValue) return;
+        const matchedZone = shippingZones.find(zone => zone.postalCode === postalCodeValue);
+        if (matchedZone?.locality && matchedZone.locality !== cityValue) {
+            form.setValue('city', matchedZone.locality, { shouldValidate: true });
+        }
+    }, [postalCodeValue, shippingZones, cityValue, form]);
 
   const onSubmit = async (data: AddressFormValues) => {
-    const finalData = { ...data, id: addressToEdit?.id ?? 0, phone: data.recipient_phone };
+        const finalData = {
+            ...data,
+            state: 'Jalisco',
+            id: addressToEdit?.id ?? 0,
+            recipientPhone: data.recipientPhone,
+            referenceNotes: data.referenceNotes,
+        };
     await onSave(finalData as Address);
   };
 
@@ -108,7 +139,7 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
                 />
                 <FormField
                     control={form.control}
-                    name="recipient_phone"
+                    name="recipientPhone"
                     render={({ field }) => (
                         <FormItem className="space-y-2">
                             <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Teléfono de contacto *</FormLabel>
@@ -186,9 +217,26 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
                     render={({ field }) => (
                         <FormItem className="space-y-2">
                             <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Ciudad *</FormLabel>
-                            <FormControl>
-                                <Input {...field} className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium" />
-                            </FormControl>
+                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                                <FormControl>
+                                                                        <SelectTrigger className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium">
+                                                                                <SelectValue placeholder="Selecciona una ciudad" />
+                                                                        </SelectTrigger>
+                                                                </FormControl>
+                                                                <SelectContent className="z-[9999] max-h-[200px]">
+                                                                        {cityOptions.length > 0 ? (
+                                                                            cityOptions.map((city) => (
+                                                                                <SelectItem key={city} value={city}>
+                                                                                    {city}
+                                                                                </SelectItem>
+                                                                            ))
+                                                                        ) : (
+                                                                            <SelectItem value={field.value || 'sin-localidades'} disabled>
+                                                                                Sin localidades disponibles
+                                                                            </SelectItem>
+                                                                        )}
+                                                                </SelectContent>
+                                                        </Select>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -196,11 +244,11 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
                 <FormField
                     control={form.control}
                     name="state"
-                    render={({ field }) => (
+                    render={() => (
                         <FormItem className="space-y-2">
                             <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Estado *</FormLabel>
                             <FormControl>
-                                <Input {...field} className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium" />
+                                <Input value="Jalisco" readOnly disabled className="h-14 rounded-xl bg-muted/30 border-none font-medium opacity-100" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -233,17 +281,13 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
                                     <SelectValue placeholder="Selecciona el tipo" />
                                 </SelectTrigger>
                             </FormControl>
-                            <SelectContent className="rounded-2xl">
-                                <SelectItem value="casa">Casa</SelectItem>
-                                <SelectItem value="hotel">Hotel</SelectItem>
-                                <SelectItem value="restaurante">Restaurante</SelectItem>
-                                <SelectItem value="oficina">Oficina</SelectItem>
-                                <SelectItem value="hospital">Hospital</SelectItem>
-                                <SelectItem value="capilla-funeral">Capilla Funeral</SelectItem>
-                                <SelectItem value="escuela-universidad">Escuela o Universidad</SelectItem>
-                                <SelectItem value="banco">Banco</SelectItem>
-                                <SelectItem value="departamento">Departamento</SelectItem>
-                                <SelectItem value="otro">Otro</SelectItem>
+                            {/* AGREGADO: z-[9999] o z-50 para asegurar que flote encima del modal */}
+                            <SelectContent className="z-[9999] max-h-[200px]"> 
+                                {ADDRESS_TYPE_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                         <FormMessage />
@@ -253,7 +297,7 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
 
             <FormField
                 control={form.control}
-                name="reference_notes"
+                name="referenceNotes"
                 render={({ field }) => (
                     <FormItem className="space-y-2">
                         <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Referencias y notas</FormLabel>
