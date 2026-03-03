@@ -11,6 +11,7 @@ import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleto
 import { Occasion } from '@/lib/definitions';
 import { columns } from './columns';
 import { OccasionForm } from './occasion-form';
+import { OccasionPreview, OccasionPreviewSkeleton } from './occasion-preview';
 
 
 export default function OccasionsPage() {
@@ -22,6 +23,8 @@ export default function OccasionsPage() {
   const [updatingVisibilityId, setUpdatingVisibilityId] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedOccasion, setSelectedOccasion] = useState<Occasion | null>(null);
+  const [previewOccasion, setPreviewOccasion] = useState<Occasion | null>(null);
+  const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
 
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
@@ -39,24 +42,50 @@ export default function OccasionsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     loadOccasions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadOccasions]);
+
+  useEffect(() => {
+    if (!occasions.length) {
+      setPreviewOccasion(null);
+      setFocusedRowId(null);
+      return;
+    }
+
+    setPreviewOccasion((prev) => {
+      if (!prev) return occasions[0];
+      const match = occasions.find((occasion) => occasion.id === prev.id);
+      return match ?? occasions[0];
+    });
+  }, [occasions]);
+
+  useEffect(() => {
+    if (!previewOccasion) return;
+    const rowId = `occasion-${previewOccasion.id}`;
+    if (focusedRowId !== rowId) {
+      setFocusedRowId(rowId);
+    }
+  }, [previewOccasion, focusedRowId]);
 
   const handleAdd = () => {
     setSelectedOccasion(null);
     setIsFormOpen(true);
   };
 
-  const handleEdit = (occasion: Occasion) => {
+  const handleEdit = useCallback((occasion: Occasion) => {
     setSelectedOccasion(occasion);
     setIsFormOpen(true);
-  };
+  }, []);
 
-  const handleDelete = async (id: number) => {
+  const handleRowPreview = useCallback((occasion: Occasion) => {
+    setPreviewOccasion(occasion);
+    setFocusedRowId(`occasion-${occasion.id}`);
+  }, []);
+
+  const handleDelete = useCallback(async (id: number) => {
     setIsDeletingId(id);
     try {
       const res = await fetch(`/api/admin/occasions/${id}`, { method: 'DELETE' });
@@ -69,7 +98,7 @@ export default function OccasionsPage() {
     } finally {
       setIsDeletingId(null);
     }
-  };
+  }, [loadOccasions, toast]);
 
   const handleSave = async (data: any, imageFile: File | null, id?: number) => {
     setIsSaving(true);
@@ -119,7 +148,7 @@ export default function OccasionsPage() {
     }
   }, [loadOccasions, toast]);
 
-  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, onToggleShowOnHome: handleToggleShowOnHome, isDeletingId, updatingVisibilityId }), [isDeletingId, handleToggleShowOnHome, updatingVisibilityId]);
+  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, onToggleShowOnHome: handleToggleShowOnHome, isDeletingId, updatingVisibilityId }), [handleEdit, handleDelete, handleToggleShowOnHome, isDeletingId, updatingVisibilityId]);
 
   const table = useReactTable({
     data: occasions,
@@ -131,6 +160,7 @@ export default function OccasionsPage() {
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     state: { pagination, sorting, rowSelection },
+    getRowId: (row) => `occasion-${row.id}`,
   });
 
   if (isLoading) {
@@ -140,7 +170,11 @@ export default function OccasionsPage() {
             <h2 className="text-4xl font-bold font-headline tracking-tight text-slate-900 dark:text-white">Ocasiones Especiales</h2>
             <Button disabled className="rounded-2xl h-11 px-6 font-bold shadow-lg shadow-primary/20"><PlusCircle className="mr-2 h-4 w-4" />Crear Ocasión</Button>
         </div>
-        <DataTableSkeleton columnCount={4} />
+        <div className="flex flex-col xl:flex-row gap-6 min-h-[calc(100vh-230px)]">
+          <div className="flex-1 min-w-0"><DataTableSkeleton columnCount={6} className="h-full" /></div>
+          <div className="hidden xl:block w-px bg-border/40" />
+          <aside className="w-full xl:w-[32%]"><OccasionPreviewSkeleton /></aside>
+        </div>
       </div>
     );
   }
@@ -163,7 +197,30 @@ export default function OccasionsPage() {
         occasion={selectedOccasion}
         isSaving={isSaving}
       />
-      <DataTable table={table} columns={tableColumns} data={occasions} isLoading={isLoading} />
+      <div className="flex flex-col xl:flex-row gap-6 min-h-[calc(100vh-230px)]">
+        <div className="flex-1 min-w-0">
+          <DataTable
+            table={table}
+            columns={tableColumns}
+            data={occasions}
+            isLoading={isLoading}
+            onRowClick={handleRowPreview}
+            selectedRowId={focusedRowId}
+            className="h-full"
+          />
+        </div>
+        <div className="hidden xl:block w-px bg-border/40" />
+        <aside className="w-full xl:w-[32%]">
+          <OccasionPreview
+            occasion={previewOccasion}
+            onEdit={handleEdit}
+            onToggleShowOnHome={handleToggleShowOnHome}
+            onDelete={(occasion) => handleDelete(occasion.id)}
+            isToggling={previewOccasion ? updatingVisibilityId === previewOccasion.id : false}
+            isDeleting={previewOccasion ? isDeletingId === previewOccasion.id : false}
+          />
+        </aside>
+      </div>
     </div>
   );
 }
