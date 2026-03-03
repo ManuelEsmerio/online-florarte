@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Product, ProductVariant, ProductRow } from '@/lib/definitions';
 import ProductImageCarousel from './ProductImageCarousel';
@@ -82,37 +83,46 @@ const QuickViewSkeleton = () => (
 );
 
 export default function QuickView({ isOpen, onOpenChange, product: initialProduct }: QuickViewProps) {
-    const [detailedProduct, setDetailedProduct] = useState<Product | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
     const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
     const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
-    
+
     const { addToCart, isAddingToCart, deliveryDate: globalDateString, setDeliveryDate: setGlobalDateString } = useCart();
-    
+
+    const { data: detailedProduct, isLoading, isError } = useQuery<Product>({
+        queryKey: ['product-detail', initialProduct.slug],
+        queryFn: async () => {
+            const res = await fetch(`/api/products/${initialProduct.slug}`);
+            const data = await handleApiResponse(res);
+            if (!data.product) throw new Error('Product not found');
+            return data.product;
+        },
+        enabled: isOpen && !!initialProduct,
+        staleTime: 1000 * 60 * 5,
+    });
+
     useEffect(() => {
-        const fetchDetailedProduct = async () => {
-            if (isOpen && initialProduct) {
-                setIsLoading(true);
-                try {
-                    const res = await fetch(`/api/products/${initialProduct.slug}`);
-                    const data = await handleApiResponse(res);
-                    const productData = data.product;
-                    setDetailedProduct(productData);
-                    
-                    if (productData.has_variants && productData.variants?.length > 0) {
-                        const sortedVariants = [...productData.variants].sort((a, b) => a.price - b.price);
-                        setSelectedVariant(sortedVariants.find(v => v.stock > 0) || null);
-                    }
-                } catch (error) {
-                    toast.error('Error al cargar el producto');
-                    onOpenChange(false);
-                } finally {
-                    setIsLoading(false);
-                }
-            }
-        };
-        fetchDetailedProduct();
-    }, [isOpen, initialProduct, onOpenChange]);
+        if (!detailedProduct) return;
+        if (detailedProduct.has_variants && detailedProduct.variants?.length > 0) {
+            const selectedFromCard = detailedProduct.variants.find((variant: any) => {
+                const initialVariantId = (initialProduct as any)?.variantId;
+                const initialVariantName = (initialProduct as any)?.variantName;
+                if (initialVariantId != null && Number(variant.id) === Number(initialVariantId)) return true;
+                if (initialVariantName && String(variant.name).trim() === String(initialVariantName).trim()) return true;
+                return false;
+            });
+            const sortedVariants = [...detailedProduct.variants].sort((a, b) => a.price - b.price);
+            setSelectedVariant(selectedFromCard || sortedVariants.find(v => v.stock > 0) || null);
+        } else {
+            setSelectedVariant(null);
+        }
+    }, [detailedProduct, initialProduct]);
+
+    useEffect(() => {
+        if (isError) {
+            toast.error('Error al cargar el producto');
+            onOpenChange(false);
+        }
+    }, [isError, onOpenChange]);
 
     const handleDateSave = (selectedDate: Date) => {
         if(setGlobalDateString) {
@@ -164,6 +174,11 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
     const displayPrice = selectedVariant ? selectedVariant.price : detailedProduct?.price;
     const displaySalePrice = selectedVariant ? selectedVariant.sale_price : detailedProduct?.sale_price;
     const priceToShow = displaySalePrice ?? displayPrice;
+    const variantLabel = selectedVariant?.name ?? (initialProduct as any)?.variantName ?? null;
+    const hasVariantContext = Boolean(detailedProduct?.has_variants && variantLabel);
+    const displayTitle = hasVariantContext
+        ? (selectedVariant?.productName ?? (initialProduct as any)?.variantProductName ?? detailedProduct?.name ?? initialProduct.name)
+        : (detailedProduct?.name || initialProduct.name);
 
     const formattedDate = useMemo(() => {
         if (!globalDateString || globalDateString.includes('No especificada')) return 'Selecciona una fecha';
@@ -253,7 +268,10 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
                                     <div className="space-y-6">
                                         <div className="flex justify-between items-start">
                                             <div className="space-y-2">
-                                                <h1 className="text-3xl font-headline font-bold text-slate-900 dark:text-white leading-tight">{detailedProduct.name}</h1>
+                                                <h1 className="text-3xl font-headline font-bold text-slate-900 dark:text-white leading-tight">{displayTitle}</h1>
+                                                {hasVariantContext && (
+                                                    <p className="text-sm md:text-base text-slate-500 dark:text-slate-400 leading-tight">{variantLabel}</p>
+                                                )}
                                                 <p className="text-xs font-medium text-slate-500 dark:text-slate-400 tracking-widest uppercase">SKU: {selectedVariant?.code || detailedProduct.code}</p>
                                             </div>
                                             <Button 
@@ -421,18 +439,6 @@ export default function QuickView({ isOpen, onOpenChange, product: initialProduc
                 onSave={handleDateSave}
             />
             
-            <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 4px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: transparent;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: hsl(var(--primary) / 0.2);
-                    border-radius: 10px;
-                }
-            `}</style>
         </Dialog>
     );
 }

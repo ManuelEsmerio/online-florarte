@@ -28,24 +28,34 @@ export default function ForgotPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulación de envío
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    toast({
-      title: 'Correo enviado',
-      description: 'Si la cuenta existe, recibirás un enlace para restablecer tu contraseña.',
-      variant: 'success'
-    });
-    setEmail('');
-    setIsLoading(false);
+
+    try {
+      await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      // Siempre mostrar el mismo mensaje (no revelar si el email existe)
+      toast({
+        title: 'Correo enviado',
+        description: 'Si la cuenta existe, recibirás un enlace para restablecer tu contraseña.',
+        variant: 'success',
+      });
+      setEmail('');
+    } catch {
+      toast({
+        title: 'Error de conexión',
+        description: 'No se pudo conectar con el servidor. Intenta de nuevo.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   if (authLoading || user) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <LoadingSpinner />
-      </div>
-    );
+    return <LoadingSpinner variant="luxury" fullScreen size={68} />;
   }
 
   return (

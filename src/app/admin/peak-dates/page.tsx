@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Calendar as CalendarIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -13,8 +13,6 @@ import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleto
 import { PeakDate } from '@/lib/definitions';
 import { columns } from './columns';
 import { PeakDateForm } from './peak-date-form';
-import { useAuth } from '@/context/AuthContext';
-import { handleApiResponse } from '@/utils/handleApiResponse';
 import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -72,12 +70,11 @@ const DateRangePicker = ({
                 </PopoverContent>
             </Popover>
         </div>
-    )
-}
+    );
+};
 
 export default function PeakDatesPage() {
   const { toast } = useToast();
-  const { apiFetch } = useAuth();
   const [allPeakDates, setAllPeakDates] = useState<PeakDate[]>([]);
   const [filteredPeakDates, setFilteredPeakDates] = useState<PeakDate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -86,48 +83,44 @@ export default function PeakDatesPage() {
   const [updatingRestrictionId, setUpdatingRestrictionId] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedPeakDate, setSelectedPeakDate] = useState<PeakDate | null>(null);
-  const fetchInitiated = useRef(false);
 
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'peak_date', desc: true }]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'peakDate', desc: true }]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  
 
-  const fetchData = useCallback(async () => {
+  const loadPeakDates = useCallback(async () => {
     setIsLoading(true);
     try {
-        const res = await apiFetch('/api/admin/peak-dates');
-        const data = await handleApiResponse(res, []);
-        setAllPeakDates(data);
-    } catch(err: any) {
-        toast({ title: 'Error', description: err.message, variant: 'destructive'});
+      const res = await fetch('/api/admin/peak-dates');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al cargar fechas pico');
+      setAllPeakDates(json.data ?? []);
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
-  }, [apiFetch, toast]);
+  }, []);
 
   useEffect(() => {
-    if (!fetchInitiated.current) {
-        fetchInitiated.current = true;
-        fetchData();
-    }
-  }, [fetchData]);
+    loadPeakDates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
-    let filteredData = allPeakDates;
+    let filtered = allPeakDates;
     if (dateRange?.from) {
-        filteredData = filteredData.filter(peakDate => {
-            const date = parseToUTCDate(peakDate.peak_date);
+        filtered = filtered.filter(peakDate => {
+            const date = parseToUTCDate(peakDate.peakDate);
             if (!date) return false;
             const from = dateRange.from!;
             const to = dateRange.to ?? from;
             return date >= from && date <= to;
         });
     }
-    setFilteredPeakDates(filteredData);
+    setFilteredPeakDates(filtered);
   }, [allPeakDates, dateRange]);
-
 
   const handleAdd = () => {
     setSelectedPeakDate(null);
@@ -141,75 +134,70 @@ export default function PeakDatesPage() {
 
   const handleDelete = async (id: number) => {
     setIsDeletingId(id);
-     try {
-      const res = await apiFetch(`/api/admin/peak-dates/${id}`, { method: 'DELETE' });
-      await handleApiResponse(res);
+    try {
+      const res = await fetch(`/api/admin/peak-dates/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar');
       toast({ title: '¡Fecha Pico Eliminada!', description: 'El registro se ha eliminado correctamente.' });
-      await fetchData();
-    } catch (error: any) {
-      toast({ title: 'Error al eliminar', description: error.message, variant: 'destructive' });
+      await loadPeakDates();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
       setIsDeletingId(null);
     }
   };
-  
+
   const handleSave = async (data: any, id?: number) => {
     setIsSaving(true);
     const isEditing = !!id;
-    
-    // Convert date object to YYYY-MM-DD string
-    const finalData = {
-        ...data,
-        peak_date: format(data.peak_date, 'yyyy-MM-dd'),
-    }
-
-    const url = isEditing ? `/api/admin/peak-dates/${id}` : '/api/admin/peak-dates';
-    const method = isEditing ? 'PUT' : 'POST';
-    
     try {
-        const res = await apiFetch(url, { 
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(finalData) 
-        });
-        await handleApiResponse(res);
-        toast({ title: isEditing ? '¡Fecha Pico Actualizada!' : '¡Fecha Pico Creada!', description: 'El registro ha sido guardado.'});
-        setIsFormOpen(false);
-        await fetchData();
-    } catch (error: any) {
-        toast({ title: 'Error al guardar', description: error.message, variant: 'destructive' });
+      const url = isEditing ? `/api/admin/peak-dates/${id}` : '/api/admin/peak-dates';
+      const method = isEditing ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: data.name,
+          peak_date: data.peak_date instanceof Date ? format(data.peak_date, 'yyyy-MM-dd') : data.peak_date,
+          is_coupon_restricted: data.is_coupon_restricted ?? false,
+          ...(!isEditing && { repeat_annually: data.repeat_annually ?? false }),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al guardar');
+      toast({ title: isEditing ? '¡Fecha Pico Actualizada!' : '¡Fecha Pico Creada!', description: 'El registro ha sido guardado.' });
+      setIsFormOpen(false);
+      await loadPeakDates();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
-        setIsSaving(false);
+      setIsSaving(false);
     }
   };
 
   const handleToggleRestriction = useCallback(async (peakDate: PeakDate) => {
     setUpdatingRestrictionId(peakDate.id);
-    const updatedData = { 
-      ...peakDate,
-      is_coupon_restricted: !peakDate.is_coupon_restricted 
-    };
     try {
-        const res = await apiFetch(`/api/admin/peak-dates/${peakDate.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatedData)
-        });
-        await handleApiResponse(res);
-        toast({ title: '¡Actualizado!', description: `La restricción de cupones para ${peakDate.name} ha sido cambiada.`, variant: 'success' });
-        await fetchData();
-    } catch (error: any) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      const res = await fetch(`/api/admin/peak-dates/${peakDate.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_coupon_restricted: !peakDate.isCouponRestricted }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al actualizar');
+      toast({ title: '¡Actualizado!', description: `La restricción de cupones para ${peakDate.name} ha sido cambiada.`, variant: 'success' });
+      await loadPeakDates();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
-        setUpdatingRestrictionId(null);
+      setUpdatingRestrictionId(null);
     }
-  }, [apiFetch, toast, fetchData]);
+  }, [loadPeakDates, toast]);
 
   const tableColumns = useMemo(
-      () => columns({ onEdit: handleEdit, onDelete: handleDelete, onToggleRestriction: handleToggleRestriction, isDeletingId, updatingRestrictionId }), 
-      [handleEdit, handleDelete, isDeletingId, updatingRestrictionId, handleToggleRestriction]
+      () => columns({ onEdit: handleEdit, onDelete: handleDelete, onToggleRestriction: handleToggleRestriction, isDeletingId, updatingRestrictionId }),
+      [isDeletingId, updatingRestrictionId, handleToggleRestriction]
   );
-
 
   const table = useReactTable({
     data: filteredPeakDates,
@@ -226,11 +214,11 @@ export default function PeakDatesPage() {
   if (isLoading && allPeakDates.length === 0) {
     return (
       <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
-        <div className="flex items-center justify-between">
-            <h2 className="text-4xl font-bold font-headline tracking-tight text-slate-900 dark:text-white">Fechas Pico</h2>
-            <Button disabled className="rounded-2xl h-11 px-6 font-bold shadow-lg shadow-primary/20"><PlusCircle className="mr-2 h-4 w-4" />Agregar Fecha Pico</Button>
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
+          <h2 className="text-4xl font-bold font-headline tracking-tight text-slate-900 dark:text-white">Fechas Pico</h2>
+          <Button disabled className="rounded-2xl h-11 px-6 font-bold shadow-lg shadow-primary/20"><PlusCircle className="mr-2 h-4 w-4" />Agregar Fecha Pico</Button>
         </div>
-        <DataTableSkeleton columnCount={5} />
+        <DataTableSkeleton columnCount={4} />
       </div>
     );
   }
@@ -252,11 +240,11 @@ export default function PeakDatesPage() {
         allPeakDates={allPeakDates}
         isSaving={isSaving}
       />
-      <DataTable 
-        table={table} 
-        columns={tableColumns} 
-        data={filteredPeakDates} 
-        isLoading={isLoading} 
+      <DataTable
+        table={table}
+        columns={tableColumns}
+        data={filteredPeakDates}
+        isLoading={isLoading}
         toolbar={<DateRangePicker date={dateRange} setDate={setDateRange} />}
       />
     </div>

@@ -49,7 +49,7 @@ export function DataTableViewOptions<TData>({
         <Button
           variant="outline"
           size="sm"
-          className="ml-auto hidden h-8 lg:flex"
+          className="ml-auto hidden h-8 lg:flex hover:bg-primary/10 hover:border-primary/50 hover:text-primary"
         >
           <MixerHorizontalIcon className="mr-2 h-4 w-4" />
           Ver

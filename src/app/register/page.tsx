@@ -55,10 +55,11 @@ export default function RegisterPage() {
 
     if (result.success) {
       toast({
-        title: '¡Cuenta creada con éxito!',
-        description: 'Bienvenido a la familia Florarte.',
-        variant: 'success'
+        title: '¡Cuenta creada!',
+        description: 'Te enviamos un correo para verificar tu dirección.',
+        variant: 'success',
       });
+      router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
     } else {
       toast({
         title: 'Error al registrarse',
@@ -69,11 +70,7 @@ export default function RegisterPage() {
   };
 
   if (authLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <LoadingSpinner />
-      </div>
-    );
+    return <LoadingSpinner variant="luxury" fullScreen size={68} />;
   }
 
   return (

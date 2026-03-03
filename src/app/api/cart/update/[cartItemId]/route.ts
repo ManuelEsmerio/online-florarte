@@ -5,14 +5,15 @@ import { getIdentity, toIntOrThrow } from '@/utils/request-utils';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 
 interface RouteParams {
-  params: { cartItemId: string };
+  params: Promise<{ cartItemId: string }>;
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { userId, sessionId } = await getIdentity(req);
     const body = await req.json();
-    const cartItemId = parseInt(params.cartItemId, 10);
+    const { cartItemId: cartItemIdParam } = await params;
+    const cartItemId = parseInt(cartItemIdParam, 10);
 
     if (isNaN(cartItemId)) throw new Error("ID de artículo inválido.");
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     await cartService.updateQuantity(cartItemId, quantity, { userId, sessionId });
     
-    const finalCart = await cartService.getCartContents({userId, sessionId});
+    const finalCart = await cartService.getCartContentsForUi({userId, sessionId});
 
     return successResponse(finalCart);
   } catch (error: any) {

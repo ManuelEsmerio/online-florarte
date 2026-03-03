@@ -37,11 +37,48 @@ El mapa en la página de checkout necesita una clave de API para funcionar.
 ### 3. Actualizar la URL del Sitio
 
 Asegúrate de que la URL de tu dominio esté correctamente configurada en los siguientes archivos para un SEO óptimo:
+
 - `src/app/sitemap.ts`
 - `src/app/robots.ts`
 
-### 4. Conectar Base de Datos y Pasarela de Pago
+### 4. Configurar Base de Datos y Stripe (Test Mode)
 
-La aplicación utiliza datos de prueba guardados en memoria. Para una funcionalidad completa, necesitarás:
--   **Conectar una Base de Datos:** Reemplaza la lógica en `src/lib/`, `src/context/AuthContext.tsx`, etc., para conectar con una base de datos de producción (ej. Firebase Firestore, Supabase, MongoDB).
--   **Integrar una Pasarela de Pago:** Implementa un servicio de pago real (ej. Stripe, Mercado Pago) en la página `src/app/checkout/page.tsx` para procesar las transacciones.
+La aplicación usa Prisma + MySQL y Stripe en modo prueba para checkout real.
+
+1. Crea un archivo `.env.local` tomando como base `.env.example`.
+2. Completa al menos estas variables:
+
+   ```
+   DATABASE_URL="mysql://usuario:password@localhost:3306/online_florarte"
+   NEXT_PUBLIC_APP_URL="http://localhost:9002"
+   STRIPE_SECRET_KEY="sk_test_..."
+   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_..."
+   STRIPE_WEBHOOK_SECRET="whsec_..."
+   RESEND_API_KEY="re_..."
+   EMAIL_FROM="Florarte <no-reply@tudominio.com>"
+   ADMIN_EMAIL="admin@tudominio.com"
+   ```
+
+3. Ejecuta migraciones de Prisma:
+
+   ```bash
+   npx prisma migrate dev
+   npx prisma generate
+   ```
+
+4. Levanta el proyecto:
+
+   ```bash
+   npm run dev
+   ```
+
+5. En otra terminal, conecta Stripe CLI al webhook local:
+
+   ```bash
+   stripe listen --forward-to localhost:9002/api/stripe/webhook
+   ```
+
+6. Pruebas rápidas de pago:
+   - **Éxito:** `4242 4242 4242 4242`
+   - **Tarjeta declinada:** `4000 0000 0000 9995`
+   - Fecha futura y CVC de 3 dígitos.

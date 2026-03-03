@@ -1,5 +1,6 @@
 
 import { notFound } from 'next/navigation';
+import DOMPurify from 'isomorphic-dompurify';
 import Header from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { getPostBySlug, blogPosts } from '@/lib/blog-data';
@@ -12,7 +13,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { Metadata, ResolvingMetadata } from 'next';
 
 type Props = {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 };
 
 export async function generateStaticParams() {
@@ -25,7 +26,8 @@ export async function generateMetadata(
   { params }: Props,
   parent: ResolvingMetadata
 ): Promise<Metadata> {
-  const post = getPostBySlug(params.slug);
+  const { slug } = await params;
+  const post = getPostBySlug(slug);
 
   if (!post) {
     return {
@@ -47,8 +49,9 @@ export async function generateMetadata(
 }
 
 
-export default function BlogPostPage({ params }: { params: { slug: string } }) {
-  const post = getPostBySlug(params.slug);
+export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const post = getPostBySlug(slug);
 
   if (!post) {
     notFound();
@@ -106,7 +109,7 @@ export default function BlogPostPage({ params }: { params: { slug: string } }) {
             
             <div
               className="prose lg:prose-xl max-w-none text-foreground"
-              dangerouslySetInnerHTML={{ __html: post.content }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
             />
           </article>
         </div>

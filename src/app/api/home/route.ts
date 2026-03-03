@@ -8,6 +8,8 @@ import { occasionService } from '@/services/occasionService';
 import { getActiveAnnouncements } from '@/services/announcementService';
 import { tagService } from '@/services/tagService';
 
+export const revalidate = 3600;
+
 /**
  * GET /api/home
  * Endpoint público para obtener los datos iniciales de la página principal.
@@ -25,7 +27,7 @@ export async function GET() {
     ] = await Promise.all([
       categoryService.getAllCategories(),
       testimonialService.getApprovedTestimonials(),
-      occasionService.getAllOccasions(),
+      occasionService.getHomePageOccasions(),
       getActiveAnnouncements(),
       tagService.getAllTags(),
     ]);

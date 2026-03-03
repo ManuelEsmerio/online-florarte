@@ -45,7 +45,7 @@ export const columns = ({ onUpdateStatus, onDelete }: ColumnsProps): ColumnDef<T
   {
     accessorKey: 'userName',
     header: ({ column }) => (
-      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+      <Button variant="ghost" className="hover:bg-primary/10 hover:text-primary" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
         Autor
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
@@ -113,7 +113,7 @@ export const columns = ({ onUpdateStatus, onDelete }: ColumnsProps): ColumnDef<T
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
+            <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary">
               <span className="sr-only">Abrir menú</span>
               <MoreHorizontal className="h-4 w-4" />
             </Button>

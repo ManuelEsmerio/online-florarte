@@ -1,12 +1,41 @@
 // src/context/CartContext.tsx
 "use client";
 
-import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useCallback } from 'react';
-import type { CartItem, Coupon, Product, ApiResponse } from '@/lib/definitions';
+import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useCallback, useRef } from 'react';
+import type { CartItem, Coupon, Product } from '@/lib/definitions';
 import { toast } from 'sonner';
 import { handleApiResponse } from '@/utils/handleApiResponse';
 import { useAuth } from './AuthContext';
 import type { SelectedCity } from '@/components/ShippingCityModal';
+
+type CartItemCompat = CartItem & {
+  cartItemId?: string;
+  name?: string;
+  image?: string;
+  variants?: Array<{ id: number; name?: string }>;
+};
+
+type CouponCompat = Coupon & {
+  discount_type?: string;
+  discount_value?: number;
+};
+
+type CartBootstrapSnapshot = {
+  items: CartItemCompat[];
+  subtotal: number;
+  coupon: CouponCompat | null;
+};
+
+declare global {
+  interface Window {
+    __FLORARTE_CART_BOOTSTRAP__?: CartBootstrapSnapshot;
+  }
+}
+
+function readCartBootstrapSnapshot(): CartBootstrapSnapshot | null {
+  if (typeof window === 'undefined') return null;
+  return window.__FLORARTE_CART_BOOTSTRAP__ ?? null;
+}
 
 interface AddToCartParams {
   product: Product;
@@ -50,11 +79,12 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
-  const { user, loading: authLoading, apiFetch } = useAuth();
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [subtotal, setSubtotal] = useState(0);
-  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const { user, apiFetch } = useAuth();
+  const initialBootstrap = readCartBootstrapSnapshot();
+  const [cart, setCart] = useState<CartItemCompat[]>(initialBootstrap?.items ?? []);
+  const [isLoading, setIsLoading] = useState(!initialBootstrap);
+  const [subtotal, setSubtotal] = useState(initialBootstrap?.subtotal ?? 0);
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>((initialBootstrap?.coupon as Coupon) ?? null);
   
   const [isCartOpen, setCartOpen] = useState(false);
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
@@ -92,25 +122,52 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     else localStorage.removeItem('florarte_selected_city');
   }, [selectedCity]);
 
-  const fetchCart = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const data = await handleApiResponse(await apiFetch('/api/cart'), { items: [], subtotal: 0, coupon: null });
-      setCart(data.items || []); 
-      setSubtotal(data.subtotal || 0);
-      setAppliedCoupon(data.coupon || null);
-    } catch (error) {
-      console.error("[CartContext] Error fetching cart:", error);
-    } finally {
-        setIsLoading(false);
-    }
-  }, [apiFetch]);
+  // In-flight guard: evita llamadas duplicadas si fetchCart se invoca
+  // varias veces antes de que la anterior complete (ej. Strict Mode, renders rápidos).
+  const fetchCartInFlight = useRef<Promise<void> | null>(null);
+  const skipFirstFetchRef = useRef(Boolean(initialBootstrap));
 
   useEffect(() => {
-    if (!authLoading) {
-      fetchCart();
+    if (typeof window !== 'undefined' && window.__FLORARTE_CART_BOOTSTRAP__) {
+      delete window.__FLORARTE_CART_BOOTSTRAP__;
     }
-  }, [fetchCart, authLoading, user]);
+  }, []);
+
+  const fetchCart = useCallback(async () => {
+    if (fetchCartInFlight.current) return fetchCartInFlight.current;
+
+    setIsLoading(true);
+    fetchCartInFlight.current = (async () => {
+      try {
+        const data = await handleApiResponse<{ items: CartItemCompat[]; subtotal: number; coupon: CouponCompat | null }>(
+          await apiFetch('/api/cart'),
+          { items: [], subtotal: 0, coupon: null }
+        );
+        setCart(data.items || []);
+        setSubtotal(data.subtotal || 0);
+        setAppliedCoupon((data.coupon as Coupon) || null);
+      } catch (error) {
+        console.error("[CartContext] Error fetching cart:", error);
+      } finally {
+        setIsLoading(false);
+        fetchCartInFlight.current = null;
+      }
+    })();
+
+    return fetchCartInFlight.current;
+  }, [apiFetch]);
+
+  // Se usa user?.id (no el objeto completo) para que fetchCart solo se
+  // re-dispare cuando cambia la IDENTIDAD del usuario (login/logout),
+  // no cuando se actualiza su perfil (updateUser crea un nuevo objeto).
+  useEffect(() => {
+    if (skipFirstFetchRef.current) {
+      skipFirstFetchRef.current = false;
+      return;
+    }
+    fetchCart();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchCart, user?.id]);
 
   const addToCart = useCallback(async (params: AddToCartParams): Promise<string | null> => {
     setIsAddingToCart(true);
@@ -120,7 +177,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       
       const formData = new FormData();
       formData.append('productId', String(product.id));
-      if (product.has_variants && product.variants?.length) {
+      const productHasVariants = (product as any).has_variants ?? product.hasVariants;
+      if (productHasVariants && product.variants?.length) {
         formData.append('variantId', String(product.variants[0].id));
       }
       formData.append('quantity', String(quantity));
@@ -129,7 +187,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       if (date) formData.append('deliveryDate', date);
       if (deliveryTime) formData.append('deliveryTimeSlot', deliveryTime);
 
-      const result = await handleApiResponse(await apiFetch('/api/cart/add', {
+      const result = await handleApiResponse<{ item_id?: string | number }>(await apiFetch('/api/cart/add', {
         method: 'POST',
         body: formData,
       }));
@@ -150,12 +208,12 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const removeFromCart = useCallback(async (cartItemId: string) => {
     setUpdatingItemId(cartItemId);
     try {
-      const result = await handleApiResponse(await apiFetch(`/api/cart/remove/${cartItemId}`, {
+      const result = await handleApiResponse<{ items: CartItemCompat[]; subtotal: number; coupon: CouponCompat | null }>(await apiFetch(`/api/cart/remove/${cartItemId}`, {
         method: 'DELETE',
       }));
       setCart(result.items || []);
       setSubtotal(result.subtotal || 0);
-      setAppliedCoupon(result.coupon || null);
+      setAppliedCoupon((result.coupon as Coupon) || null);
     } catch (error: any) {
       toast.error('Error al eliminar', { description: error.message });
       await fetchCart();
@@ -194,7 +252,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         );
         
         if (existing) {
-            await removeFromCart(existing.cartItemId);
+          const existingCartItemId = existing.cartItemId ?? String(existing.id);
+          await removeFromCart(existingCartItemId);
         } else {
             const formData = new FormData();
             formData.append('productId', String(complement.id));
@@ -216,11 +275,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   const applyCoupon = useCallback(async (code: string): Promise<boolean> => {
     try {
-        const result = await handleApiResponse(await apiFetch('/api/coupons/validate', {
+        const result = await handleApiResponse<{ coupon: CouponCompat }>(await apiFetch('/api/coupons/validate', {
             method: 'POST',
             body: JSON.stringify({ couponCode: code, deliveryDate })
         }));
-        setAppliedCoupon(result.coupon);
+        setAppliedCoupon(result.coupon as Coupon);
         toast.success('¡Cupón aplicado!', { description: `Descuento activado: ${result.coupon.code}` });
         await fetchCart();
         return true;
@@ -241,10 +300,25 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [apiFetch, fetchCart]);
 
+  const clearCart = useCallback(async () => {
+    try {
+      await apiFetch('/api/cart', { method: 'DELETE' });
+      setCart([]);
+      setSubtotal(0);
+      setAppliedCoupon(null);
+      toast.info('Carrito vacío');
+    } catch (e) {
+      toast.error('Error al vaciar');
+    }
+  }, [apiFetch]);
+
   const getDiscountAmount = useCallback((currentSubtotal: number): number => {
     if (!appliedCoupon) return 0;
-    if (appliedCoupon.discount_type === 'percentage') return currentSubtotal * (appliedCoupon.discount_value / 100);
-    if (appliedCoupon.discount_type === 'fixed') return Math.min(currentSubtotal, appliedCoupon.discount_value);
+    const coupon = appliedCoupon as CouponCompat;
+    const discountType = coupon.discount_type ?? coupon.discountType;
+    const discountValue = Number(coupon.discount_value ?? coupon.discountValue ?? 0);
+    if (discountType === 'percentage' || discountType === 'PERCENTAGE') return currentSubtotal * (discountValue / 100);
+    if (discountType === 'fixed' || discountType === 'FIXED') return Math.min(currentSubtotal, discountValue);
     return 0;
   }, [appliedCoupon]);
 
@@ -255,6 +329,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   const cartItemCount = useMemo(() => cart.reduce((count, item) => count + item.quantity, 0), [cart]);
 
+  const getCartTotal = useCallback(
+    () => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(subtotal),
+    [subtotal]
+  );
+
   const value = useMemo(() => ({
     cart,
     isLoading,
@@ -263,18 +342,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     toggleComplement,
     removeFromCart,
     updateQuantity,
-    clearCart: async () => {
-        try {
-            await apiFetch('/api/cart', { method: 'DELETE' });
-            setCart([]);
-            setSubtotal(0);
-            setAppliedCoupon(null);
-            toast.info('Carrito vacío');
-        } catch (e) { toast.error('Error al vaciar'); }
-    },
+    clearCart,
     cartItemCount,
     subtotal,
-    getCartTotal: () => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(subtotal),
+    getCartTotal,
     appliedCoupon,
     applyCoupon,
     removeCoupon,
@@ -292,10 +363,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     deliveryDate,
     setDeliveryDate,
   }), [
-    cart, isLoading, fetchCart, addToCart, toggleComplement, removeFromCart, 
-    updateQuantity, apiFetch, cartItemCount, subtotal, appliedCoupon, applyCoupon, 
-    removeCoupon, getDiscountAmount, getTotalWithDiscount, isCartOpen, updatingItemId, 
-    isAddingToCart, isTogglingComplement, selectedCity, shippingCost, deliveryDate
+    cart, isLoading, fetchCart, addToCart, toggleComplement, removeFromCart,
+    updateQuantity, clearCart, cartItemCount, subtotal, getCartTotal, appliedCoupon,
+    applyCoupon, removeCoupon, getDiscountAmount, getTotalWithDiscount, isCartOpen,
+    updatingItemId, isAddingToCart, isTogglingComplement, selectedCity, shippingCost,
+    deliveryDate,
   ]);
 
   return (

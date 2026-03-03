@@ -5,7 +5,8 @@ import { ProductDetail } from '@/components/ProductDetail';
 import Header from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { productService } from '@/services/productService';
-import type { Product } from '@/lib/definitions';
+
+
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -59,21 +60,14 @@ const ProductPageSkeleton = () => (
 );
 
 type ProductPageProps = {
-  params: { slug: string };
+    params: Promise<{ slug: string }>;
 };
 
-async function getProductData(slug: string): Promise<{ product: Product, complementProducts: Product[] } | null> {
+async function getProductData(slug: string) {
     try {
         const product = await productService.getCompleteProductDetailsBySlug(slug);
-        if (!product) {
-            return null;
-        }
-
-        const allComplementProducts = await productService.getComplementProducts();
-        const complementProducts = allComplementProducts.slice(0, 6);
-
-        return { product, complementProducts };
-
+        if (!product) return null;
+        return { product };
     } catch (error) {
         console.error(`Failed to fetch product data for slug ${slug}:`, error);
         return null;
@@ -81,21 +75,22 @@ async function getProductData(slug: string): Promise<{ product: Product, complem
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
-  const { slug } = params;
+  const { slug } = await params;
+  console.log('slug: ', slug);
   const data = await getProductData(slug);
 
   if (!data || !data.product) {
     notFound();
   }
 
-  const { product, complementProducts } = data;
+  const { product } = data;
 
   return (
     <>
       <Header />
       <main className="min-h-screen bg-background">
         <Suspense fallback={<ProductPageSkeleton />}>
-            <ProductDetail product={product} complementProducts={complementProducts} />
+            <ProductDetail product={product as any} complementProducts={[]} />
         </Suspense>
       </main>
       <Footer />

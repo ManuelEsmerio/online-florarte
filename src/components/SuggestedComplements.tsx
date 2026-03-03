@@ -3,40 +3,26 @@
 
 import ProductCarousel from './ProductCarousel';
 import { useCart } from '@/context/CartContext';
-import { useMemo, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { Product } from '@/lib/definitions';
 import { handleApiResponse } from '@/utils/handleApiResponse';
 
 export default function FrequentlyBoughtTogether() {
-  const { cart, cartItemCount } = useCart();
-  const [recommendedProducts, setRecommendedProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const referenceProduct = useMemo(() => cart.length > 0 ? cart[0] : null, [cart]);
+  const { cart } = useCart();
+  const referenceProduct = cart.length > 0 ? cart[0] : null;
 
-  useEffect(() => {
-    if (referenceProduct) {
-      const fetchRecommendations = async () => {
-        setIsLoading(true);
-        try {
-          const res = await fetch(`/api/recommendations?context=cart&productId=${referenceProduct.id}&limit=8`);
-          const data = await handleApiResponse(res, []);
-          setRecommendedProducts(data);
-        } catch (error) {
-          console.error("Failed to fetch bought together recommendations:", error);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchRecommendations();
-    }
-  }, [referenceProduct]);
-
+  const { data: recommendedProducts = [], isLoading } = useQuery<Product[]>({
+    queryKey: ['recommendations', referenceProduct?.id],
+    queryFn: () =>
+      fetch(`/api/recommendations?context=cart&productId=${referenceProduct!.id}&limit=8`)
+        .then(res => handleApiResponse(res, [])),
+    enabled: !!referenceProduct,
+  });
 
   if (!referenceProduct && !isLoading) {
     return null;
   }
-  
+
   return (
     <ProductCarousel
       title="Frecuentemente Comprados Juntos"

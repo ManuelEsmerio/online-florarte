@@ -1,12 +1,12 @@
 // src/app/api/admin/categories/[id]/toggle-visibility/route.ts
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
-import { getDecodedToken, UserSession } from '@/utils/auth';
+import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
 import { categoryService } from '@/services/categoryService';
 
 interface RouteParams {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /**
@@ -14,14 +14,19 @@ interface RouteParams {
  * Actualiza solo el campo `show_on_home` de una categoría.
  */
 export async function PUT(req: NextRequest, { params }: RouteParams) {
+  let routeCategoryId = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
 
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') return errorHandler(new Error('Acceso prohibido.'), 403);
+    if (!isAdminRole(user?.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
-    const categoryId = parseInt(params.id, 10);
+    const { id } = await params;
+    routeCategoryId = id;
+
+    const categoryId = parseInt(id, 10);
     const { show_on_home } = await req.json();
 
     if (typeof show_on_home !== 'boolean') {
@@ -32,7 +37,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     return successResponse({ message: 'Visibilidad actualizada correctamente.' });
   } catch (error) {
-    console.error(`[API_ADMIN_CATEGORIES_TOGGLE_ERROR] ID: ${params.id}`, error);
+    console.error(`[API_ADMIN_CATEGORIES_TOGGLE_ERROR] ID: ${routeCategoryId}`, error);
     return errorHandler(error);
   }
 }

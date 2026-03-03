@@ -34,22 +34,47 @@ export function Newsletter() {
 
   const onSubmit = async (data: NewsletterFormValues) => {
     setIsSubmitting(true);
-    // Simulación de suscripción a la API
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    setIsSuccess(true);
-    setIsSubmitting(false);
-    
-    toast({
-      title: '¡Bienvenido al Club Florarte!',
-      description: 'Te has suscrito correctamente a nuestras promociones.',
-      variant: 'success',
-    });
+    try {
+      const response = await fetch('/api/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: data.email,
+          source: 'home',
+        }),
+      });
 
-    setTimeout(() => {
-      setIsSuccess(false);
-      form.reset();
-    }, 5000);
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast({
+          title: 'Error al suscribirse',
+          description: result?.error || 'Intenta nuevamente en unos minutos.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setIsSuccess(true);
+      toast({
+        title: '¡Bienvenido al Club Florarte!',
+        description: result?.message || 'Te has suscrito correctamente a nuestras promociones.',
+        variant: 'success',
+      });
+
+      setTimeout(() => {
+        setIsSuccess(false);
+        form.reset();
+      }, 5000);
+    } catch {
+      toast({
+        title: 'Error de conexión',
+        description: 'No se pudo enviar tu correo. Intenta nuevamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

@@ -1,14 +1,14 @@
 // src/app/api/admin/products/[slug]/route.ts
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
-import { getDecodedToken, UserSession } from '@/utils/auth';
+import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
 import { productService } from '@/services/productService';
 import type { ProductStatus } from '@/lib/definitions';
 import { ZodError } from 'zod';
 
 interface RouteParams {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 
@@ -17,17 +17,20 @@ interface RouteParams {
  * Endpoint protegido para obtener los detalles completos de un producto.
  */
 export async function GET(req: NextRequest, { params }: RouteParams) {
+  let routeSlug = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') {
+    if (!isAdminRole(user?.role)) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 
-    const { slug } = params;
+    const { slug } = await params;
+    routeSlug = slug;
     const product = await productService.getCompleteProductDetailsBySlug(slug);
 
     if (!product) {
@@ -36,7 +39,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     return successResponse(product);
   } catch (error) {
-    console.error(`[API_ADMIN_PRODUCT_GET_ERROR] Slug: ${params.slug}`, error);
+    console.error(`[API_ADMIN_PRODUCT_GET_ERROR] Slug: ${routeSlug}`, error);
     return errorHandler(error);
   }
 }
@@ -47,17 +50,20 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
  * Endpoint protegido para actualizar un producto.
  */
 export async function PUT(req: NextRequest, { params }: RouteParams) {
+  let routeSlug = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') {
+    if (!isAdminRole(user?.role)) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 
-    const { slug } = params;
+    const { slug } = await params;
+    routeSlug = slug;
     
     // Check if it's a simple status update (from toggle) or a full form update
     const contentType = req.headers.get('content-type');
@@ -112,7 +118,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (error instanceof SyntaxError) { // JSON.parse error
       return errorHandler(new Error('Los datos del producto tienen un formato JSON inválido.'), 400);
     }
-    console.error(`[API_ADMIN_PRODUCT_UPDATE_ERROR] Slug: ${params.slug}`, error);
+    console.error(`[API_ADMIN_PRODUCT_UPDATE_ERROR] Slug: ${routeSlug}`, error);
     return errorHandler(error);
   }
 }
@@ -122,17 +128,20 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
  * Endpoint protegido para realizar un borrado lógico de un producto.
  */
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  let routeSlug = '';
+
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') {
+    if (!isAdminRole(user?.role)) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 
-    const { slug } = params;
+    const { slug } = await params;
+    routeSlug = slug;
     const success = await productService.softDeleteProduct(slug, session.dbId);
 
     if (!success) {
@@ -141,7 +150,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     return successResponse({ message: 'Producto eliminado correctamente (borrado lógico).' });
   } catch (error) {
-    console.error(`[API_ADMIN_PRODUCT_DELETE_ERROR] Slug: ${params.slug}`, error);
+    console.error(`[API_ADMIN_PRODUCT_DELETE_ERROR] Slug: ${routeSlug}`, error);
     return errorHandler(error);
   }
 }

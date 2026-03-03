@@ -8,6 +8,7 @@ import { Inter, Playfair_Display } from 'next/font/google';
 import GlobalComponents from '@/components/GlobalComponents';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import CartSessionBootstrap from '@/components/CartSessionBootstrap';
+import { ReactQueryProvider } from '@/providers/ReactQueryProvider';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://floreriaflorarte.com';
 
@@ -94,13 +95,15 @@ export default function RootLayout({
           enableSystem
           storageKey="florarte-theme"
         >
-          <AuthProvider>
-            <CartProvider>
-                {children}
-                <Toaster position="bottom-left" richColors closeButton expand={false} />
-                <GlobalComponents />
-            </CartProvider>
-          </AuthProvider>
+          <ReactQueryProvider>
+            <AuthProvider>
+              <CartProvider>
+                  {children}
+                  <Toaster position="bottom-left" richColors closeButton expand={false} />
+                  <GlobalComponents />
+              </CartProvider>
+            </AuthProvider>
+          </ReactQueryProvider>
         </ThemeProvider>
       </body>
     </html>

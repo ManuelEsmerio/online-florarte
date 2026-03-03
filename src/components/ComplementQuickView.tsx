@@ -83,6 +83,7 @@ export function ComplementQuickView({
                     alt={complement.name}
                     fill
                     className="object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.3)] dark:drop-shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
+                    sizes="(max-width: 768px) 80vw, 40vw"
                 />
             </div>
           </div>
@@ -128,12 +129,6 @@ export function ComplementQuickView({
         {/* Bottom decorative gradient */}
         <div className="h-1.5 w-full bg-gradient-to-r from-transparent via-primary/30 to-transparent opacity-50" />
       </DialogContent>
-
-      <style jsx global>{`
-        .bg-radial-gradient {
-            background: radial-gradient(circle, var(--tw-gradient-from) 0%, var(--tw-gradient-to) 70%);
-        }
-      `}</style>
     </Dialog>
   );
 }

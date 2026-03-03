@@ -6,17 +6,17 @@ import { getCouponStatus } from '../business-logic/coupon-logic';
 
 // This static data is for the admin panel. 
 // For user-facing coupons, see user-coupon-data.ts
-export const allCoupons: Coupon[] = [
+export const allCoupons: any[] = [
     {
       id: 1,
       code: 'VERANO2024',
       description: '20% de descuento en toda la tienda para la temporada de verano.',
-      discount_type: DiscountType.PERCENTAGE,
+      discount_type: "PERCENTAGE",
       discount_value: 20,
       valid_from: '2024-06-01T00:00:00Z',
       valid_until: '2025-08-31T23:59:59Z',
       status: 'vigente',
-      scope: CouponScope.GLOBAL,
+      scope: "GLOBAL",
       max_uses: 100,
       uses_count: 25,
     },
@@ -24,7 +24,7 @@ export const allCoupons: Coupon[] = [
       id: 2,
       code: 'BIENVENIDA10',
       description: '10% de descuento en tu primera compra.',
-      discount_type: DiscountType.PERCENTAGE,
+      discount_type: "PERCENTAGE",
       discount_value: 10,
       valid_from: '2024-01-01T00:00:00Z',
       valid_until: '2025-12-31T23:59:59Z',

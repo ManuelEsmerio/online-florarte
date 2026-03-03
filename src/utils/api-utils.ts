@@ -39,19 +39,27 @@ export function successResponse(data: any, status: number = 200, res: NextRespon
  * @returns Un objeto NextResponse.
  */
 export function errorHandler(error: any, status: number = 500) {
-  let errorMessage = "Ocurrió un error inesperado.";
-  if (error instanceof Error && error.message && error.message.trim() !== '' && error.message.toLowerCase() !== 'null') {
-      errorMessage = error.message;
-  }
-  
-  const errorCode = error.code || null; // Captura el código de error si existe
+  const defaultMessage = "Ocurrió un error inesperado.";
+  const errorCode = error?.code || null;
+  const internalMessage =
+    error instanceof Error && error.message && error.message.trim() !== '' && error.message.toLowerCase() !== 'null'
+      ? error.message
+      : defaultMessage;
 
-  console.error(`[API Error]: ${errorMessage}`, { status, code: errorCode, errorObj: error });
+  const explicitPublicMessage =
+    typeof error?.publicMessage === 'string' && error.publicMessage.trim() !== ''
+      ? error.publicMessage
+      : null;
+
+  const isClientError = status >= 400 && status < 500;
+  const clientMessage = explicitPublicMessage || (isClientError ? internalMessage : defaultMessage);
+
+  console.error(`[API Error]: ${internalMessage}`, { status, code: errorCode, errorObj: error });
 
   return NextResponse.json({
     success: false,
     data: null,
-    message: errorMessage,
-    errorCode: errorCode,
+    message: clientMessage,
+    errorCode,
   }, { status });
 }

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Suspense, useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ProductCard } from '@/components/ProductCard';
 import type { Product, ProductCategory, Occasion, Announcement, Tag, ProductRow } from '@/lib/definitions';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,6 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { ProductCardSkeleton } from '@/components/ProductCardSkeleton';
-import QuickView from '@/components/QuickView';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,6 +22,9 @@ import { Label } from '@/components/ui/label';
 import { AdCard } from '@/components/AdCard';
 import { Search, Loader2, Filter, SlidersHorizontal, X, LayoutGrid } from 'lucide-react';
 import { handleApiResponse } from '@/utils/handleApiResponse';
+import dynamic from 'next/dynamic';
+
+const QuickView = dynamic(() => import('@/components/QuickView'), { ssr: false });
 import {
   Select,
   SelectContent,
@@ -45,8 +47,19 @@ import { useSearchParams } from 'next/navigation';
 
 
 type SortOption = 'recommended' | 'price-asc' | 'price-desc';
-const PRODUCT_LIMIT = 999; 
+const PRODUCT_LIMIT = 200;
 const ITEMS_PER_PAGE = 16;
+
+type HomeDataCache = {
+  categories: ProductCategory[];
+  occasions: Occasion[];
+  testimonials: any[];
+  announcements: Announcement[];
+  tags: Tag[];
+};
+
+let homeDataMemoryCache: HomeDataCache | null = null;
+let homeDataInFlight: Promise<HomeDataCache> | null = null;
 
 interface CategoryPageClientProps {
   categorySlug?: string | null;
@@ -54,297 +67,42 @@ interface CategoryPageClientProps {
   occasionSlug?: string | null;
 }
 
-export function CategoryPageClient({ 
-    categorySlug,
-    pageType,
-    occasionSlug
-}: CategoryPageClientProps) {
-  
-  const { apiFetch } = useAuth();
-  const searchParams = useSearchParams();
-  const initialOccasionSlug = searchParams.get('occasion');
+interface FiltersContentProps {
+  searchTerm: string;
+  setSearchTerm: (value: string) => void;
+  pageType: 'category' | 'all' | 'occasion';
+  mainCategories: ProductCategory[];
+  selectedCategories: string[];
+  handleCategoryChange: (slug: string) => void;
+  getSubcategories: (id: number) => ProductCategory[];
+  maxPrice: number;
+  priceRange: [number];
+  setPriceRange: (value: [number]) => void;
+  allOccasions: Occasion[];
+  selectedOccasions: string[];
+  handleOccasionChange: (slug: string) => void;
+  allTags: Tag[];
+  selectedTags: string[];
+  handleTagChange: (name: string) => void;
+}
 
-
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [allCategories, setAllCategories] = useState<ProductCategory[]>([]);
-  const [allOccasions, setAllOccasions] = useState<Occasion[]>([]);
-  const [allTags, setAllTags] = useState<Tag[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
-
-  const fetchInitialData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-        let productsUrl = `/api/products?limit=${PRODUCT_LIMIT}`;
-        if (pageType === 'category' && categorySlug) {
-            productsUrl += `&category=${categorySlug}`;
-        }
-        
-        const productsPromise = apiFetch(productsUrl);
-        const homeDataPromise = apiFetch('/api/home');
-
-        const [productsRes, homeDataRes] = await Promise.all([productsPromise, homeDataPromise]);
-        
-        const productsData = await handleApiResponse(productsRes);
-        const homeData = await handleApiResponse(homeDataRes);
-        
-        setAllProducts(productsData.products || []);
-        setAllCategories(homeData.categories || []);
-        setAllOccasions(homeData.occasions || []);
-        setAllTags(homeData.tags || []);
-        setAnnouncements(homeData.announcements || []);
-
-    } catch (error) {
-        console.error("Failed to fetch initial page data:", error);
-    } finally {
-        setIsLoading(false);
-    }
-  }, [pageType, categorySlug, apiFetch]);
-  
-  useEffect(() => {
-    fetchInitialData();
-  }, [fetchInitialData]);
-
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [priceRange, setPriceRange] = useState<[number]>([5000]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedOccasions, setSelectedOccasions] = useState<string[]>(initialOccasionSlug ? [initialOccasionSlug] : []);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [sortOption, setSortOption] = useState<SortOption>('recommended');
-  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
-
-  const { currentCategory, subcategories } = useMemo(() => {
-    let currentCategory: ProductCategory | null = null;
-    if (pageType === 'category' && categorySlug) {
-      currentCategory = allCategories.find(c => c.slug === categorySlug) || null;
-    }
-  
-    const subcategories = currentCategory
-      ? allCategories.filter(c => c.parent_id === currentCategory!.id)
-      : [];
-  
-    return { currentCategory, subcategories };
-  }, [pageType, categorySlug, allCategories]);
-
-  const currentOccasion = useMemo(() => {
-    if (pageType === 'occasion' && (occasionSlug || initialOccasionSlug)) {
-        return allOccasions.find(o => o.slug === (occasionSlug || initialOccasionSlug)) || null;
-    }
-    return null;
-  }, [pageType, occasionSlug, initialOccasionSlug, allOccasions]);
-  
-  const maxPrice = useMemo(() => {
-    if (allProducts.length === 0) return 5000;
-    const allPrices = allProducts.flatMap(p => 
-      p.has_variants && p.variants ? p.variants.map(v => v.price) : [p.price]
-    );
-    return Math.ceil(Math.max(...allPrices, 0) / 100) * 100;
-  }, [allProducts]);
-
-  useEffect(() => {
-    setPriceRange([maxPrice]);
-    setSelectedCategories([]);
-    setSelectedOccasions(initialOccasionSlug ? [initialOccasionSlug] : []);
-    setSelectedTags([]);
-    setVisibleCount(ITEMS_PER_PAGE); // Reset count on category change
-  }, [maxPrice, currentCategory, subcategories, pageType, currentOccasion, initialOccasionSlug]);
-  
-  const filteredClientProducts = useMemo(() => {
-    let filtered = allProducts.filter(product => {
-        const searchMatch =
-            product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            product.code.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        const productPrice =
-            product.sale_price ??
-            product.variants?.[0]?.sale_price ??
-            product.variants?.[0]?.price ??
-            product.price;
-        
-        const priceMatch = productPrice <= priceRange[0];
-
-        let categoryMatch = true;
-        if (pageType === 'all') {
-            categoryMatch = selectedCategories.length === 0 || selectedCategories.includes(product.category.slug);
-        } else if (pageType === 'category' && currentCategory) {
-            const isFilteringSubcategories = selectedCategories.length > 0;
-            if(isFilteringSubcategories) {
-                categoryMatch = selectedCategories.includes(product.category.slug);
-            } else {
-                const descendantSlugs = allCategories.filter(c => c.parent_id === currentCategory.id).map(c => c.slug);
-                categoryMatch = product.category.slug === currentCategory.slug || descendantSlugs.includes(product.category.slug);
-            }
-        }
-        
-        const occasionMatch = selectedOccasions.length === 0 || product.occasions?.some(occ => selectedOccasions.includes(occ.slug));
-        const tagMatch = selectedTags.length === 0 || product.tags?.some(tag => selectedTags.includes(tag.name));
-
-        let initialOccasionMatch = true;
-        if(pageType === 'occasion' && currentOccasion) {
-            initialOccasionMatch = product.occasions?.some(o => o.id === currentOccasion.id) || false;
-        }
-
-        return searchMatch && priceMatch && categoryMatch && occasionMatch && tagMatch && initialOccasionMatch;
-    });
-
-    const sorted = [...filtered].sort((a, b) => {
-        const priceA = a.sale_price ?? (a.variants?.[0]?.sale_price ?? a.variants?.[0]?.price ?? a.price);
-        const priceB = b.sale_price ?? (b.variants?.[0]?.sale_price ?? b.variants?.[0]?.price ?? b.price);
-
-        switch (sortOption) {
-            case 'price-asc':
-                return priceA - priceB;
-            case 'price-desc':
-                return priceB - priceA;
-            case 'recommended':
-            default:
-                const isARecommended = a.tags?.some(t => t.name === 'más vendido');
-                const isBRecommended = b.tags?.some(t => t.name === 'más vendido');
-                if (isARecommended && !isBRecommended) return -1;
-                if (!isARecommended && isBRecommended) return 1;
-                return 0; 
-        }
-    });
-
-    return sorted;
-  }, [searchTerm, priceRange, selectedCategories, selectedOccasions, selectedTags, sortOption, allProducts, allCategories, pageType, currentCategory, currentOccasion]);
-
-  // Reset count when filters change
-  useEffect(() => {
-    setVisibleCount(ITEMS_PER_PAGE);
-  }, [searchTerm, selectedCategories, selectedOccasions, selectedTags, priceRange, sortOption]);
-
-  const displayedProducts = useMemo(() => {
-    return filteredClientProducts.slice(0, visibleCount);
-  }, [filteredClientProducts, visibleCount]);
-
-  const hasMore = visibleCount < filteredClientProducts.length;
-
-  const handleLoadMore = () => {
-    setVisibleCount(prev => prev + ITEMS_PER_PAGE);
-  };
-
-  const handleCategoryChange = (slug: string) => {
-    setSelectedCategories(prev => {
-        let newSelection = new Set(prev);
-        const categoryClicked = allCategories.find(c => c.slug === slug);
-        if (!categoryClicked) return Array.from(newSelection);
-
-        const isParent = !categoryClicked.parent_id;
-        const isCurrentlySelected = newSelection.has(slug);
-
-        if (isCurrentlySelected) {
-            newSelection.delete(slug);
-            if (isParent) {
-                const children = allCategories.filter(c => c.parent_id === categoryClicked.id);
-                children.forEach(child => newSelection.delete(child.slug));
-            } else {
-                const parent = allCategories.find(c => c.id === categoryClicked.parent_id);
-                if (parent) newSelection.delete(parent.slug);
-            }
-        } else {
-            newSelection.add(slug);
-            if (isParent) {
-                const children = allCategories.filter(c => c.parent_id === categoryClicked.id);
-                children.forEach(child => newSelection.add(child.slug));
-            } else {
-                const parent = allCategories.find(c => c.id === categoryClicked.parent_id);
-                if (parent) {
-                    const siblings = allCategories.filter(c => c.parent_id === parent.id);
-                    const allSiblingsSelected = siblings.every(sibling => newSelection.has(sibling.slug));
-                    if (allSiblingsSelected) newSelection.add(parent.slug);
-                }
-            }
-        }
-        return Array.from(newSelection);
-    });
-  };
-
-  const handleOccasionChange = (slug: string) => {
-    setSelectedOccasions(prev => {
-        const newSelection = prev.includes(slug) ? prev.filter(s => s !== slug) : [...prev, slug];
-        return newSelection;
-    });
-  };
-
-  const handleTagChange = (name: string) => {
-      setSelectedTags(prev => {
-        const newSelection = prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name];
-        return newSelection;
-      });
-  };
-
-  const itemsWithAds = useMemo(() => {
-    if (announcements.length === 0) {
-      return displayedProducts;
-    }
-  
-    const shuffledAds = [...announcements].sort(() => 0.5 - Math.random());
-    const items: (Product | { isAd: true; adDetails: any })[] = [];
-    let adIndex = 0;
-    
-    for (let i = 0; i < displayedProducts.length; i++) {
-      items.push(displayedProducts[i]);
-      
-      if ((i + 1) % 8 === 0 && adIndex < shuffledAds.length) {
-        const ad = shuffledAds[adIndex];
-        items.push({ 
-          isAd: true, 
-          adDetails: { ...ad, size: 'double' } 
-        });
-        adIndex++;
-      }
-    }
-    
-    return items;
-  }, [displayedProducts, announcements]);
-
-
-  const handleQuickViewOpen = (product: ProductRow) => {
-    setSelectedProduct(product);
-    setIsQuickViewOpen(true);
-  };
-
-  const mainCategories = useMemo(() => {
-    return allCategories.filter(c => !c.parent_id);
-  }, [allCategories]);
-
-  const getSubcategories = (parentId: number) => allCategories.filter(c => c.parent_id === parentId);
-
-  const { pageTitle, pageDescription } = useMemo(() => {
-    if (pageType === 'category' && currentCategory) {
-      return {
-        pageTitle: currentCategory.name,
-        pageDescription: currentCategory.description
-      }
-    }
-    if (pageType === 'occasion' && currentOccasion) {
-      return {
-        pageTitle: `Ocasión: ${currentOccasion.name}`,
-        pageDescription: currentOccasion.description
-      }
-    }
-    return {
-      pageTitle: 'Todos los Productos',
-      pageDescription: 'Descubre toda la magia floral en un solo lugar. Explora nuestra colección completa de flores y detalles.'
-    }
-  }, [pageType, currentCategory, currentOccasion]);
-
-  const FiltersContent = () => (
+const FiltersContent = ({
+  searchTerm, setSearchTerm, pageType, mainCategories, selectedCategories,
+  handleCategoryChange, getSubcategories, maxPrice, priceRange, setPriceRange,
+  allOccasions, selectedOccasions, handleOccasionChange, allTags, selectedTags,
+  handleTagChange,
+}: FiltersContentProps) => (
     <div className="space-y-8">
         <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
+            <Input
                 placeholder="Buscar por nombre..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 h-12 rounded-xl"
             />
         </div>
-      
+
         {pageType === 'all' && (
             <div className="space-y-4">
                 <h3 className="font-bold uppercase text-muted-foreground text-xs tracking-widest">Categoría</h3>
@@ -415,7 +173,387 @@ export function CategoryPageClient({
             </div>
         </div>
     </div>
-  );
+);
+
+const getParentCategoryId = (category: any): number | null => {
+  const rawParentId = category?.parent_id ?? category?.parentId ?? null;
+  if (rawParentId == null) return null;
+
+  const parsed = Number(rawParentId);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normalizeCategory = (category: any): any => {
+  const parentId = getParentCategoryId(category);
+  return {
+    ...category,
+    parentId,
+    parent_id: parentId,
+    image_url: category?.image_url ?? category?.imageUrl ?? null,
+    imageUrl: category?.imageUrl ?? category?.image_url ?? null,
+    show_on_home: category?.show_on_home ?? category?.showOnHome ?? false,
+    showOnHome: category?.showOnHome ?? category?.show_on_home ?? false,
+  };
+};
+
+const CategoryPageFallback = () => (
+  <div className="container mx-auto px-4 py-12">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-8">
+      {Array.from({ length: 8 }).map((_, index) => (
+        <ProductCardSkeleton key={`category-fallback-${index}`} />
+      ))}
+    </div>
+  </div>
+);
+
+function CategoryPageClientContent({ 
+    categorySlug,
+    pageType,
+    occasionSlug
+}: CategoryPageClientProps) {
+  
+  const { apiFetch } = useAuth();
+  const searchParams = useSearchParams();
+  const initialOccasionSlug = searchParams.get('occasion');
+
+
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [allCategories, setAllCategories] = useState<ProductCategory[]>([]);
+  const [allOccasions, setAllOccasions] = useState<Occasion[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
+  const isFetched = useRef(false);
+
+  const fetchInitialData = useCallback(async () => {
+    if (isFetched.current) return;
+    isFetched.current = true;
+    
+    setIsLoading(true);
+    try {
+        let productsUrl = `/api/products?limit=${PRODUCT_LIMIT}`;
+        if (pageType === 'category' && categorySlug) {
+            productsUrl += `&category=${categorySlug}`;
+        }
+        
+        const productsPromise = apiFetch(productsUrl);
+        const cachedHomeData = homeDataMemoryCache;
+        let homeDataPromise: Promise<HomeDataCache>;
+
+        if (cachedHomeData) {
+          homeDataPromise = Promise.resolve(cachedHomeData);
+        } else {
+          if (!homeDataInFlight) {
+            homeDataInFlight = (async () => {
+              const homeDataRes = await apiFetch('/api/home');
+              const homeData = await handleApiResponse(homeDataRes);
+
+              return {
+                categories: homeData.categories || [],
+                occasions: homeData.occasions || [],
+                testimonials: homeData.testimonials || [],
+                announcements: homeData.announcements || [],
+                tags: homeData.tags || [],
+              } as HomeDataCache;
+            })();
+          }
+
+          homeDataPromise = homeDataInFlight;
+        }
+
+        const [productsRes, homeData] = await Promise.all([productsPromise, homeDataPromise]);
+        
+        const productsData = await handleApiResponse(productsRes);
+        if (!cachedHomeData) {
+          homeDataMemoryCache = homeData;
+          homeDataInFlight = null;
+        }
+        
+        setAllProducts(productsData.products || []);
+        setAllCategories((homeData.categories || []).map((category: any) => normalizeCategory(category)));
+        setAllOccasions(homeData.occasions || []);
+        setAllTags(homeData.tags || []);
+        setAnnouncements(homeData.announcements || []);
+
+    } catch (error) {
+      homeDataInFlight = null;
+        console.error("Failed to fetch initial page data:", error);
+    } finally {
+        setIsLoading(false);
+    }
+  }, [pageType, categorySlug, apiFetch]);
+  
+  useEffect(() => {
+    // Reset fetched status if category slug changes
+    isFetched.current = false;
+  }, [categorySlug]);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
+
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [priceRange, setPriceRange] = useState<[number]>([5000]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedOccasions, setSelectedOccasions] = useState<string[]>(initialOccasionSlug ? [initialOccasionSlug] : []);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [sortOption, setSortOption] = useState<SortOption>('recommended');
+  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
+
+  const { currentCategory, subcategories } = useMemo(() => {
+    let currentCategory: ProductCategory | null = null;
+    if (pageType === 'category' && categorySlug) {
+      currentCategory = allCategories.find(c => c.slug === categorySlug) || null;
+    }
+  
+    const subcategories = currentCategory
+      ? allCategories.filter(c => getParentCategoryId(c) === currentCategory!.id)
+      : [];
+  
+    return { currentCategory, subcategories };
+  }, [pageType, categorySlug, allCategories]);
+
+  const currentOccasion = useMemo(() => {
+    if (pageType === 'occasion' && (occasionSlug || initialOccasionSlug)) {
+        return allOccasions.find(o => o.slug === (occasionSlug || initialOccasionSlug)) || null;
+    }
+    return null;
+  }, [pageType, occasionSlug, initialOccasionSlug, allOccasions]);
+  
+  const maxPrice = useMemo(() => {
+    if (allProducts.length === 0) return 5000;
+    const allPrices = allProducts.flatMap(p =>
+      p.has_variants && p.variants ? p.variants.map(v => v.price) : [p.price]
+    );
+    return Math.ceil(Math.max(...allPrices, 0) / 100) * 100;
+  }, [allProducts]);
+
+  // Expand products-with-variants so each variant becomes its own catalog entry.
+  const expandedProducts = useMemo(() => {
+    const result: any[] = [];
+    for (const product of allProducts) {
+      if (product.has_variants && product.variants && product.variants.length > 0) {
+        for (const variant of product.variants) {
+          const imgs = (variant as any).images as any[] | undefined;
+          const variantImg =
+            imgs?.find((img: any) => img.isPrimary)?.src ??
+            imgs?.[0]?.src ??
+            (product as any).image ??
+            null;
+          result.push({
+            ...product,
+            _cardKey: `${product.id}-${variant.id}`,
+            variantId: variant.id,
+            variantName: variant.name,
+            variantProductName: (variant as any).product_name ?? (variant as any).productName ?? product.name,
+            price: variant.price,
+            sale_price: (variant as any).sale_price ?? null,
+            salePrice: (variant as any).salePrice ?? null,
+            image: variantImg,
+            mainImage: variantImg,
+            stock: variant.stock,
+            variants: [variant],
+          });
+        }
+      } else {
+        result.push({ ...product, _cardKey: String(product.id) });
+      }
+    }
+    return result;
+  }, [allProducts]);
+
+  useEffect(() => {
+    setPriceRange([maxPrice]);
+    setSelectedCategories([]);
+    setSelectedOccasions(initialOccasionSlug ? [initialOccasionSlug] : []);
+    setSelectedTags([]);
+    setVisibleCount(ITEMS_PER_PAGE); // Reset count on category change
+  }, [maxPrice, currentCategory, subcategories, pageType, currentOccasion, initialOccasionSlug]);
+  
+  const filteredClientProducts = useMemo(() => {
+    let filtered = expandedProducts.filter((product: any) => {
+        const searchMatch =
+            product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            product.code.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        const productPrice =
+            product.sale_price ??
+            product.variants?.[0]?.sale_price ??
+            product.variants?.[0]?.price ??
+            product.price;
+        
+        const priceMatch = productPrice <= priceRange[0];
+
+        let categoryMatch = true;
+        if (pageType === 'all') {
+            categoryMatch = selectedCategories.length === 0 || selectedCategories.includes(product.category.slug);
+        } else if (pageType === 'category' && currentCategory) {
+            const isFilteringSubcategories = selectedCategories.length > 0;
+            if(isFilteringSubcategories) {
+                categoryMatch = selectedCategories.includes(product.category.slug);
+            } else {
+              const descendantSlugs = allCategories.filter(c => getParentCategoryId(c) === currentCategory.id).map(c => c.slug);
+                categoryMatch = product.category.slug === currentCategory.slug || descendantSlugs.includes(product.category.slug);
+            }
+        }
+        
+        const occasionMatch = selectedOccasions.length === 0 || product.occasions?.some(occ => selectedOccasions.includes(occ.slug));
+        const tagMatch = selectedTags.length === 0 || product.tags?.some(tag => selectedTags.includes(tag.name));
+
+        let initialOccasionMatch = true;
+        if(pageType === 'occasion' && currentOccasion) {
+            initialOccasionMatch = product.occasions?.some(o => o.id === currentOccasion.id) || false;
+        }
+
+        return searchMatch && priceMatch && categoryMatch && occasionMatch && tagMatch && initialOccasionMatch;
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+        const priceA = a.sale_price ?? (a.variants?.[0]?.sale_price ?? a.variants?.[0]?.price ?? a.price);
+        const priceB = b.sale_price ?? (b.variants?.[0]?.sale_price ?? b.variants?.[0]?.price ?? b.price);
+
+        switch (sortOption) {
+            case 'price-asc':
+                return priceA - priceB;
+            case 'price-desc':
+                return priceB - priceA;
+            case 'recommended':
+            default:
+                const isARecommended = a.tags?.some(t => t.name === 'más vendido');
+                const isBRecommended = b.tags?.some(t => t.name === 'más vendido');
+                if (isARecommended && !isBRecommended) return -1;
+                if (!isARecommended && isBRecommended) return 1;
+                return 0; 
+        }
+    });
+
+    return sorted;
+  }, [searchTerm, priceRange, selectedCategories, selectedOccasions, selectedTags, sortOption, expandedProducts, allCategories, pageType, currentCategory, currentOccasion]);
+
+  // Reset count when filters change
+  useEffect(() => {
+    setVisibleCount(ITEMS_PER_PAGE);
+  }, [searchTerm, selectedCategories, selectedOccasions, selectedTags, priceRange, sortOption]);
+
+  const displayedProducts = useMemo(() => {
+    return filteredClientProducts.slice(0, visibleCount);
+  }, [filteredClientProducts, visibleCount]);
+
+  const hasMore = visibleCount < filteredClientProducts.length;
+
+  const handleLoadMore = () => {
+    setVisibleCount(prev => prev + ITEMS_PER_PAGE);
+  };
+
+  const handleCategoryChange = (slug: string) => {
+    setSelectedCategories(prev => {
+        let newSelection = new Set(prev);
+        const categoryClicked = allCategories.find(c => c.slug === slug);
+        if (!categoryClicked) return Array.from(newSelection);
+
+        const categoryClickedParentId = getParentCategoryId(categoryClicked);
+        const isParent = categoryClickedParentId == null;
+        const isCurrentlySelected = newSelection.has(slug);
+
+        if (isCurrentlySelected) {
+            newSelection.delete(slug);
+            if (isParent) {
+            const children = allCategories.filter(c => getParentCategoryId(c) === categoryClicked.id);
+                children.forEach(child => newSelection.delete(child.slug));
+            } else {
+            const parent = allCategories.find(c => c.id === categoryClickedParentId);
+                if (parent) newSelection.delete(parent.slug);
+            }
+        } else {
+            newSelection.add(slug);
+            if (isParent) {
+            const children = allCategories.filter(c => getParentCategoryId(c) === categoryClicked.id);
+                children.forEach(child => newSelection.add(child.slug));
+            } else {
+            const parent = allCategories.find(c => c.id === categoryClickedParentId);
+                if (parent) {
+              const siblings = allCategories.filter(c => getParentCategoryId(c) === parent.id);
+                    const allSiblingsSelected = siblings.every(sibling => newSelection.has(sibling.slug));
+                    if (allSiblingsSelected) newSelection.add(parent.slug);
+                }
+            }
+        }
+        return Array.from(newSelection);
+    });
+  };
+
+  const handleOccasionChange = (slug: string) => {
+    setSelectedOccasions(prev => {
+        const newSelection = prev.includes(slug) ? prev.filter(s => s !== slug) : [...prev, slug];
+        return newSelection;
+    });
+  };
+
+  const handleTagChange = (name: string) => {
+      setSelectedTags(prev => {
+        const newSelection = prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name];
+        return newSelection;
+      });
+  };
+
+  const itemsWithAds = useMemo(() => {
+    if (announcements.length === 0) {
+      return displayedProducts;
+    }
+  
+    const shuffledAds = [...announcements].sort(() => 0.5 - Math.random());
+    const items: (Product | { isAd: true; adDetails: any })[] = [];
+    let adIndex = 0;
+    
+    for (let i = 0; i < displayedProducts.length; i++) {
+      items.push(displayedProducts[i]);
+      
+      if ((i + 1) % 8 === 0 && adIndex < shuffledAds.length) {
+        const ad = shuffledAds[adIndex];
+        items.push({ 
+          isAd: true, 
+          adDetails: { ...ad, size: 'double' } 
+        });
+        adIndex++;
+      }
+    }
+    
+    return items;
+  }, [displayedProducts, announcements]);
+
+
+  const handleQuickViewOpen = (product: ProductRow) => {
+    setSelectedProduct(product);
+    setIsQuickViewOpen(true);
+  };
+
+  const mainCategories = useMemo(() => {
+    return allCategories.filter(c => getParentCategoryId(c) == null);
+  }, [allCategories]);
+
+  const getSubcategories = (parentId: number) => allCategories.filter(c => getParentCategoryId(c) === parentId);
+
+  const { pageTitle, pageDescription } = useMemo(() => {
+    if (pageType === 'category' && currentCategory) {
+      return {
+        pageTitle: currentCategory.name,
+        pageDescription: currentCategory.description
+      }
+    }
+    if (pageType === 'occasion' && currentOccasion) {
+      return {
+        pageTitle: `Ocasión: ${currentOccasion.name}`,
+        pageDescription: currentOccasion.description
+      }
+    }
+    return {
+      pageTitle: 'Todos los Productos',
+      pageDescription: 'Descubre toda la magia floral en un solo lugar. Explora nuestra colección completa de flores y detalles.'
+    }
+  }, [pageType, currentCategory, currentOccasion]);
 
   return (
     <>
@@ -479,7 +617,24 @@ export function CategoryPageClient({
                             </SheetTitle>
                         </SheetHeader>
                         <div className="flex-grow overflow-y-auto px-6 py-8">
-                            <FiltersContent />
+                            <FiltersContent
+                                searchTerm={searchTerm}
+                                setSearchTerm={setSearchTerm}
+                                pageType={pageType}
+                                mainCategories={mainCategories}
+                                selectedCategories={selectedCategories}
+                                handleCategoryChange={handleCategoryChange}
+                                getSubcategories={getSubcategories}
+                                maxPrice={maxPrice}
+                                priceRange={priceRange}
+                                setPriceRange={setPriceRange}
+                                allOccasions={allOccasions}
+                                selectedOccasions={selectedOccasions}
+                                handleOccasionChange={handleOccasionChange}
+                                allTags={allTags}
+                                selectedTags={selectedTags}
+                                handleTagChange={handleTagChange}
+                            />
                         </div>
                         <SheetFooter className="p-6 border-t mt-auto">
                             <SheetClose asChild>
@@ -506,9 +661,9 @@ export function CategoryPageClient({
                         'isAd' in item && item.isAd ? (
                             <AdCard key={`ad-${index}`} ad={item.adDetails} className="hidden lg:flex" />
                         ) : 'slug' in item ? (
-                            <ProductCard 
-                            key={item.id} 
-                            product={item as any} 
+                            <ProductCard
+                            key={(item as any)._cardKey ?? item.id}
+                            product={item as any}
                             index={index}
                             onQuickViewOpen={handleQuickViewOpen}
                             variant="compact"
@@ -551,5 +706,13 @@ export function CategoryPageClient({
         />
       )}
     </>
+  );
+}
+
+export function CategoryPageClient(props: CategoryPageClientProps) {
+  return (
+    <Suspense fallback={<CategoryPageFallback />}>
+      <CategoryPageClientContent {...props} />
+    </Suspense>
   );
 }

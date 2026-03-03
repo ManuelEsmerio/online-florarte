@@ -21,7 +21,12 @@ import { CalendarIcon, Flower2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DeliveryDateModal } from './DeliveryDateModal';
 
-export function ShippingDateSelector() {
+interface ShippingDateSelectorProps {
+    disableNavigation?: boolean;
+    className?: string;
+}
+
+export function ShippingDateSelector({ disableNavigation = false, className }: ShippingDateSelectorProps = {}) {
     const { toast } = useToast();
     const router = useRouter();
     const { shippingZones, loading: authLoading } = useAuth();
@@ -64,6 +69,7 @@ export function ShippingDateSelector() {
     }
 
     const handleViewGifts = () => {
+        if (disableNavigation) return;
         if (!city || !deliveryDate) {
             toast({
                 variant: 'info',
@@ -88,7 +94,7 @@ export function ShippingDateSelector() {
     }, [deliveryDate, mounted]);
     
     return (
-        <div className="container mx-auto px-4">
+        <div className={cn('container mx-auto px-4', className)}>
             <div className="group bg-card p-5 md:p-8 rounded-[2rem] shadow-2xl border border-border/50 relative z-20 transition-all duration-300 overflow-hidden">
                 {/* Decoración de Flor en la parte superior con animación */}
                 <div className="absolute top-4 right-4 opacity-50 pointer-events-none -z-10 transition-transform duration-700 group-hover:rotate-12 group-hover:scale-110">
@@ -98,13 +104,13 @@ export function ShippingDateSelector() {
                 <p className="font-headline text-lg md:text-xl font-bold mb-4 md:mb-6 text-foreground text-center md:text-left relative z-10">¿A dónde quieres enviar?</p>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 items-end relative z-10">
                     <div className="space-y-1.5 md:col-span-1">
-                        <Label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Estado</Label>
+                        <Label htmlFor="state" className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Estado</Label>
                         <Input id="state" value="Jalisco" disabled className="h-11 md:h-12 rounded-xl bg-muted/30 border-none !transition-none !duration-0" />
                     </div>
                     <div className="space-y-1.5 md:col-span-1">
-                        <Label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Ciudad</Label>
+                        <Label htmlFor="city-select" className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Ciudad</Label>
                          <Select value={city} onValueChange={handleCityChange}>
-                            <SelectTrigger className="h-11 md:h-12 rounded-xl bg-muted/30 border-none !transition-none !duration-0 focus:ring-primary/20">
+                            <SelectTrigger id="city-select" className="h-11 md:h-12 rounded-xl bg-muted/30 border-none !transition-none !duration-0 focus:ring-primary/20">
                                 <SelectValue placeholder="Selecciona una ciudad" />
                             </SelectTrigger>
                             <SelectContent>
@@ -112,7 +118,7 @@ export function ShippingDateSelector() {
                                     <SelectItem key="loading-city" value="loading" disabled>Cargando...</SelectItem>
                                 ) : (
                                     localities.map(zone => (
-                                        <SelectItem key={zone.postalCode || zone.locality} value={zone.locality}>
+                                        <SelectItem key={`${zone.postalCode}-${zone.locality}`} value={zone.locality}>
                                             {zone.locality}
                                         </SelectItem>
                                     ))
@@ -121,8 +127,9 @@ export function ShippingDateSelector() {
                         </Select>
                     </div>
                     <div className="space-y-1.5 md:col-span-1">
-                        <Label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Fecha de envío</Label>
+                        <Label htmlFor="shipping-date" className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Fecha de envío</Label>
                         <Button
+                            id="shipping-date"
                             variant={'ghost'}
                             className={cn(
                                 'w-full h-11 md:h-12 justify-start text-left font-normal rounded-xl bg-muted/30 border-none !transition-none !duration-0 hover:bg-muted/50 hover:text-foreground',
@@ -134,7 +141,11 @@ export function ShippingDateSelector() {
                             <span className="truncate text-sm">{formattedDate}</span>
                         </Button>
                     </div>
-                    <Button onClick={handleViewGifts} className="w-full h-12 md:w-auto md:col-span-1 rounded-xl font-bold text-lg shadow-lg shadow-primary/20 !transition-none !duration-0 mt-2 md:mt-0 active:scale-95 transition-transform">
+                    <Button
+                        onClick={handleViewGifts}
+                        disabled={disableNavigation}
+                        className="w-full h-12 md:w-auto md:col-span-1 rounded-xl font-bold text-lg shadow-lg shadow-primary/20 !transition-none !duration-0 mt-2 md:mt-0 active:scale-95 transition-transform"
+                    >
                         Ver regalos
                     </Button>
                 </div>

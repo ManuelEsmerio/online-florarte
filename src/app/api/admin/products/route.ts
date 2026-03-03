@@ -1,7 +1,7 @@
 // src/app/api/admin/products/route.ts
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
-import { getDecodedToken, UserSession } from '@/utils/auth';
+import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
 import { productService } from '@/services/productService';
 import { ZodError } from 'zod';
@@ -14,6 +14,9 @@ import { ZodError } from 'zod';
  */
 export async function GET(req: NextRequest) {
   try {
+    const includeMetaParam = req.nextUrl.searchParams.get('includeMeta');
+    const includeMeta = includeMetaParam == null ? true : includeMetaParam !== 'false' && includeMetaParam !== '0';
+
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado. Se requiere autenticación.'), 401);
@@ -21,11 +24,11 @@ export async function GET(req: NextRequest) {
     
     // Verificar que el usuario sea administrador
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') {
+    if (!isAdminRole(user?.role)) {
       return errorHandler(new Error('Acceso prohibido. No tienes permisos de administrador.'), 403);
     }
 
-    const adminProductData = await productService.getAdminProductList();
+    const adminProductData = await productService.getAdminProductList(includeMeta);
     // Filtramos para devolver solo los que no están eliminados lógicamente
     const activeProducts = adminProductData.products.filter(p => !p.is_deleted);
 
@@ -53,7 +56,7 @@ export async function POST(req: NextRequest) {
             return errorHandler(new Error('Acceso denegado.'), 401);
         }
         const user = await userService.getUserById(session.dbId);
-        if (user?.role !== 'admin') {
+        if (!isAdminRole(user?.role)) {
             return errorHandler(new Error('Acceso prohibido.'), 403);
         }
 
@@ -117,7 +120,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') {
+    if (!isAdminRole(user?.role)) {
       return errorHandler(new Error('Acceso prohibido. No tienes permisos de administrador.'), 403);
     }
 
@@ -149,7 +152,7 @@ export async function DELETE(req: NextRequest) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
     const user = await userService.getUserById(session.dbId);
-    if (user?.role !== 'admin') {
+    if (!isAdminRole(user?.role)) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 

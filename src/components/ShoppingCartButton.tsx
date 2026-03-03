@@ -46,7 +46,7 @@ const ShoppingCartButton = () => {
     return (
         <Sheet open={isCartOpen} onOpenChange={setCartOpen}>
             <SheetTrigger asChild>
-                 <Button variant="ghost" size="icon" aria-label="Shopping Cart" className="relative h-10 w-10 md:h-11 md:w-11">
+                 <Button variant="ghost" size="icon" aria-label="Shopping Cart" className="relative h-10 w-10 md:h-11 md:w-11 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary dark:hover:text-white rounded-xl">
                     <ShoppingBag className="h-5 w-5 md:h-6 md:w-6" />
                     {isClient && cartItemCount > 0 && (
                         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground animate-in fade-in zoom-in">
@@ -73,7 +73,7 @@ const ShoppingCartButton = () => {
                 </div>
 
                 {/* Items List */}
-                <div className="flex-1 overflow-y-auto px-8 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto px-8 custom-scrollbar custom-scrollbar--muted">
                     {isLoading && cart.length === 0 ? (
                         <div className="space-y-8 py-4">
                             {Array.from({ length: 3 }).map((_, i) => <CartItemSkeleton key={i} />)}
@@ -87,11 +87,12 @@ const ShoppingCartButton = () => {
                                 return (
                                     <div key={item.cartItemId} className="flex gap-4 group animate-fade-in-up">
                                         <div className="w-24 h-24 flex-shrink-0 bg-slate-50 dark:bg-zinc-900 rounded-lg overflow-hidden border border-slate-100 dark:border-zinc-800 relative">
-                                            <Image 
-                                                src={item.image || '/placehold.webp'} 
-                                                alt={item.name} 
+                                            <Image
+                                                src={item.image || '/placehold.webp'}
+                                                alt={item.name}
                                                 fill
                                                 className="object-cover"
+                                                sizes="96px"
                                             />
                                         </div>
                                         <div className="flex flex-col flex-1">
@@ -180,7 +181,7 @@ const ShoppingCartButton = () => {
                             disabled={cartItemCount === 0}
                         >
                             {cartItemCount > 0 ? (
-                                <Link href="/checkout" onClick={() => setCartOpen(false)}>Finalizar Compra</Link>
+                                <Link href="/cart" onClick={() => setCartOpen(false)}>Finalizar Compra</Link>
                             ) : (
                                 <span>Finalizar Compra</span>
                             )}
@@ -195,22 +196,6 @@ const ShoppingCartButton = () => {
                     </div>
                 </div>
             </SheetContent>
-
-            <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 4px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: transparent;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #e2e8f0;
-                    border-radius: 10px;
-                }
-                .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #333;
-                }
-            `}</style>
         </Sheet>
     );
 }

@@ -1,20 +1,20 @@
 
 'use client';
 
-import { User, columns } from './columns';
+import { columns } from './columns';
+import type { User } from '@/lib/definitions';
 import { DataTable } from '@/components/ui/data-table/data-table';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { CustomerForm } from './customer-form';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/context/AuthContext';
-import { 
-  useReactTable, 
-  getCoreRowModel, 
-  getFilteredRowModel, 
-  getPaginationRowModel, 
-  getSortedRowModel, 
+import {
+  useReactTable,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
   ColumnFiltersState,
   SortingState,
   VisibilityState,
@@ -24,12 +24,10 @@ import { DataTableToolbar } from './customer-table-toolbar';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { CustomerDetailModal } from './customer-detail-modal';
-import { userService } from '@/services/userService';
 
 export default function CustomersPage() {
   const { toast } = useToast();
-  const { allUsers } = useAuth();
-  
+
   const [users, setUsers] = useState<User[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -39,92 +37,74 @@ export default function CustomersPage() {
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [isSendingCredentialsFor, setIsSendingCredentialsFor] = useState<number | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  
+
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
-    { id: 'is_deleted', value: 'active' }
+    { id: 'isDeleted', value: 'active' }
   ]);
   const [searchTerm, setSearchTerm] = useState('');
 
   const loadUsers = useCallback(async () => {
-      setIsLoading(true);
-      try {
-          const data = await userService.getAllUsersForAdmin({
-              status: 'all',
-              searchTerm: '',
-              roles: []
-          });
-          setUsers(data);
-      } catch (error) {
-          console.error("Error loading users:", error);
-      } finally {
-          setIsLoading(false);
-      }
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/admin/users?status=all');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al cargar usuarios');
+      setUsers(json.data ?? []);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     loadUsers();
-  }, [loadUsers, allUsers]);
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAddUser = () => {
     setSelectedUser(null);
-     setTimeout(() => {
-      setIsFormOpen(true);
-    }, 100);
+    setTimeout(() => setIsFormOpen(true), 100);
   };
 
-  const handleEditUser = async (user: User) => {
-    setIsLoading(true);
-    try {
-        const fullUser = await userService.getUserById(user.id);
-        setSelectedUser(fullUser);
-        setIsFormOpen(true);
-    } catch (e) {
-        toast({ title: "Error", description: "No se pudieron obtener los datos del usuario.", variant: "destructive" });
-    } finally {
-        setIsLoading(false);
-    }
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    setIsFormOpen(true);
   };
 
-  const handleViewDetails = async (user: User) => {
-    setIsLoading(true);
-    try {
-        const fullUser = await userService.getUserById(user.id);
-        setSelectedUser(fullUser);
-        setIsDetailModalOpen(true);
-    } catch (e) {
-        toast({ title: "Error", description: "No se pudieron obtener los detalles.", variant: "destructive" });
-    } finally {
-        setIsLoading(false);
-    }
+  const handleViewDetails = (user: User) => {
+    setSelectedUser(user);
+    setIsDetailModalOpen(true);
   };
 
   const handleDeleteUser = async (id: number) => {
     setIsDeletingId(id);
     try {
-        await userService.deleteUser(id);
-        toast({ title: '¡Usuario Eliminado!', description: 'El usuario ha sido desactivado del sistema.', variant: 'success' });
-        await loadUsers();
+      const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar usuario');
+      toast({ title: '¡Usuario Eliminado!', description: 'El usuario ha sido desactivado del sistema.', variant: 'success' });
+      await loadUsers();
     } catch (error: any) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
-        setIsDeletingId(null);
+      setIsDeletingId(null);
     }
   };
-  
+
   const handleSendCredentials = async (user: User) => {
     setIsSendingCredentialsFor(user.id);
     await new Promise(resolve => setTimeout(resolve, 1000));
     toast({
-        title: '¡Enlace Enviado!',
-        description: `Se ha enviado un correo para restablecer la contraseña a ${user.email}.`,
-        variant: 'success'
+      title: '¡Enlace Enviado!',
+      description: `Se ha enviado un correo para restablecer la contraseña a ${user.email}.`,
+      variant: 'success'
     });
     setIsSendingCredentialsFor(null);
-  }
+  };
 
   const tableColumns = useMemo(() => columns({
     onEdit: handleEditUser,
@@ -133,7 +113,7 @@ export default function CustomersPage() {
     onSendCredentials: handleSendCredentials,
     isSendingCredentialsFor,
     isDeletingId,
-  }), [isSendingCredentialsFor, isDeletingId, handleEditUser, handleDeleteUser]);
+  }), [isSendingCredentialsFor, isDeletingId]);
 
   const table = useReactTable({
     data: users,
@@ -146,7 +126,7 @@ export default function CustomersPage() {
     onColumnFiltersChange: setColumnFilters,
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
-    enableRowSelection: (row) => !row.original.is_deleted,
+    enableRowSelection: (row) => !row.original.isDeleted,
     state: {
       sorting,
       rowSelection,
@@ -159,48 +139,64 @@ export default function CustomersPage() {
 
   const handleBulkDelete = async () => {
     setIsDeleting(true);
-    const selectedRows = table.getFilteredSelectedRowModel().rows;
-    const selectedIds = selectedRows.map(row => row.original.id);
-    
+    const selectedIds = table.getFilteredSelectedRowModel().rows.map(row => row.original.id);
     try {
-        await userService.bulkDeleteUsers(selectedIds, 1); // Mock creator ID
-        toast({ title: '¡Usuarios Eliminados!', description: 'Los usuarios seleccionados han sido desactivados.', variant: 'success' });
-        table.resetRowSelection();
-        await loadUsers();
-    } catch (e) {
-        toast({ title: "Error", description: "Ocurrió un error en la eliminación masiva.", variant: "destructive" });
+      const res = await fetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userIds: selectedIds }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar usuarios');
+      toast({ title: '¡Usuarios Eliminados!', description: 'Los usuarios seleccionados han sido desactivados.', variant: 'success' });
+      table.resetRowSelection();
+      await loadUsers();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
-        setIsDeleting(false);
+      setIsDeleting(false);
     }
   };
 
-
-  const handleSaveUser = async (userData: any) => {
+  const handleSaveUser = async (formData: any) => {
     setIsSaving(true);
     try {
-        const isEditing = !!selectedUser;
-        if (isEditing) {
-            await userService.updateUserByAdmin(selectedUser.id, userData, 1); // Mock editor ID
-        } else {
-            await userService.createUserByAdmin(userData, 1); // Mock creator ID
-        }
+      const isEditing = !!selectedUser;
+      const payload: any = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone || null,
+        role: (formData.role as string).toUpperCase(),
+      };
+      if (formData.password) payload.password = formData.password;
 
-        toast({
-          title: isEditing ? '¡Usuario Actualizado!' : '¡Usuario Creado!',
-          description: `El usuario ${userData.name} ha sido guardado exitosamente.`,
-          variant: 'success'
-        });
-        
-        setIsFormOpen(false);
-        setSelectedUser(null);
-        await loadUsers();
+      const url = isEditing ? `/api/admin/users/${selectedUser!.id}` : '/api/admin/users';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al guardar usuario');
+
+      toast({
+        title: isEditing ? '¡Usuario Actualizado!' : '¡Usuario Creado!',
+        description: `El usuario ${formData.name} ha sido guardado exitosamente.`,
+        variant: 'success'
+      });
+
+      setIsFormOpen(false);
+      setSelectedUser(null);
+      await loadUsers();
     } catch (error: any) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
-        setIsSaving(false);
+      setIsSaving(false);
     }
   };
-  
+
   if (isLoading && users.length === 0) {
     return (
       <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
@@ -240,15 +236,15 @@ export default function CustomersPage() {
             user={selectedUser}
         />
       )}
-      
-      <DataTable 
-        table={table} 
-        columns={tableColumns} 
-        data={users} 
-        isLoading={isLoading} 
+
+      <DataTable
+        table={table}
+        columns={tableColumns}
+        data={users}
+        isLoading={isLoading}
         toolbar={
           <div className="flex items-center justify-between">
-            <DataTableToolbar 
+            <DataTableToolbar
                 table={table}
                 searchTerm={searchTerm}
                 setSearchTerm={setSearchTerm}

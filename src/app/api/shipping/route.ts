@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { errorHandler, successResponse } from '@/utils/api-utils';
 import { shippingZoneService } from '@/services/shippingZoneService';
 
+export const revalidate = 3600;
+
 /**
  * GET /api/shipping
  * Obtiene la lista de zonas de envío. Este endpoint es público.

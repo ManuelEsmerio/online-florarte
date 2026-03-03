@@ -39,10 +39,10 @@ export function OccasionForm({ isOpen, onOpenChange, onSave, occasion, isSaving 
   const form = useForm<OccasionFormValues>({
     resolver: zodResolver(occasionSchema),
     defaultValues: {
-        show_on_home: false,
-    }
+      show_on_home: false,
+    },
   });
-  
+
   const { watch, setValue } = form;
   const nameValue = watch('name');
 
@@ -57,26 +57,27 @@ export function OccasionForm({ isOpen, onOpenChange, onSave, occasion, isSaving 
       setValue('slug', '');
     }
   }, [nameValue, setValue]);
-  
+
   useEffect(() => {
-    if (isOpen) {
-        if (occasion) {
-            form.reset({
-                name: occasion.name,
-                slug: occasion.slug,
-                description: occasion.description,
-                image_url: occasion.image_url,
-                show_on_home: occasion.show_on_home,
-            });
-            setImagePreview(occasion.image_url);
-        } else {
-            form.reset({ name: '', slug: '', description: '', image_url: '', show_on_home: false });
-            setImagePreview(null);
-        }
-        setImageFile(null);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
+    if (!isOpen) return;
+
+    if (occasion) {
+      form.reset({
+        name: occasion.name,
+        slug: occasion.slug,
+        description: occasion.description ?? '',
+        image_url: occasion.imageUrl ?? '',
+        show_on_home: occasion.showOnHome,
+      });
+      setImagePreview(occasion.imageUrl ?? null);
+    } else {
+      form.reset({ name: '', slug: '', description: '', image_url: '', show_on_home: false });
+      setImagePreview(null);
+    }
+
+    setImageFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   }, [occasion, isOpen, form]);
 
@@ -85,9 +86,7 @@ export function OccasionForm({ isOpen, onOpenChange, onSave, occasion, isSaving 
     if (file) {
       setImageFile(file);
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
+      reader.onloadend = () => setImagePreview(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
@@ -98,98 +97,103 @@ export function OccasionForm({ isOpen, onOpenChange, onSave, occasion, isSaving 
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="font-headline text-2xl">{occasion ? 'Editar Ocasión' : 'Crear Ocasión'}</DialogTitle>
-          <DialogDescription>{occasion ? 'Modifica los detalles de la ocasión.' : 'Completa el formulario para crear una nueva ocasión.'}</DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-2">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <DialogContent className="w-full sm:max-w-2xl max-h-[90vh] overflow-hidden border border-border/60 p-0" onInteractOutside={(e) => e.preventDefault()}>
+        <div className="flex flex-col h-full">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle className="font-headline text-2xl">{occasion ? 'Editar Ocasión' : 'Crear Ocasión'}</DialogTitle>
+            <DialogDescription>{occasion ? 'Modifica los detalles de la ocasión.' : 'Completa el formulario para crear una nueva ocasión.'}</DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1">
+              <div className="flex-1 space-y-4 overflow-y-auto px-6 pb-6 custom-scrollbar">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
                     <FormItem className="md:col-span-2">
-                    <FormLabel>Nombre</FormLabel>
-                    <FormControl>
+                      <FormLabel>Nombre</FormLabel>
+                      <FormControl>
                         <Input placeholder="Día de las Madres" {...field} />
-                    </FormControl>
-                    <FormMessage />
+                      </FormControl>
+                      <FormMessage />
                     </FormItem>
-                )}
+                  )}
                 />
-                 <FormField
-                control={form.control}
-                name="slug"
-                render={({ field }) => (
+                <FormField
+                  control={form.control}
+                  name="slug"
+                  render={({ field }) => (
                     <FormItem>
-                    <FormLabel>Slug</FormLabel>
+                      <FormLabel>Slug</FormLabel>
+                      <FormControl>
+                        <Input placeholder="dia-de-madres" {...field} readOnly className="font-mono" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descripción</FormLabel>
                     <FormControl>
-                        <Input placeholder="dia-de-madres" {...field} readOnly className="font-mono"/>
+                      <Textarea placeholder="Breve descripción de la ocasión..." {...field} />
                     </FormControl>
                     <FormMessage />
-                    </FormItem>
+                  </FormItem>
                 )}
-                />
-            </div>
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Descripción</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Breve descripción de la ocasión..." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="space-y-2">
-              <FormLabel htmlFor="image">Imagen de la Ocasión</FormLabel>
-              {imagePreview && (
-                <div className="relative w-full h-32">
-                   <Image src={imagePreview} alt="Previsualización" layout="fill" objectFit="contain" className="rounded-md" />
-                </div>
-              )}
-              <FormControl>
-                 <Input 
-                    id="image" 
-                    type="file" 
+              />
+
+              <div className="space-y-2">
+                <FormLabel htmlFor="image">Imagen de la Ocasión</FormLabel>
+                {imagePreview && (
+                  <div className="relative w-full h-40 overflow-hidden rounded-2xl border border-border/40 bg-muted/30">
+                    <Image src={imagePreview} alt="Previsualización" fill sizes="(max-width: 768px) 100vw, 420px" className="object-cover" />
+                  </div>
+                )}
+                <FormControl>
+                  <Input
+                    id="image"
+                    type="file"
                     onChange={handleImageChange}
                     accept="image/png, image/jpeg, image/webp"
                     ref={fileInputRef}
-                />
-              </FormControl>
-              <FormMessage />
-            </div>
-            <FormField
-              control={form.control}
-              name="show_on_home"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                  <div className="space-y-0.5">
-                    <FormLabel>Mostrar en Home</FormLabel>
-                    <FormMessage />
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            <DialogFooter className="pt-4 sticky bottom-0 bg-background py-3 -mx-2 px-2">
-              <DialogClose asChild>
-                <Button type="button" variant="secondary" disabled={isSaving}>Cancelar</Button>
-              </DialogClose>
-              <Button type="submit" loading={isSaving}>Guardar</Button>
-            </DialogFooter>
-          </form>
-        </Form>
+                  />
+                </FormControl>
+                <FormMessage />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="show_on_home"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-2xl border border-border/50 p-4 shadow-sm">
+                    <div className="space-y-0.5">
+                      <FormLabel>Mostrar en Home</FormLabel>
+                      <p className="text-xs text-muted-foreground">Activa para destacar esta ocasión en la portada.</p>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              </div>
+
+              <DialogFooter className="flex-shrink-0 px-6 py-4 border-t border-border/60 bg-muted/30">
+                <DialogClose asChild>
+                  <Button type="button" variant="secondary" disabled={isSaving}>Cancelar</Button>
+                </DialogClose>
+                <Button type="submit" loading={isSaving}>Guardar</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </div>
       </DialogContent>
     </Dialog>
   );

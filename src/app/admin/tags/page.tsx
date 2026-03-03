@@ -11,25 +11,39 @@ import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleto
 import { Tag } from '@/lib/definitions';
 import { columns } from './columns';
 import { TagForm } from './tag-form';
-import { useAuth } from '@/context/AuthContext';
-import { handleApiResponse } from '@/utils/handleApiResponse';
-import { useProductContext } from '@/context/ProductContext';
 
 
 export default function TagsPage() {
   const { toast } = useToast();
-  const { apiFetch } = useAuth();
-  const { tags, fetchAppData, isLoading: isContextLoading } = useProductContext();
+  const [tags, setTags] = useState<Tag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTag, setSelectedTag] = useState<Tag | null>(null);
-  
-  useEffect(() => {
-    setIsLoading(isContextLoading);
-  }, [isContextLoading]);
 
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  const loadTags = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/admin/tags');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al cargar etiquetas');
+      setTags(json.data ?? []);
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTags();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAdd = () => {
     setSelectedTag(null);
@@ -43,49 +57,54 @@ export default function TagsPage() {
 
   const handleDelete = async (id: number) => {
     setIsDeletingId(id);
-     try {
-      const res = await apiFetch(`/api/admin/tags/${id}`, { method: 'DELETE' });
-      await handleApiResponse(res);
+    try {
+      const res = await fetch(`/api/admin/tags/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al eliminar');
       toast({ title: '¡Etiqueta Eliminada!', description: 'La etiqueta se ha eliminado correctamente.', variant: 'success' });
-      await fetchAppData();
-    } catch (error: any) {
-      toast({ title: 'Error al eliminar', description: error.message, variant: 'destructive' });
+      await loadTags();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
       setIsDeletingId(null);
     }
   };
-  
+
   const handleSave = async (data: Omit<Tag, 'id'>, id?: number) => {
     setIsSaving(true);
     const isEditing = !!id;
-    const url = isEditing ? `/api/admin/tags/${id}` : '/api/admin/tags';
-    const method = isEditing ? 'PUT' : 'POST';
-    
     try {
-        const res = await apiFetch(url, { 
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data) 
-        });
-        await handleApiResponse(res);
-        toast({ title: isEditing ? '¡Etiqueta Actualizada!' : '¡Etiqueta Creada!', description: 'La etiqueta ha sido guardada.', variant: 'success'});
-        setIsFormOpen(false);
-        await fetchAppData();
-    } catch (error: any) {
-        toast({ title: 'Error al guardar', description: error.message, variant: 'destructive' });
+      const url = isEditing ? `/api/admin/tags/${id}` : '/api/admin/tags';
+      const method = isEditing ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: data.name }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al guardar');
+      toast({ title: isEditing ? '¡Etiqueta Actualizada!' : '¡Etiqueta Creada!', description: 'La etiqueta ha sido guardada.', variant: 'success' });
+      setIsFormOpen(false);
+      await loadTags();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
-        setIsSaving(false);
+      setIsSaving(false);
     }
   };
 
-  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, isDeletingId }), [handleEdit, handleDelete, isDeletingId]);
+  const tableColumns = useMemo(() => columns({ onEdit: handleEdit, onDelete: handleDelete, isDeletingId }), [isDeletingId]);
 
   const table = useReactTable({
     data: tags,
     columns: tableColumns,
+    onPaginationChange: setPagination,
+    onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    state: { pagination, sorting, rowSelection },
   });
 
   if (isLoading) {

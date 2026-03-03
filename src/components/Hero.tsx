@@ -9,33 +9,42 @@ import Autoplay from 'embla-carousel-autoplay';
 import * as React from 'react';
 
 const slides = [
-    {
-        src: '/assets/banner/banner-florarte-2.png',
-        alt: 'Arreglos florales para toda ocasión',
-        title: 'Flores que Hablan por Ti',
-        description: 'Encuentra el arreglo perfecto para cada ocasión. Entregas en Tequila, Jalisco y toda la Región Valles.',
-        buttonText: 'Ver Catálogo',
-        buttonLink: '/products/all',
-        dataAiHint: 'vibrant flower arrangement'
+  {
+    src: {
+      desktop: '/assets/banner/banner-florarte-2.png',
+      mobile: '/assets/banner/banner-florarte-2-mobile.png',
     },
-    {
-        src: 'https://picsum.photos/seed/hero2/1920/1080',
-        alt: 'Regalos y complementos para cumpleaños',
-        title: 'Envía Alegría Hoy Mismo',
-        description: 'Sorprende a esa persona especial con un detalle inolvidable. Envío el mismo día disponible.',
-        buttonText: 'Regalos de Cumpleaños',
-        buttonLink: '/categories/paquetes',
-        dataAiHint: 'birthday gifts flowers'
+    alt: 'Arreglos florales para toda ocasión',
+    title: 'Flores que Hablan por Ti',
+    description: 'Encuentra el arreglo perfecto para cada ocasión. Entregas en Tequila, Jalisco y toda la Región Valles.',
+    buttonText: 'Ver Catálogo',
+    buttonLink: '/products/all',
+    dataAiHint: 'vibrant flower arrangement',
+  },
+  {
+    src: {
+      desktop: 'https://picsum.photos/seed/hero2/1920/1080',
+      mobile: 'https://picsum.photos/seed/hero2/750/1200',
     },
-    {
-        src: 'https://picsum.photos/seed/hero3/1920/1080',
-        alt: 'Ramos de rosas para aniversarios',
-        title: 'Celebra el Amor y la Amistad',
-        description: 'Nuestros ramos y arreglos son el lenguaje perfecto para expresar tus sentimientos.',
-        buttonText: 'Ver Ramos de Amor',
-        buttonLink: '/categories/ramos-florales',
-        dataAiHint: 'romantic roses bouquet'
-    }
+    alt: 'Regalos y complementos para cumpleaños',
+    title: 'Envía Alegría Hoy Mismo',
+    description: 'Sorprende a esa persona especial con un detalle inolvidable. Envío el mismo día disponible.',
+    buttonText: 'Regalos de Cumpleaños',
+    buttonLink: '/categories/paquetes',
+    dataAiHint: 'birthday gifts flowers',
+  },
+  {
+    src: {
+      desktop: 'https://picsum.photos/seed/hero3/1920/1080',
+      mobile: 'https://picsum.photos/seed/hero3/750/1200',
+    },
+    alt: 'Ramos de rosas para aniversarios',
+    title: 'Celebra el Amor y la Amistad',
+    description: 'Nuestros ramos y arreglos son el lenguaje perfecto para expresar tus sentimientos.',
+    buttonText: 'Ver Ramos de Amor',
+    buttonLink: '/categories/ramos-florales',
+    dataAiHint: 'romantic roses bouquet',
+  },
 ];
 
 export const Hero = () => {
@@ -58,12 +67,16 @@ export const Hero = () => {
               <CarouselItem key={index}>
                 <div className="relative h-[60vh] lg:h-[75vh]">
                   <Image
-                    src={slide.src}
+                    src={slide.src.desktop}
                     alt={slide.alt}
                     fill
                     className="object-cover brightness-75 md:brightness-90"
                     priority={index === 0}
                     data-ai-hint={slide.dataAiHint}
+                    sizes="(max-width: 768px) 100vw, 100vw"
+                    srcSet={
+                      `${slide.src.mobile} 750w, ${slide.src.desktop} 1920w`
+                    }
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 md:from-black/40" />
                   <div className="relative z-10 h-full container mx-auto px-4 flex flex-col items-center justify-center text-center pb-32 md:pb-0">

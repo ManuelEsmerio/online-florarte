@@ -46,7 +46,7 @@ export function TagForm({ isOpen, onOpenChange, onSave, tag, isSaving }: TagForm
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="font-headline text-2xl">{tag ? 'Editar Etiqueta' : 'Crear Etiqueta'}</DialogTitle>
           <DialogDescription>{tag ? 'Modifica el nombre de la etiqueta.' : 'Completa el formulario para crear una nueva etiqueta.'}</DialogDescription>

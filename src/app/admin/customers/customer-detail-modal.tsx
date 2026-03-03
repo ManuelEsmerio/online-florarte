@@ -1,7 +1,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,8 @@ import { Gem, Mail, Phone, Calendar, Home, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { useAuth } from '@/context/AuthContext';
 
 interface CustomerDetailModalProps {
   isOpen: boolean;
@@ -41,31 +43,42 @@ export function CustomerDetailModal({
   onOpenChange,
   user,
 }: CustomerDetailModalProps) {
-  if (!user) return null;
+    const { shippingZones } = useAuth();
+
+    const localityByPostalCode = useMemo(() => {
+        const entries = (shippingZones || []).map(zone => [zone.postalCode, zone.locality] as const);
+        return new Map(entries);
+    }, [shippingZones]);
+
+    const getAddressLocality = (address: Address) => {
+        return localityByPostalCode.get(address.postalCode) || address.city;
+    };
+
+    if (!user) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] sm:max-w-xl p-0 overflow-hidden border-none shadow-2xl rounded-[2rem] md:rounded-[2.5rem] bg-background flex flex-col max-h-[90vh]">
+            <DialogContent className="w-[95vw] sm:max-w-xl p-0 overflow-hidden border-none shadow-2xl rounded-[2rem] md:rounded-[2.5rem] bg-background flex flex-col max-h-[90vh]" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader className="p-6 md:p-8 pb-4 border-b border-border/50 relative">
           <DialogTitle className="font-headline text-2xl md:text-3xl font-bold">Detalles del Perfil</DialogTitle>
           <DialogDescription className="text-xs md:text-sm font-medium">
             Información completa del usuario y su actividad.
           </DialogDescription>
-          <Button 
+          {/* <Button 
             variant="ghost" 
             size="icon" 
             onClick={() => onOpenChange(false)}
             className="absolute right-4 top-4 rounded-full h-10 w-10 text-muted-foreground hover:text-primary transition-all"
           >
             <X className="h-5 w-5" />
-          </Button>
+          </Button> */}
         </DialogHeader>
         
         <div className="flex-grow overflow-y-auto custom-scrollbar p-6 md:p-8 space-y-8">
             <div className="flex flex-col sm:flex-row items-center gap-6 p-6 bg-muted/20 rounded-[2rem] border border-border/50">
                 <div className="relative group">
                     <Avatar className="h-20 w-20 md:h-24 md:w-24 border-4 border-background shadow-lg transition-transform duration-500 group-hover:scale-105">
-                        <AvatarImage src={user.profilePic || undefined} alt={user.name} />
+                        <AvatarImage src={user.profilePicUrl || undefined} alt={user.name} />
                         <AvatarFallback className="text-2xl md:text-3xl bg-primary text-white font-bold">{user.name.charAt(0).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 border-4 border-background rounded-full" />
@@ -74,8 +87,8 @@ export function CustomerDetailModal({
                     <h2 className="text-xl md:text-2xl font-bold font-headline leading-tight truncate">{user.name}</h2>
                     <div className="flex flex-wrap items-center gap-2 mt-2 justify-center sm:justify-start">
                         <Badge variant="secondary" className="capitalize text-[10px] font-bold px-2 py-0.5">{user.role}</Badge>
-                        <Badge variant={user.is_deleted ? 'destructive' : 'success'} className="text-[10px] font-bold px-2 py-0.5">
-                            {user.is_deleted ? 'Desactivado' : 'Activo'}
+                        <Badge variant={user.isDeleted ? 'destructive' : 'success'} className="text-[10px] font-bold px-2 py-0.5">
+                            {user.isDeleted ? 'Desactivado' : 'Activo'}
                         </Badge>
                     </div>
                 </div>
@@ -87,8 +100,8 @@ export function CustomerDetailModal({
                      <DetailRow label="Teléfono Directo" icon={<Phone className="w-4 h-4" />} value={user.phone || 'No registrado'} />
                 </div>
                  <div className="space-y-6">
-                     <DetailRow label="Puntos Acumulados" icon={<Gem className="w-4 h-4" />} value={<span className="font-bold text-primary font-sans">{user.loyalty_points || 0} pts</span>} />
-                     {user.created_at && <DetailRow label="Miembro desde" icon={<Calendar className="w-4 h-4" />} value={format(new Date(user.created_at), 'dd MMM, yyyy', { locale: es })} />}
+                     <DetailRow label="Puntos Acumulados" icon={<Gem className="w-4 h-4" />} value={<span className="font-bold text-primary font-sans">{user.loyaltyPoints || 0} pts</span>} />
+                     {user.createdAt && <DetailRow label="Miembro desde" icon={<Calendar className="w-4 h-4" />} value={format(new Date(user.createdAt), 'dd MMM, yyyy', { locale: es })} />}
                 </div>
             </div>
             
@@ -115,12 +128,12 @@ export function CustomerDetailModal({
                                     <Badge variant="secondary" className="capitalize text-[9px] font-bold">{address.addressType?.replace('-', ' ')}</Badge>
                                 </div>
                                 <div className="text-muted-foreground space-y-1 pl-1">
-                                    <p className="text-xs"><strong>Recibe:</strong> {address.recipientName} ({address.phone})</p>
+                                    <p className="text-xs"><strong>Recibe:</strong> {address.recipientName} ({address.recipientPhone || 'Sin teléfono'})</p>
                                     <p className="text-xs leading-relaxed">{`${address.streetName} ${address.streetNumber}${address.interiorNumber ? `, Int. ${address.interiorNumber}` : ''}`}</p>
-                                    <p className="text-[10px] font-bold uppercase tracking-wider">{`${address.neighborhood}, ${address.city}, CP ${address.postalCode}`}</p>
-                                    {address.reference_notes && (
+                                    <p className="text-[10px] font-bold uppercase tracking-wider">{`${address.neighborhood}, ${getAddressLocality(address)}, CP ${address.postalCode}`}</p>
+                                    {address.referenceNotes && (
                                         <div className="mt-3 p-3 rounded-xl bg-muted/50 text-[10px] italic border-l-2 border-primary/30">
-                                            Ref: {address.reference_notes}
+                                            Ref: {address.referenceNotes}
                                         </div>
                                     )}
                                 </div>
@@ -135,12 +148,6 @@ export function CustomerDetailModal({
                 )}
             </div>
         </div>
-
-        <style jsx global>{`
-            .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-            .custom-scrollbar::-webkit-scrollbar-thumb { background: hsl(var(--primary) / 0.2); border-radius: 10px; }
-        `}</style>
       </DialogContent>
     </Dialog>
   );

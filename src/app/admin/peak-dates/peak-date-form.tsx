@@ -55,19 +55,19 @@ export function PeakDateForm({ isOpen, onOpenChange, onSave, peakDate, allPeakDa
   useEffect(() => {
     if (isOpen) {
         if (isEditing && peakDate) {
-            const localDate = peakDate.peak_date instanceof Date ? peakDate.peak_date : parseToUTCDate(String(peakDate.peak_date));
+            const localDate = peakDate.peakDate instanceof Date ? peakDate.peakDate : parseToUTCDate(String(peakDate.peakDate));
             if(localDate && !isNaN(localDate.getTime())) {
                 const nextYearDate = addYears(localDate, 1);
-                const isRecurring = allPeakDates.some(p => p.name === peakDate.name && p.peak_date.getFullYear() === nextYearDate.getFullYear());
+                const isRecurring = allPeakDates.some(p => p.name === peakDate.name && p.peakDate.getFullYear() === nextYearDate.getFullYear());
                 
                 form.reset({
                     name: peakDate.name,
                     peak_date: localDate,
-                    is_coupon_restricted: peakDate.is_coupon_restricted,
+                    is_coupon_restricted: peakDate.isCouponRestricted,
                     repeat_annually: isRecurring,
                 });
             } else {
-                 form.reset({ name: peakDate.name, peak_date: null, is_coupon_restricted: peakDate.is_coupon_restricted, repeat_annually: false });
+                 form.reset({ name: peakDate.name, peak_date: null, is_coupon_restricted: peakDate.isCouponRestricted, repeat_annually: false });
             }
         } else {
             form.reset({ name: '', peak_date: null, is_coupon_restricted: false, repeat_annually: false });
@@ -86,13 +86,13 @@ export function PeakDateForm({ isOpen, onOpenChange, onSave, peakDate, allPeakDa
   
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="font-headline text-2xl">{peakDate ? 'Editar Fecha Pico' : 'Crear Fecha Pico'}</DialogTitle>
           <DialogDescription>{peakDate ? 'Modifica los detalles del periodo.' : 'Completa el formulario para definir un nuevo periodo de alta demanda.'}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-2">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto custom-scrollbar px-2">
             <FormField
               control={form.control}
               name="name"
@@ -115,32 +115,33 @@ export function PeakDateForm({ isOpen, onOpenChange, onSave, peakDate, allPeakDa
                   <FormLabel>Fecha</FormLabel>
                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                       <PopoverTrigger asChild>
-                        <Button
-                            id="date"
-                            variant={"outline"}
-                            className={cn(
-                                "w-full justify-start text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                            )}
-                        >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {field.value ? (
-                                formatDateIntl(field.value)
-                            ) : (
-                                <span>Selecciona una fecha</span>
-                            )}
-                        </Button>
+                        <FormControl>
+                          <Button
+                              id="date"
+                              variant={"outline"}
+                              className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                              )}
+                          >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {field.value ? (
+                                  formatDateIntl(field.value)
+                              ) : (
+                                  <span>Selecciona una fecha</span>
+                              )}
+                          </Button>
+                        </FormControl>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-50" align="start">
+                      <PopoverContent className="w-auto p-0 z-[200]" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value}
+                          selected={field.value ?? undefined}
                           onSelect={(date) => {
                             field.onChange(date);
                             setIsCalendarOpen(false);
                           }}
-                          initialFocus
-                          month={field.value || new Date()}
+                          defaultMonth={field.value ?? new Date()}
                           locale={es}
                         />
                       </PopoverContent>

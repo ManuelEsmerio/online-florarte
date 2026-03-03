@@ -1,38 +1,48 @@
 // src/services/wishlistService.ts
-import { wishlistRepository } from '../repositories/wishlistRepository';
-import { userRepository } from '../repositories/userRepository';
+import { prisma } from '@/lib/prisma';
 import { productService } from './productService';
 import type { Product } from '@/lib/definitions';
-// import { dbWithAudit } from '@/lib/db';
 
 type WishlistResponse = {
   wishlistItems: Product[];
   productIds: number[];
 };
 
-const dbWithAudit = async <T>(userId: number, fn: () => Promise<T>): Promise<T> => fn();
-
 export const wishlistService = {
-
   async getWishlistByUserId(userId: number): Promise<WishlistResponse> {
-    const dbProducts = await wishlistRepository.findByUserId(userId);
-    if (dbProducts.length === 0) {
+    const items = await prisma.wishlistItem.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { productId: true },
+    });
+
+    const productIds = items.map(item => item.productId);
+
+    if (productIds.length === 0) {
       return { wishlistItems: [], productIds: [] };
     }
-    
-    const { products } = await productService.getAdminProductList();
-    const wishlistItems = products.filter(p => dbProducts.some(dp => dp.id === p.id));
-    
-    const productIds = wishlistItems.map(item => item.id);
+
+    const wishlistItems = await productService.getProductsByIds(productIds);
     return { wishlistItems, productIds };
   },
-  
-  async toggleWishlist(userId: number, productId: number): Promise<void> {
+
+  async toggleWishlist(userId: number, productId: number): Promise<'added' | 'removed'> {
     if (!productId) {
       throw new Error('El ID de producto es requerido.');
     }
-    await dbWithAudit(userId, () =>
-      wishlistRepository.toggle(userId, productId)
-    );
+
+    const existing = await prisma.wishlistItem.findUnique({
+      where: { userId_productId: { userId, productId } },
+    });
+
+    if (existing) {
+      await prisma.wishlistItem.delete({
+        where: { userId_productId: { userId, productId } },
+      });
+      return 'removed';
+    } else {
+      await prisma.wishlistItem.create({ data: { userId, productId } });
+      return 'added';
+    }
   },
 };

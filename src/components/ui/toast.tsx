@@ -8,13 +8,10 @@ import { X, CheckCircle, AlertTriangle, AlertCircle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const ToastProvider = React.forwardRef<
-  React.ElementRef<typeof ToastPrimitives.Provider>,
-  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Provider>
->(({ ...props }, ref) => (
-  <ToastPrimitives.Provider ref={ref} {...props} />
-));
-ToastProvider.displayName = ToastPrimitives.Provider.displayName;
+const ToastProvider = ({ ...props }: React.ComponentPropsWithoutRef<typeof ToastPrimitives.Provider>) => (
+  <ToastPrimitives.Provider {...props} />
+)
+ToastProvider.displayName = 'ToastProvider'
 
 
 const ToastViewport = React.forwardRef<

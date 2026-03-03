@@ -239,11 +239,6 @@ export function AddressModal({
                     )}
                 </div>
             </DialogContent>
-            <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: hsl(var(--primary) / 0.2); border-radius: 10px; }
-            `}</style>
         </Dialog>
     );
 }

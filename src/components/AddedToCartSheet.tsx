@@ -77,6 +77,7 @@ export function AddedToCartSheet({
                                 alt={product.name}
                                 fill
                                 className="rounded-md object-cover"
+                                sizes="80px"
                             />
                         </div>
                         <div className="flex-1">
