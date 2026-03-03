@@ -1,7 +1,7 @@
 // src/app/admin/ads/ad-form.tsx
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -39,7 +39,7 @@ type AdFormValues = z.infer<typeof adSchema>;
 interface AdFormProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSave: (data: AdFormValues, images: { desktop?: File, mobile?: File }) => void;
+  onSave: (data: AdFormValues, images: { desktop?: File; mobile?: File }) => void;
   ad: Announcement | null;
   isSaving: boolean;
 }
@@ -99,9 +99,14 @@ export function AdForm({ isOpen, onOpenChange, onSave, ad, isSaving }: AdFormPro
     defaultValues: { is_active: true, sort_order: 0 },
   });
 
-  const [desktopImage, setDesktopImage] = useState<{ file: File | null, preview: string | null }>({ file: null, preview: null });
-  const [mobileImage, setMobileImage] = useState<{ file: File | null, preview: string | null }>({ file: null, preview: null });
+  const [desktopImage, setDesktopImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null });
+  const [mobileImage, setMobileImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null });
+  const [calendarOpen, setCalendarOpen] = useState<{ start: boolean; end: boolean }>({ start: false, end: false });
   const startDate = form.watch('start_at');
+
+  const handleCalendarToggle = useCallback((key: 'start' | 'end', open: boolean) => {
+    setCalendarOpen((prev) => ({ ...prev, [key]: open }));
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -126,40 +131,40 @@ export function AdForm({ isOpen, onOpenChange, onSave, ad, isSaving }: AdFormPro
         setDesktopImage({ file: null, preview: null });
         setMobileImage({ file: null, preview: null });
       }
+      setCalendarOpen({ start: false, end: false });
     }
   }, [ad, isOpen, form]);
 
   const handleFileChange = (setter: typeof setDesktopImage) => (file: File) => {
     setter({ file, preview: URL.createObjectURL(file) });
   };
-  
+
   const handleRemoveImage = (setter: typeof setDesktopImage, fieldName: 'image_url' | 'image_mobile_url') => () => {
     setter({ file: null, preview: null });
-    form.setValue(fieldName, ''); // Clear existing URL if image is removed
+    form.setValue(fieldName, '');
   };
 
   const onSubmit = (data: AdFormValues) => {
-    onSave({ ...data, image_url: desktopImage.preview || '', image_mobile_url: mobileImage.preview }, { desktop: desktopImage.file ?? undefined, mobile: mobileImage.file ?? undefined });
+    onSave(
+      { ...data, image_url: desktopImage.preview || '', image_mobile_url: mobileImage.preview },
+      { desktop: desktopImage.file ?? undefined, mobile: mobileImage.file ?? undefined }
+    );
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent
-        className="w-full sm:max-w-2xl max-h-[90vh] overflow-hidden border border-border/60 p-0"
+        className="w-full sm:max-w-3xl max-h-[92vh] border border-border/70 bg-background/95 p-0 rounded-[32px] shadow-2xl backdrop-blur supports-[backdrop-filter]:backdrop-blur flex flex-col overflow-hidden"
         onInteractOutside={(e) => e.preventDefault()}
       >
-        <div className="flex h-full flex-col">
-          <DialogHeader className="px-6 pt-6 pb-2">
-            <DialogTitle className="font-headline text-2xl">
-              {ad ? 'Editar Anuncio' : 'Crear Anuncio'}
-            </DialogTitle>
-            <DialogDescription>
-              Completa el formulario para configurar el banner.
-            </DialogDescription>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-2 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:backdrop-blur-sm">
+            <DialogTitle className="font-headline text-2xl">{ad ? 'Editar Anuncio' : 'Crear Anuncio'}</DialogTitle>
+            <DialogDescription>Completa el formulario para configurar el banner.</DialogDescription>
           </DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col">
-              <div className="custom-scrollbar flex-1 space-y-5 overflow-y-auto px-6 pb-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col overflow-hidden">
+              <div className="custom-scrollbar custom-scrollbar--muted flex-1 space-y-5 overflow-y-auto px-6 pb-6 pt-4">
                 <FormField
                   control={form.control}
                   name="title"
@@ -241,26 +246,27 @@ export function AdForm({ isOpen, onOpenChange, onSave, ad, isSaving }: AdFormPro
                     render={({ field }) => (
                       <FormItem className="flex flex-col gap-2">
                         <FormLabel>Fecha de inicio</FormLabel>
-                        <Popover>
+                        <Popover modal={false} open={calendarOpen.start} onOpenChange={(open) => handleCalendarToggle('start', open)}>
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
                                 variant="outline"
-                                className={cn(
-                                  'w-full justify-start text-left font-normal',
-                                  !field.value && 'text-muted-foreground'
-                                )}
+                                className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}
                               >
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {field.value ? format(field.value, 'PPP', { locale: es }) : 'Sin fecha definida'}
                               </Button>
                             </FormControl>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 z-50" align="start">
+                          <PopoverContent className="w-auto p-0 z-[200]" align="start">
                             <Calendar
                               mode="single"
                               selected={field.value ?? undefined}
-                              onSelect={(date) => field.onChange(date ?? null)}
+                              onSelect={(date) => {
+                                field.onChange(date ?? null);
+                                handleCalendarToggle('start', false);
+                              }}
+                              defaultMonth={field.value ?? new Date()}
                               initialFocus
                             />
                           </PopoverContent>
@@ -275,27 +281,28 @@ export function AdForm({ isOpen, onOpenChange, onSave, ad, isSaving }: AdFormPro
                     render={({ field }) => (
                       <FormItem className="flex flex-col gap-2">
                         <FormLabel>Fecha de fin</FormLabel>
-                        <Popover>
+                        <Popover modal={false} open={calendarOpen.end} onOpenChange={(open) => handleCalendarToggle('end', open)}>
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
                                 variant="outline"
-                                className={cn(
-                                  'w-full justify-start text-left font-normal',
-                                  !field.value && 'text-muted-foreground'
-                                )}
+                                className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}
                               >
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {field.value ? format(field.value, 'PPP', { locale: es }) : 'Sin fecha definida'}
                               </Button>
                             </FormControl>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 z-50" align="start">
+                          <PopoverContent className="w-auto p-0 z-[200]" align="start">
                             <Calendar
                               mode="single"
                               selected={field.value ?? undefined}
-                              onSelect={(date) => field.onChange(date ?? null)}
+                              onSelect={(date) => {
+                                field.onChange(date ?? null);
+                                handleCalendarToggle('end', false);
+                              }}
                               disabled={(date) => (startDate ? date < startDate : false)}
+                              defaultMonth={field.value ?? startDate ?? new Date()}
                               initialFocus
                             />
                           </PopoverContent>
@@ -337,7 +344,7 @@ export function AdForm({ isOpen, onOpenChange, onSave, ad, isSaving }: AdFormPro
                   />
                 </div>
               </div>
-              <DialogFooter className="flex-shrink-0 border-t border-border/60 bg-muted/30 px-6 py-4">
+              <DialogFooter className="flex-shrink-0 border-t border-border/60 bg-background/90 px-6 py-4 backdrop-blur supports-[backdrop-filter]:backdrop-blur-sm">
                 <DialogClose asChild>
                   <Button type="button" variant="secondary" disabled={isSaving}>
                     Cancelar

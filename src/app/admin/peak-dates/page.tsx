@@ -158,8 +158,9 @@ export default function PeakDatesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: data.name,
-          peakDate: data.peak_date instanceof Date ? data.peak_date.toISOString() : data.peak_date,
-          isCouponRestricted: data.is_coupon_restricted ?? false,
+          peak_date: data.peak_date instanceof Date ? format(data.peak_date, 'yyyy-MM-dd') : data.peak_date,
+          is_coupon_restricted: data.is_coupon_restricted ?? false,
+          ...(!isEditing && { repeat_annually: data.repeat_annually ?? false }),
         }),
       });
       const json = await res.json();
@@ -180,7 +181,7 @@ export default function PeakDatesPage() {
       const res = await fetch(`/api/admin/peak-dates/${peakDate.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isCouponRestricted: !peakDate.isCouponRestricted }),
+        body: JSON.stringify({ is_coupon_restricted: !peakDate.isCouponRestricted }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Error al actualizar');

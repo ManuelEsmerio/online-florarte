@@ -78,7 +78,7 @@ export const peakDateService = {
 
     const allDates = await this.getAllPeakDates();
     const newPeakDate = allDates.find(
-      p => p.name === validatedData.name && format(p.peakDate, 'yyyy-MM-dd') === validatedData.peak_date
+      p => p.name === validatedData.name && p.peakDate.toISOString().slice(0, 10) === validatedData.peak_date
     );
     if (!newPeakDate) throw new Error('No se pudo crear el registro.');
     return newPeakDate;

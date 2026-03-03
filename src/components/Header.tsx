@@ -90,6 +90,11 @@ const HeaderContent = () => {
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   ];
 
+  const normalizedRole = String(user?.role ?? '').toUpperCase();
+  const isAdmin = normalizedRole === 'ADMIN';
+  const isCustomer = normalizedRole === 'CUSTOMER';
+  const accountLinks = isAdmin ? [...adminLinks, ...userLinks] : userLinks;
+
   const isLinkActive = (href: string) => {
     const [hrefPath] = href.split('?');
     return pathname.startsWith(hrefPath);
@@ -106,10 +111,6 @@ const HeaderContent = () => {
     }
 
     if (user && user.name) {
-      const normalizedRole = String(user.role ?? '').toUpperCase();
-      const isAdmin = normalizedRole === 'ADMIN';
-      const isCustomer = normalizedRole === 'CUSTOMER';
-
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -130,7 +131,7 @@ const HeaderContent = () => {
               </>
             )}
             <DropdownMenuSeparator className="bg-muted/50" />
-            {(isAdmin ? adminLinks : userLinks).map(link => (
+            {accountLinks.map(link => (
               <DropdownMenuItem key={link.href} asChild className="rounded-xl">
                 <Link href={link.href} className="w-full flex items-center py-2 transition-all duration-300">
                   <link.icon className="mr-2 h-4 w-4 transition-colors" />
@@ -265,13 +266,13 @@ const HeaderContent = () => {
                 {isClient && user && user.name && (
                   <nav className="flex flex-col space-y-4 border-b border-border/50 pb-6">
                     <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-[0.2em]">Mi Cuenta</p>
-                    {String(user.role ?? '').toUpperCase() === 'CUSTOMER' && (
+                    {isCustomer && (
                       <div className="flex items-center gap-3 text-lg font-medium text-foreground/80">
                         <Gem className="w-5 h-5 text-blue-500" />
                         <span>{user.loyaltyPoints || 0} Puntos</span>
                       </div>
                     )}
-                    {(String(user.role ?? '').toUpperCase() === 'ADMIN' ? adminLinks : userLinks).map((link) => (
+                    {accountLinks.map((link) => (
                       <Link
                         key={link.href}
                         href={link.href}

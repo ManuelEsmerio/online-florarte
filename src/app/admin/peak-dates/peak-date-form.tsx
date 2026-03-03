@@ -86,7 +86,7 @@ export function PeakDateForm({ isOpen, onOpenChange, onSave, peakDate, allPeakDa
   
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
+      <DialogContent className="sm:max-w-lg" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="font-headline text-2xl">{peakDate ? 'Editar Fecha Pico' : 'Crear Fecha Pico'}</DialogTitle>
           <DialogDescription>{peakDate ? 'Modifica los detalles del periodo.' : 'Completa el formulario para definir un nuevo periodo de alta demanda.'}</DialogDescription>
@@ -133,7 +133,7 @@ export function PeakDateForm({ isOpen, onOpenChange, onSave, peakDate, allPeakDa
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-50" align="start">
+                      <PopoverContent className="w-auto p-0 z-[200]" align="start">
                         <Calendar
                           mode="single"
                           selected={field.value ?? undefined}
@@ -141,8 +141,7 @@ export function PeakDateForm({ isOpen, onOpenChange, onSave, peakDate, allPeakDa
                             field.onChange(date);
                             setIsCalendarOpen(false);
                           }}
-                          initialFocus
-                          month={field.value || new Date()}
+                          defaultMonth={field.value ?? new Date()}
                           locale={es}
                         />
                       </PopoverContent>
