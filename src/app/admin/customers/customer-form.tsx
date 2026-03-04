@@ -44,14 +44,39 @@ import type { User as UserType } from '@/lib/definitions';
 import { Stepper } from '@/components/ui/stepper';
 import { cn } from '@/lib/utils';
 import { PHONE_CODES, parsePhoneValue, sanitizePhoneDigits } from '@/utils/phone';
+import { PasswordRequirements } from '@/components/password/PasswordRequirements';
+import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from '@/utils/passwordPolicy';
+
+const LOWERCASE = 'abcdefghijklmnopqrstuvwxyz';
+const UPPERCASE = LOWERCASE.toUpperCase();
+const NUMBERS = '0123456789';
+const SPECIAL = '!@#$%^&*()_+-={}[]|:;<>,.?/~';
+const ALL_CHARS = `${LOWERCASE}${UPPERCASE}${NUMBERS}${SPECIAL}`;
+
+const pickRandomChar = (pool: string) => pool[Math.floor(Math.random() * pool.length)];
+
+const shuffleCharacters = (chars: string[]) => {
+    for (let i = chars.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    return chars;
+};
 
 const generatePassword = (length = 12) => {
-    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-    let password = "";
-    for (let i = 0, n = charset.length; i < length; ++i) {
-        password += charset.charAt(Math.floor(Math.random() * n));
+    const minimumLength = Math.max(length, 8);
+    const requiredChars = [
+        pickRandomChar(LOWERCASE),
+        pickRandomChar(UPPERCASE),
+        pickRandomChar(NUMBERS),
+        pickRandomChar(SPECIAL),
+    ];
+
+    for (let i = requiredChars.length; i < minimumLength; i += 1) {
+        requiredChars.push(pickRandomChar(ALL_CHARS));
     }
-    return password;
+
+    return shuffleCharacters(requiredChars).join('');
 };
 
 const customerSchema = z.object({
@@ -64,10 +89,12 @@ const customerSchema = z.object({
         message: 'El teléfono debe ser un número de 10 dígitos.',
         }),
     phoneCountryCode: z.enum(PHONE_CODES).default('+52'),
-  role: z.enum(['customer', 'admin', 'delivery'], {
-    required_error: 'Debes seleccionar un rol.',
-  }),
-  password: z.string().optional(),
+    role: z.enum(['customer', 'admin', 'delivery'], {
+        required_error: 'Debes seleccionar un rol.',
+    }),
+    password: z.string().optional().refine((value) => !value || isPasswordStrong(value), {
+        message: PASSWORD_POLICY_MESSAGE,
+    }),
   generatePassword: z.boolean().optional(),
 });
 
@@ -209,6 +236,7 @@ const Step2_Security = ({ isEditing, setStep }: { isEditing: boolean, setStep: (
     const [showPassword, setShowPassword] = useState(false);
     
     const watchedValues = watch();
+    const passwordValue = watch('password');
 
     const handleGenerate = () => {
         setValue('password', generatePassword(), { shouldValidate: true });
@@ -261,8 +289,8 @@ const Step2_Security = ({ isEditing, setStep }: { isEditing: boolean, setStep: (
                                     </Button>
                                 </div>
                             </div>
-                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter ml-5">Mínimo 8 caracteres, 1 número y 1 símbolo</p>
                             <FormMessage className="ml-5" />
+                            <PasswordRequirements password={passwordValue} className="ml-5 mt-3" />
                         </FormItem>
                     )} />
                 </div>

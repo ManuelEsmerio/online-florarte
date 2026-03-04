@@ -16,11 +16,15 @@ import { Eye, EyeOff, ArrowLeft, Store, User, Mail } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Isotype } from '@/components/icons/Isotype';
+import { PasswordRequirements } from '@/components/password/PasswordRequirements';
+import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from '@/utils/passwordPolicy';
 
 const registerSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
   email: z.string().email('Por favor, ingresa un correo electrónico válido.'),
-  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.'),
+  password: z.string()
+    .min(8, 'La contraseña debe tener al menos 8 caracteres.')
+    .refine(isPasswordStrong, { message: PASSWORD_POLICY_MESSAGE }),
   agreedToTerms: z.boolean().refine(val => val === true, {
     message: 'Debes aceptar los términos y condiciones.',
   }),
@@ -43,6 +47,7 @@ export default function RegisterPage() {
       agreedToTerms: false,
     },
   });
+  const passwordValue = form.watch('password');
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -161,6 +166,7 @@ export default function RegisterPage() {
                     </Button>
                   </div>
                   <FormMessage />
+                  <PasswordRequirements password={passwordValue} className="mt-3" />
                 </FormItem>
               )}
             />

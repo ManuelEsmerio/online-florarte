@@ -37,6 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AddressModal } from '@/components/AddressModal';
+import { PasswordRequirements } from '@/components/password/PasswordRequirements';
 import { 
   Table, 
   TableBody, 
@@ -49,6 +50,7 @@ import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { PHONE_CODES, parsePhoneValue, sanitizePhoneDigits, formatPhoneDisplay } from '@/utils/phone';
+import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from '@/utils/passwordPolicy';
 
 const profileSchema = z.object({
   name: z.string().min(3, 'El nombre es requerido.'),
@@ -66,9 +68,11 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 const passwordSchema = z.object({
-  currentPassword: z.string().min(1, 'Ingresa tu contraseña actual'),
-  newPassword: z.string().min(6, 'La nueva contraseña debe tener al menos 6 caracteres'),
-  confirmPassword: z.string(),
+    currentPassword: z.string().min(1, 'Ingresa tu contraseña actual'),
+    newPassword: z.string()
+        .min(8, 'La nueva contraseña debe tener al menos 8 caracteres')
+        .refine(isPasswordStrong, { message: PASSWORD_POLICY_MESSAGE }),
+    confirmPassword: z.string(),
 }).refine((data) => data.newPassword === data.confirmPassword, {
   message: "Las contraseñas no coinciden",
   path: ["confirmPassword"],
@@ -260,6 +264,7 @@ function ProfilePageContent() {
     });
 
     const profilePic = watchedProfilePic || user?.profilePicUrl || '';
+    const watchedNewPassword = passwordForm.watch('newPassword');
 
   const handleDeleteAccount = async () => {
     if(deleteAccount) {
@@ -505,6 +510,7 @@ function ProfilePageContent() {
                                                 </div>
                                             </FormControl>
                                             <FormMessage />
+                                            <PasswordRequirements password={watchedNewPassword} className="mt-3" />
                                         </FormItem>
                                     )} />
                                     <FormField control={passwordForm.control} name="confirmPassword" render={({ field }) => (
