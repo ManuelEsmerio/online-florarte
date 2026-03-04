@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { UserFacingError } from '@/utils/errors';
 import { saveProfilePicture } from "@/services/file.service";
 import bcrypt from "bcryptjs";
 import { assertPasswordStrength } from "@/utils/passwordPolicy";
@@ -49,7 +50,7 @@ export const userService = {
       });
 
       if (!user) {
-        throw new Error("Usuario no encontrado");
+        throw new UserFacingError("Usuario no encontrado");
       }
 
       /* =========================
@@ -65,7 +66,7 @@ export const userService = {
         });
 
         if (used) {
-          throw new Error("Este correo ya está en uso");
+          throw new UserFacingError("Este correo ya está en uso");
         }
       }
 
@@ -256,7 +257,7 @@ export const userService = {
 
   async createUserByAdmin(data: any, adminId: number) {
     const existing = await prisma.user.findFirst({ where: { email: data.email.toLowerCase(), isDeleted: false } });
-    if (existing) throw new Error('El correo electrónico ya está en uso.');
+    if (existing) throw new UserFacingError('El correo electrónico ya está en uso.');
 
     const rawPassword = data.password || 'Florarte2024!';
     if (data.password) {
@@ -285,7 +286,7 @@ export const userService = {
   async updateUserByAdmin(userId: number, data: any, adminId: number) {
     if (data.email) {
       const existing = await prisma.user.findFirst({ where: { email: data.email.toLowerCase(), isDeleted: false, id: { not: userId } } });
-      if (existing) throw new Error('El correo electrónico ya está en uso por otra cuenta.');
+      if (existing) throw new UserFacingError('El correo electrónico ya está en uso por otra cuenta.');
     }
 
     const updateData: any = {
@@ -332,7 +333,7 @@ export const userService = {
 
   async redeemLoyaltyPoints(userId: number, quantity: number): Promise<{ coupons_created: number; new_coupon_ids: number[] }> {
     // TODO: Implement loyalty points redemption logic
-    throw new Error('Loyalty points redemption not yet implemented.');
+    throw new UserFacingError('La función de canje de puntos no está disponible aún.');
   },
 
 };

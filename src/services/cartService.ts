@@ -1,5 +1,6 @@
 // src/services/cartService.ts
 import { prisma } from '@/lib/prisma';
+import { UserFacingError } from '@/utils/errors';
 import { mapDbCartItemToCartItem } from '../mappers/cartMapper';
 import type { DbCartItem } from '@/lib/definitions';
 import { productService } from './productService';
@@ -175,10 +176,10 @@ export const cartService = {
       let effectiveUnitPrice = unitPrice;
       if (effectiveUnitPrice === undefined) {
         const product = await productService.getCompleteProductDetailsById(productId);
-        if (!product) throw new Error('Producto no encontrado.');
+        if (!product) throw new UserFacingError('Producto no encontrado.');
         if (variantId) {
           const variant = product.variants?.find((v: any) => v.id === variantId);
-          if (!variant) throw new Error('Variante no encontrada.');
+          if (!variant) throw new UserFacingError('Variante no encontrada.');
           effectiveUnitPrice = (variant as any).sale_price ?? (variant as any).salePrice ?? (variant as any).price;
         } else {
           effectiveUnitPrice = (product as any).sale_price ?? (product as any).salePrice ?? (product as any).price;
@@ -186,7 +187,7 @@ export const cartService = {
       }
 
       if (effectiveUnitPrice === undefined || Number.isNaN(Number(effectiveUnitPrice))) {
-        throw new Error('No se pudo resolver el precio del producto.');
+        throw new UserFacingError('No se pudo resolver el precio del producto.');
       }
 
       const activeCart = await getOrCreateActiveCart({ userId, sessionId });
@@ -244,7 +245,7 @@ export const cartService = {
     const { userId, sessionId, couponCode, deliveryDate = null } = params;
 
     if (!userId) {
-      throw new Error('Debes iniciar sesión para aplicar cupones.');
+      throw new UserFacingError('Debes iniciar sesión para aplicar cupones.');
     }
 
     const validatedCoupon = await couponService.validateCoupon({

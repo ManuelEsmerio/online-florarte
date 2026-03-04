@@ -34,7 +34,8 @@
       "Bash(npx prisma migrate dev --name add_refund_model)",
       "Bash(npx prisma migrate dev --name add_cancellation_log)",
       "Bash(npx prisma migrate dev --name rename_stripe_refund_id_to_external_refund_id)",
-      "Bash(npx prisma migrate dev --name rename_stripe_refund_id_to_external_refund_id --create-only)"
+      "Bash(npx prisma migrate dev --name rename_stripe_refund_id_to_external_refund_id --create-only)",
+      "Read(//c/Users/Manuel Esmerio G/.claude/projects/c--Users-Manuel-Esmerio-G-Documents-Projects-online-florarte/34077475-037d-4cc7-837e-804d7297326a/tool-results/**)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Manuel Esmerio G\\.claude\\projects\\c--Users-Manuel-Esmerio-G-Documents-Projects-online-florarte\\memory"

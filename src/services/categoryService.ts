@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { UserFacingError } from '@/utils/errors';
 import type { ProductCategory } from '@/lib/definitions';
 import slugify from 'slugify';
 import { saveCategoryImage, deleteManagedFile } from './file.service';
@@ -142,11 +143,11 @@ export const categoryService = {
       slug = slugify(normalized.name, { lower: true, strict: true });
     }
 
-    if (!slug) throw new Error('Slug is required or could not be generated');
-    if (!normalized.name) throw new Error('Name is required');
+    if (!slug) throw new UserFacingError('El slug es requerido o no se pudo generar.');
+    if (!normalized.name) throw new UserFacingError('El nombre de la categoría es requerido.');
 
     const existing = await prisma.productCategory.findUnique({ where: { slug } });
-    if (existing) throw new Error(`Category with slug "${slug}" already exists.`);
+    if (existing) throw new UserFacingError(`Ya existe una categoría con el slug "${slug}".`);
 
     const created = await prisma.productCategory.create({
       data: {
@@ -175,7 +176,7 @@ export const categoryService = {
 
   async updateCategory(id: number, data: CategoryInput, imageFile: File | null = null, _editorId?: number) {
     const existing = await prisma.productCategory.findUnique({ where: { id } });
-    if (!existing || existing.isDeleted) throw new Error('Category not found');
+    if (!existing || existing.isDeleted) throw new UserFacingError('Categoría no encontrada.');
 
     const normalized = normalizeCategoryInput(data);
 
@@ -187,7 +188,7 @@ export const categoryService = {
     if (slug !== existing.slug) {
       const duplicate = await prisma.productCategory.findUnique({ where: { slug } });
       if (duplicate && duplicate.id !== id) {
-        throw new Error('Slug already in use by another category.');
+        throw new UserFacingError('Este slug ya está en uso por otra categoría.');
       }
     }
 
@@ -217,7 +218,7 @@ export const categoryService = {
 
   async toggleCategoryShowOnHome(id: number, showOnHome: boolean, _editorId?: number) {
     const existing = await prisma.productCategory.findUnique({ where: { id } });
-    if (!existing || existing.isDeleted) throw new Error('Category not found');
+    if (!existing || existing.isDeleted) throw new UserFacingError('Categoría no encontrada.');
 
     const updated = await prisma.productCategory.update({
       where: { id },
@@ -229,20 +230,20 @@ export const categoryService = {
 
   async deleteCategory(id: number, _deleterId?: number) {
     const existing = await prisma.productCategory.findUnique({ where: { id } });
-    if (!existing || existing.isDeleted) throw new Error('Category not found');
+    if (!existing || existing.isDeleted) throw new UserFacingError('Categoría no encontrada.');
 
     const hasChildren = await prisma.productCategory.count({
       where: { parentId: id, isDeleted: false },
     });
     if (hasChildren > 0) {
-      throw new Error('Cannot delete category with active subcategories.');
+      throw new UserFacingError('No se puede eliminar la categoría porque tiene subcategorías activas.');
     }
 
     const hasProducts = await prisma.product.count({
       where: { categoryId: id, isDeleted: false },
     });
     if (hasProducts > 0) {
-      throw new Error('Cannot delete category containing active products.');
+      throw new UserFacingError('No se puede eliminar la categoría porque tiene productos activos.');
     }
 
     return prisma.productCategory.update({

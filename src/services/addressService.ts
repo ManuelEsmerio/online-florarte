@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { UserFacingError } from '@/utils/errors';
 import { AddressType } from "@prisma/client";
 
 const FIXED_STATE = 'Jalisco';
@@ -42,7 +43,7 @@ export const addressService = {
       });
 
       if (!existingAddress) {
-        throw new Error("Address not found or access denied");
+        throw new UserFacingError("Dirección no encontrada o acceso denegado.");
       }
 
       const updatedAddress = await prisma.address.update({
@@ -78,7 +79,7 @@ export const addressService = {
       });
 
       if (activeAddressCount >= 5) {
-        throw new Error('Solo puedes guardar hasta 5 direcciones. Elimina una antes de agregar otra.');
+        throw new UserFacingError('Solo puedes guardar hasta 5 direcciones. Elimina una antes de agregar otra.');
       }
 
       // Create
@@ -114,7 +115,7 @@ export const addressService = {
       });
 
       if (!existingAddress) {
-        throw new Error("Address not found or access denied");
+        throw new UserFacingError("Dirección no encontrada o acceso denegado.");
       }
 
     return prisma.address.update({

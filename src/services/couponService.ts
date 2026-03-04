@@ -1,5 +1,6 @@
 // src/services/couponService.ts
 import { prisma } from '@/lib/prisma';
+import { UserFacingError } from '@/utils/errors';
 import type { Coupon } from '@/lib/definitions';
 import type { CouponScope, DiscountType, CouponStatus } from '@prisma/client';
 
@@ -130,7 +131,7 @@ export const couponService = {
   async validateCoupon({ couponCode, userId, sessionId }: ValidateCouponParams): Promise<Coupon> {
     const normalizedCode = normalizeCouponCode(couponCode);
     if (!normalizedCode) {
-      throw new Error('El código de cupón es requerido.');
+      throw new UserFacingError('El código de cupón es requerido.');
     }
 
     const coupon = await prisma.coupon.findFirst({
@@ -145,14 +146,14 @@ export const couponService = {
       },
     });
 
-    if (!coupon) throw new Error('El código de cupón no existe.');
+    if (!coupon) throw new UserFacingError('El código de cupón no existe.');
 
     const now = new Date();
-    if (coupon.status !== 'ACTIVE') throw new Error('Este cupón no está activo.');
-    if (coupon.isDeleted) throw new Error('Este cupón no está disponible.');
-    if (coupon.validFrom && now < coupon.validFrom) throw new Error('Este cupón aún no está vigente.');
-    if (coupon.validUntil && now > coupon.validUntil) throw new Error('Este cupón ha expirado.');
-    if (coupon.maxUses !== null && coupon.usesCount >= coupon.maxUses) throw new Error('Este cupón ha alcanzado su límite de usos.');
+    if (coupon.status !== 'ACTIVE') throw new UserFacingError('Este cupón no está activo.');
+    if (coupon.isDeleted) throw new UserFacingError('Este cupón no está disponible.');
+    if (coupon.validFrom && now < coupon.validFrom) throw new UserFacingError('Este cupón aún no está vigente.');
+    if (coupon.validUntil && now > coupon.validUntil) throw new UserFacingError('Este cupón ha expirado.');
+    if (coupon.maxUses !== null && coupon.usesCount >= coupon.maxUses) throw new UserFacingError('Este cupón ha alcanzado su límite de usos.');
 
     const activeCart = await prisma.cart.findFirst({
       where: {
@@ -175,15 +176,15 @@ export const couponService = {
 
     const cartItems = activeCart?.items ?? [];
     if (cartItems.length === 0) {
-      throw new Error('Tu carrito está vacío. Agrega productos antes de aplicar un cupón.');
+      throw new UserFacingError('Tu carrito está vacío. Agrega productos antes de aplicar un cupón.');
     }
 
     if (coupon.scope === 'USERS' || coupon.scope === 'SPECIFIC') {
-      if (!userId) throw new Error('Debes iniciar sesión para usar este cupón.');
+      if (!userId) throw new UserFacingError('Debes iniciar sesión para usar este cupón.');
 
       const isLinkedToUser = coupon.couponUsers.some((link) => link.userId === userId);
       if (!isLinkedToUser) {
-        throw new Error('Este cupón no es válido para tu cuenta.');
+        throw new UserFacingError('Este cupón no es válido para tu cuenta.');
       }
 
       const alreadyUsedByUser = await prisma.order.findFirst({
@@ -196,7 +197,7 @@ export const couponService = {
       });
 
       if (alreadyUsedByUser) {
-        throw new Error('Este cupón ya fue utilizado por tu cuenta.');
+        throw new UserFacingError('Este cupón ya fue utilizado por tu cuenta.');
       }
     }
 
@@ -204,7 +205,7 @@ export const couponService = {
       const allowedProductIds = new Set(coupon.couponProducts.map((row) => row.productId));
       const hasEligibleProduct = cartItems.some((item) => allowedProductIds.has(item.productId));
       if (!hasEligibleProduct) {
-        throw new Error('Este cupón solo aplica para productos específicos de tu carrito.');
+        throw new UserFacingError('Este cupón solo aplica para productos específicos de tu carrito.');
       }
     }
 
@@ -212,7 +213,7 @@ export const couponService = {
       const allowedCategoryIds = new Set(coupon.couponCategories.map((row) => row.categoryId));
       const hasEligibleCategory = cartItems.some((item) => item.product?.categoryId && allowedCategoryIds.has(item.product.categoryId));
       if (!hasEligibleCategory) {
-        throw new Error('Este cupón solo aplica para categorías específicas de tu carrito.');
+        throw new UserFacingError('Este cupón solo aplica para categorías específicas de tu carrito.');
       }
     }
 

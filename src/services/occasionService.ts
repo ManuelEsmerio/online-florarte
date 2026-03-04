@@ -1,5 +1,6 @@
 // src/services/occasionService.ts
 import { prisma } from '@/lib/prisma';
+import { UserFacingError } from '@/utils/errors';
 import type { Occasion } from '@/lib/definitions';
 import slugify from 'slugify';
 import { z } from 'zod';
@@ -49,7 +50,7 @@ export const occasionService = {
     const existing = await prisma.occasion.findUnique({
       where: { slug }
     });
-    if(existing) throw new Error('Ya existe una ocasión con este nombre/slug.');
+    if(existing) throw new UserFacingError('Ya existe una ocasión con este nombre/slug.');
     
     const newOccasion = await dbWithAudit(creatorId, async () => {
          return await prisma.occasion.create({
@@ -63,7 +64,7 @@ export const occasionService = {
         });
     });
 
-    if(!newOccasion) throw new Error('No se pudo crear la ocasión.');
+    if(!newOccasion) throw new UserFacingError('No se pudo crear la ocasión.');
     const newId = newOccasion.id;
 
     let imageUrl: string | null = null;
@@ -86,14 +87,14 @@ export const occasionService = {
   
   async updateOccasion(id: number, data: any, imageFile: File | null, editorId: number): Promise<Occasion> {
     const existing = await prisma.occasion.findUnique({ where: { id } });
-    if (!existing) throw new Error('Ocasión no encontrada.');
+    if (!existing) throw new UserFacingError('Ocasión no encontrada.');
 
     const validatedData = occasionSchema.parse(data);
     const slug = slugify(validatedData.name, { lower: true, strict: true });
 
     const existingSlug = await prisma.occasion.findUnique({ where: { slug } });
     if(existingSlug && existingSlug.id !== id) {
-        throw new Error('Ya existe otra ocasión con este nombre/slug.');
+        throw new UserFacingError('Ya existe otra ocasión con este nombre/slug.');
     }
     
     let imageUrl = existing.imageUrl;
@@ -129,7 +130,7 @@ export const occasionService = {
         where: { occasionId: id }
     });
     
-    if(hasProducts) throw new Error('No se puede eliminar la ocasión porque tiene productos asociados.');
+    if(hasProducts) throw new UserFacingError('No se puede eliminar la ocasión porque tiene productos asociados.');
     
     await dbWithAudit(deleterId, async () => {
         await prisma.occasion.delete({ where: { id } });

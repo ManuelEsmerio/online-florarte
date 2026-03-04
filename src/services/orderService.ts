@@ -6,6 +6,7 @@ import { orderAddressService } from './orderAddressService';
 import { orderEmailService } from './orderEmailService';
 import { stripeService } from './stripeService';
 import type { DbCartItem, Order, OrderStatus } from '@/lib/definitions';
+import { UserFacingError } from '@/utils/errors';
 
 const paymentTransactionModel = (prisma as unknown as {
   paymentTransaction: {
@@ -376,7 +377,7 @@ export const orderService = {
     const statusChanged = await prisma.$transaction(async (tx: any) => {
       const current = await tx.order.findUnique({ where: { id: orderId }, select: { status: true } });
       if (!current) {
-        throw new Error('Pedido no encontrado.');
+        throw new UserFacingError('Pedido no encontrado.');
       }
 
       await tx.order.update({ where: { id: orderId }, data: { status: prismaStatus as any, ...payload } });
@@ -406,7 +407,7 @@ export const orderService = {
     const isGuest = !normalizedUserId;
 
     if (!normalizedUserId && !normalizedSessionId) {
-      throw new Error('No se pudo identificar la sesión del carrito.');
+      throw new UserFacingError('No se pudo identificar la sesión del carrito.');
     }
 
     const guestName = normalizeGuestName(params.guestName);
@@ -424,23 +425,23 @@ export const orderService = {
 
     if (isGuest) {
       if (!guestName) {
-        throw new Error('El nombre completo es obligatorio para compras como invitado.');
+        throw new UserFacingError('El nombre completo es obligatorio para compras como invitado.');
       }
       if (!guestEmail || !isValidGuestEmail(guestEmail)) {
-        throw new Error('El email es obligatorio y debe tener un formato válido para compras como invitado.');
+        throw new UserFacingError('El email es obligatorio y debe tener un formato válido para compras como invitado.');
       }
       if (!guestPhone || guestPhone.length !== 10) {
-        throw new Error('El teléfono debe contener 10 dígitos para compras como invitado.');
+        throw new UserFacingError('El teléfono debe contener 10 dígitos para compras como invitado.');
       }
       if (!guestStreetName || !guestStreetNumber || !guestNeighborhood || !guestCity || !guestPostalCode) {
-        throw new Error('La dirección de envío es obligatoria para compras como invitado.');
+        throw new UserFacingError('La dirección de envío es obligatoria para compras como invitado.');
       }
     }
 
     let cartData = await cartService.getCartContents({ userId: normalizedUserId, sessionId: normalizedSessionId });
 
     if (!cartData.items || cartData.items.length === 0) {
-      throw new Error('El carrito está vacío.');
+      throw new UserFacingError('El carrito está vacío.');
     }
 
     const couponCodeFromPayload = String(params.couponCode ?? '').trim().toUpperCase();
@@ -484,7 +485,7 @@ export const orderService = {
     const total = Math.max(0, subtotal - couponDiscount + shippingCost);
 
     if (normalizedUserId && !params.addressId) {
-      throw new Error('Debes seleccionar una dirección guardada para completar tu compra.');
+      throw new UserFacingError('Debes seleccionar una dirección guardada para completar tu compra.');
     }
 
     const selectedAddress = normalizedUserId && params.addressId
@@ -498,7 +499,7 @@ export const orderService = {
       : null;
 
     if (normalizedUserId && params.addressId && !selectedAddress) {
-      throw new Error('La dirección seleccionada no existe o no pertenece al usuario.');
+      throw new UserFacingError('La dirección seleccionada no existe o no pertenece al usuario.');
     }
 
     const snapshotData = selectedAddress
@@ -541,7 +542,7 @@ export const orderService = {
 
     const orderItemsToCreate = cartData.items.map((item: DbCartItem, index: number) => {
       if (!Number.isFinite(item.product_id) || !Number.isFinite(item.unit_price) || !Number.isFinite(item.quantity) || item.quantity < 1) {
-        throw new Error(`Ítem inválido en carrito (posición ${index + 1}).`);
+        throw new UserFacingError(`Ítem inválido en carrito (posición ${index + 1}).`);
       }
 
       return {
@@ -567,7 +568,7 @@ export const orderService = {
         });
 
         if (alreadyUsedByUser) {
-          throw new Error('Este cupón ya fue utilizado por tu cuenta.');
+          throw new UserFacingError('Este cupón ya fue utilizado por tu cuenta.');
         }
       }
 
@@ -612,7 +613,7 @@ export const orderService = {
             data: { stock: { decrement: item.quantity } },
           });
           if (result.count !== 1) {
-            throw new Error(`Stock insuficiente para "${item.productNameSnap}" (${item.variantNameSnap ?? 'variante'}).`);
+            throw new UserFacingError(`Stock insuficiente para "${item.productNameSnap}" (${item.variantNameSnap ?? 'variante'}).`);
           }
         } else {
           const result = await tx.product.updateMany({
@@ -620,7 +621,7 @@ export const orderService = {
             data: { stock: { decrement: item.quantity } },
           });
           if (result.count !== 1) {
-            throw new Error(`Stock insuficiente para "${item.productNameSnap}".`);
+            throw new UserFacingError(`Stock insuficiente para "${item.productNameSnap}".`);
           }
         }
       }
@@ -644,7 +645,7 @@ export const orderService = {
         });
 
         if (couponUpdateResult.count !== 1) {
-          throw new Error('No se pudo reservar el cupón para este pedido. Intenta nuevamente.');
+          throw new UserFacingError('No se pudo reservar el cupón para este pedido. Intenta nuevamente.');
         }
       }
 
@@ -685,28 +686,31 @@ export const orderService = {
     gateway: 'stripe' | 'mercadopago';
     amount: number;
   }) {
-    const shouldSendEmails = await prisma.$transaction(async (tx: any) => {
-      const paymentTxModel = getPaymentTransactionModel(tx);
-      const existingTransaction = await paymentTxModel.findFirst({
-        where: { externalPaymentId: params.externalPaymentId },
-        select: { status: true },
-      });
+    const shouldSendEmails = await prisma.$transaction(
+      async (tx: any) => {
+        const paymentTxModel = getPaymentTransactionModel(tx);
+        const existingTransaction = await paymentTxModel.findFirst({
+          where: { externalPaymentId: params.externalPaymentId },
+          select: { status: true },
+        });
 
-      await tx.order.update({
-        where: { id: params.orderId },
-        data: { status: 'PENDING' },
-      });
+        await tx.order.update({
+          where: { id: params.orderId },
+          data: { status: 'PENDING' },
+        });
 
-      await safeUpsertPaymentTransaction(paymentTxModel, {
-        orderId: params.orderId,
-        externalPaymentId: params.externalPaymentId,
-        gateway: params.gateway,
-        amount: params.amount,
-        status: 'SUCCEEDED',
-      });
+        await safeUpsertPaymentTransaction(paymentTxModel, {
+          orderId: params.orderId,
+          externalPaymentId: params.externalPaymentId,
+          gateway: params.gateway,
+          amount: params.amount,
+          status: 'SUCCEEDED',
+        });
 
-      return existingTransaction?.status !== 'SUCCEEDED';
-    });
+        return existingTransaction?.status !== 'SUCCEEDED';
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }
+    );
 
     if (shouldSendEmails) {
       try {
@@ -725,23 +729,26 @@ export const orderService = {
     gateway: 'stripe' | 'mercadopago';
     amount: number;
   }) {
-    const shouldSendFailureEmail = await prisma.$transaction(async (tx: any) => {
-      const paymentTxModel = getPaymentTransactionModel(tx);
-      const existingTransaction = await paymentTxModel.findFirst({
-        where: { externalPaymentId: params.externalPaymentId },
-        select: { status: true },
-      });
+    const shouldSendFailureEmail = await prisma.$transaction(
+      async (tx: any) => {
+        const paymentTxModel = getPaymentTransactionModel(tx);
+        const existingTransaction = await paymentTxModel.findFirst({
+          where: { externalPaymentId: params.externalPaymentId },
+          select: { status: true },
+        });
 
-      await safeUpsertPaymentTransaction(paymentTxModel, {
-        orderId: params.orderId,
-        externalPaymentId: params.externalPaymentId,
-        gateway: params.gateway,
-        amount: params.amount,
-        status: 'FAILED',
-      });
+        await safeUpsertPaymentTransaction(paymentTxModel, {
+          orderId: params.orderId,
+          externalPaymentId: params.externalPaymentId,
+          gateway: params.gateway,
+          amount: params.amount,
+          status: 'FAILED',
+        });
 
-      return existingTransaction?.status !== 'FAILED';
-    });
+        return existingTransaction?.status !== 'FAILED';
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }
+    );
 
     if (shouldSendFailureEmail) {
       try {
@@ -822,11 +829,11 @@ export const orderService = {
       },
     });
 
-    if (!rawOrder) throw new Error('Pedido no encontrado.');
+    if (!rawOrder) throw new UserFacingError('Pedido no encontrado.');
 
     // Double-check status (may have changed since getCancellationInfo ran in the route)
     if (rawOrder.status !== 'PENDING') {
-      throw new Error('El pedido ya no puede cancelarse porque su estado cambió.');
+      throw new UserFacingError('El pedido ya no puede cancelarse porque su estado cambió.');
     }
 
     // --- 2. Find SUCCEEDED payment transaction ---
@@ -909,7 +916,7 @@ export const orderService = {
         return { refunded: true };
       }
       console.error('[STRIPE_REFUND_ERROR]', { orderId, code, message: stripeError?.message });
-      throw new Error(`No se pudo procesar el reembolso con Stripe: ${stripeError?.message ?? 'error desconocido'}`);
+      throw new UserFacingError(`No se pudo procesar el reembolso con Stripe: ${stripeError?.message ?? 'error desconocido'}`);
     }
 
     // --- 6. Commit everything in a single Prisma transaction ---
@@ -1005,8 +1012,8 @@ export const orderService = {
       },
     });
 
-    if (!rawOrder) throw new Error('Pedido no encontrado.');
-    if (rawOrder.status === 'CANCELLED') throw new Error('El pedido ya está cancelado.');
+    if (!rawOrder) throw new UserFacingError('Pedido no encontrado.');
+    if (rawOrder.status === 'CANCELLED') throw new UserFacingError('El pedido ya está cancelado.');
 
     // --- 2. Find SUCCEEDED payment transaction ---
     const paymentTx = await (prisma as any).paymentTransaction.findFirst({
@@ -1052,7 +1059,7 @@ export const orderService = {
             refundResult = null; // Will mark cancelled without new refund record
           } else {
             console.error('[ADMIN_CANCEL_REFUND_ERROR]', { orderId, gateway: paymentTx.gateway, error: providerError?.message });
-            throw new Error(`No se pudo procesar el reembolso: ${providerError?.message ?? 'error desconocido'}`);
+            throw new UserFacingError(`No se pudo procesar el reembolso: ${providerError?.message ?? 'error desconocido'}`);
           }
         }
       }

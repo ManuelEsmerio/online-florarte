@@ -1,5 +1,6 @@
 // src/services/wishlistService.ts
 import { prisma } from '@/lib/prisma';
+import { UserFacingError } from '@/utils/errors';
 import { productService } from './productService';
 import type { Product, ProductVariant } from '@/lib/definitions';
 
@@ -71,7 +72,7 @@ export const wishlistService = {
 
   async toggleWishlist(userId: number, productId: number, variantId?: number | null) {
     if (!productId) {
-      throw new Error('El ID de producto es requerido.');
+      throw new UserFacingError('El ID de producto es requerido.');
     }
 
     const selectionKey = buildSelectionKey(productId, variantId);
