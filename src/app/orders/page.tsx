@@ -237,14 +237,18 @@ export default function OrdersPage() {
 
   const getStatusBadgeClass = (status: OrderStatus, isUnpaidOrder: boolean) => {
     if (isUnpaidOrder) {
-      return 'bg-red-100 text-red-700 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
+      return 'bg-red-100 text-red-700 border-none px-3 py-1 text-[10px] font-bold tracking-wider pointer-events-none hover:bg-red-100 hover:text-red-700';
     }
 
     switch (status) {
-      case 'DELIVERED': return 'bg-green-100 text-green-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
-      case 'SHIPPED': return 'bg-blue-100 text-blue-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
-      case 'CANCELLED': return 'bg-slate-100 text-slate-500 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
-      default: return 'bg-amber-100 text-amber-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
+      case 'DELIVERED':
+        return 'bg-green-100 text-green-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider pointer-events-none hover:bg-green-100 hover:text-green-600';
+      case 'SHIPPED':
+        return 'bg-blue-100 text-blue-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider pointer-events-none hover:bg-blue-100 hover:text-blue-600';
+      case 'CANCELLED':
+        return 'bg-slate-100 text-slate-500 border-none px-3 py-1 text-[10px] font-bold tracking-wider pointer-events-none hover:bg-slate-100 hover:text-slate-500';
+      default:
+        return 'bg-amber-100 text-amber-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider pointer-events-none hover:bg-amber-100 hover:text-amber-600';
     }
   };
 
@@ -395,7 +399,10 @@ export default function OrdersPage() {
                             row={order} 
                             onDataChange={fetchUserOrders}
                             trigger={
-                              <Button variant="ghost" className="h-9 px-3 text-primary font-semibold text-sm hover:bg-primary/5 gap-1">
+                              <Button
+                                variant="ghost"
+                                className="group/button h-9 px-3 text-primary font-semibold text-sm rounded-xl border border-transparent gap-1 transition-all duration-200 hover:border-primary/40 hover:bg-primary/5 hover:shadow-[0_8px_25px_rgba(244,37,106,0.18)] dark:hover:shadow-[0_8px_25px_rgba(244,37,106,0.35)] focus-visible:ring-2 focus-visible:ring-primary/40"
+                              >
                                 Ver más
                                 <ChevronRight className="w-4 h-4" />
                               </Button>
@@ -425,7 +432,13 @@ export default function OrdersPage() {
                     const progressColor = getOrderProgressColor(order.status, isUnpaidOrder);
 
                     return (
-                      <div key={order.id} className={cn('px-6 lg:px-8 py-6 transition-colors hover:bg-primary/5', isUnpaidOrder && 'opacity-85')}>
+                      <div
+                        key={order.id}
+                        className={cn(
+                          'group relative px-6 lg:px-8 py-6 transition-all duration-300 bg-background border-l-4 border-transparent hover:border-primary/50 dark:hover:border-white/40 hover:bg-gradient-to-r hover:from-primary/10 hover:to-transparent dark:hover:from-white/10 dark:hover:to-transparent hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)] dark:hover:shadow-[0_18px_40px_rgba(0,0,0,0.6)]',
+                          isUnpaidOrder && 'opacity-85'
+                        )}
+                      >
                         <div className="grid grid-cols-12 gap-4 items-center">
                           <div className="col-span-2">
                             <span className="block text-primary font-bold text-2xl mb-0.5">#{String(order.id).padStart(4, '0')}</span>
@@ -460,7 +473,10 @@ export default function OrdersPage() {
                               row={order}
                               onDataChange={fetchUserOrders}
                               trigger={
-                                <Button variant="ghost" className="text-primary font-semibold text-sm hover:bg-primary/5 gap-1">
+                                <Button
+                                  variant="ghost"
+                                  className="group/button text-primary font-semibold text-sm rounded-xl px-3 py-2 border border-transparent gap-1 transition-all duration-200 hover:border-primary/40 hover:bg-primary/5 hover:shadow-[0_12px_30px_rgba(244,37,106,0.15)] dark:hover:shadow-[0_12px_30px_rgba(244,37,106,0.35)] focus-visible:ring-2 focus-visible:ring-primary/40"
+                                >
                                   Ver más
                                   <ChevronRight className="w-4 h-4" />
                                 </Button>
