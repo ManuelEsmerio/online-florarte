@@ -26,6 +26,15 @@ export const userService = {
   },
 
   async updateUser(userId: number, data: any) {
+    let profilePicUrl: string | undefined;
+
+    const shouldUploadProfilePic =
+      typeof data.profilePic === "string" &&
+      data.profilePic.startsWith("data:image");
+
+    if (shouldUploadProfilePic) {
+      profilePicUrl = await saveProfilePicture(userId, data.profilePic);
+    }
 
     return prisma.$transaction(async (tx) => {
 
@@ -61,23 +70,7 @@ export const userService = {
       }
 
       /* =========================
-         3. Guardar foto
-      ========================== */
-      let profilePicUrl: string | undefined;
-
-      if (
-        data.profilePic &&
-        typeof data.profilePic === "string" &&
-        data.profilePic.startsWith("data:image")
-      ) {
-        profilePicUrl = await saveProfilePicture(
-          userId,
-          data.profilePic
-        );
-      }
-
-      /* =========================
-         4. Update usuario
+         3. Update usuario
       ========================== */
       const userUpdateData: any = {
         name: data.name,
@@ -102,7 +95,7 @@ export const userService = {
       });
 
       /* =========================
-         5. Direcciones
+        4. Direcciones
       ========================== */
       if (Array.isArray(data.addresses)) {
 
@@ -183,7 +176,7 @@ export const userService = {
       }
 
       /* =========================
-         6. Retornar completo
+        5. Retornar completo
       ========================== */
       return tx.user.findFirst({
         where: {
