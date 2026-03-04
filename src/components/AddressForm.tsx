@@ -13,12 +13,14 @@ import type { Address } from '@/lib/definitions';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 import { ADDRESS_TYPE_OPTIONS } from '@/utils/constants';
 import { useAuth } from '@/context/AuthContext';
+import { PHONE_CODES, parsePhoneValue, formatPhoneDisplay, sanitizePhoneDigits } from '@/utils/phone';
 
 const addressFormSchema = z.object({
   id: z.number().optional(),
   alias: z.string().min(3, 'El alias de la dirección es requerido.'),
   recipientName: z.string().min(3, 'El nombre del destinatario es requerido.'),
-  recipientPhone: z.string().min(10, 'El teléfono debe tener 10 dígitos.').max(10, 'El teléfono debe tener 10 dígitos.'),
+    recipientPhone: z.string().min(10, 'El teléfono debe tener 10 dígitos.').max(10, 'El teléfono debe tener 10 dígitos.'),
+    recipientPhoneCountryCode: z.enum(PHONE_CODES).default('+52'),
   streetName: z.string().min(3, 'El nombre de la calle es requerido.'),
   streetNumber: z.string().min(1, 'El número exterior es requerido.'),
   interiorNumber: z.string().optional(),
@@ -40,13 +42,15 @@ interface AddressFormProps {
 }
 
 export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: AddressFormProps) {
-    const { shippingZones } = useAuth();
+        const { shippingZones } = useAuth();
+        const parsedRecipientPhone = useMemo(() => parsePhoneValue(addressToEdit?.recipientPhone), [addressToEdit?.recipientPhone]);
   const form = useForm<AddressFormValues>({
     resolver: zodResolver(addressFormSchema),
     defaultValues: {
         alias: '',
         recipientName: '',
         recipientPhone: '',
+                recipientPhoneCountryCode: parsedRecipientPhone.code,
         streetName: '',
         streetNumber: '',
         interiorNumber: '',
@@ -59,7 +63,8 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
     },
     values: addressToEdit ? {
         ...addressToEdit,
-        recipientPhone: addressToEdit.recipientPhone || '',
+        recipientPhone: parsedRecipientPhone.digits,
+        recipientPhoneCountryCode: parsedRecipientPhone.code,
         interiorNumber: addressToEdit.interiorNumber || '',
         state: 'Jalisco',
         referenceNotes: addressToEdit.referenceNotes || '',
@@ -75,10 +80,21 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
     const cityValue = useWatch({ control: form.control, name: 'city' });
     const postalCodeValue = useWatch({ control: form.control, name: 'postalCode' });
 
-    const cityOptions = useMemo(
-        () => Array.from(new Set((shippingZones || []).map(zone => zone.locality).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-        [shippingZones]
-    );
+    const cityOptions = useMemo(() => {
+        const normalized = (shippingZones || [])
+            .map(zone => (zone.municipality || zone.locality || '').trim())
+            .filter((value): value is string => Boolean(value));
+
+        const uniqueBySlug = new Map<string, string>();
+        for (const name of normalized) {
+            const key = name.toLowerCase();
+            if (!uniqueBySlug.has(key)) {
+                uniqueBySlug.set(key, name);
+            }
+        }
+
+        return Array.from(uniqueBySlug.values()).sort((a, b) => a.localeCompare(b, 'es'));
+    }, [shippingZones]);
 
     useEffect(() => {
         if (!cityValue && cityOptions.length > 0) {
@@ -89,20 +105,23 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
     useEffect(() => {
         if (!postalCodeValue) return;
         const matchedZone = shippingZones.find(zone => zone.postalCode === postalCodeValue);
-        if (matchedZone?.locality && matchedZone.locality !== cityValue) {
-            form.setValue('city', matchedZone.locality, { shouldValidate: true });
+        const matchedMunicipality = matchedZone?.municipality || matchedZone?.locality;
+        if (matchedMunicipality && matchedMunicipality !== cityValue) {
+            form.setValue('city', matchedMunicipality, { shouldValidate: true });
         }
     }, [postalCodeValue, shippingZones, cityValue, form]);
 
-  const onSubmit = async (data: AddressFormValues) => {
-        const finalData = {
-            ...data,
-            state: 'Jalisco',
-            id: addressToEdit?.id ?? 0,
-            recipientPhone: data.recipientPhone,
-            referenceNotes: data.referenceNotes,
-        };
-    await onSave(finalData as Address);
+    const onSubmit = async (data: AddressFormValues) => {
+                const { recipientPhoneCountryCode, recipientPhone, ...rest } = data;
+                const phoneDigits = sanitizePhoneDigits(recipientPhone);
+                const finalData = {
+                        ...rest,
+                        state: 'Jalisco',
+                        id: addressToEdit?.id ?? 0,
+                        recipientPhone: phoneDigits ? formatPhoneDisplay(recipientPhoneCountryCode, phoneDigits) : '',
+                        referenceNotes: data.referenceNotes,
+                };
+        await onSave(finalData as Address);
   };
 
   return (
@@ -143,9 +162,36 @@ export function AddressForm({ addressToEdit, onSave, onCancel, isSaving }: Addre
                     render={({ field }) => (
                         <FormItem className="space-y-2">
                             <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Teléfono de contacto *</FormLabel>
-                            <FormControl>
-                                <Input placeholder="10 dígitos" {...field} className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium" />
-                            </FormControl>
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <FormField
+                                    control={form.control}
+                                    name="recipientPhoneCountryCode"
+                                    render={({ field: codeField }) => (
+                                        <FormItem className="sm:w-[160px]">
+                                            <FormControl>
+                                                <Select onValueChange={codeField.onChange} value={codeField.value}>
+                                                    <SelectTrigger className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium">
+                                                        <SelectValue placeholder="Prefijo" />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="rounded-2xl">
+                                                        <SelectItem value="+52">México (+52)</SelectItem>
+                                                        <SelectItem value="+1">Estados Unidos / Canadá (+1)</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormControl>
+                                    <Input
+                                        placeholder="33 1234 5678"
+                                        {...field}
+                                        inputMode="numeric"
+                                        onChange={(e) => field.onChange(sanitizePhoneDigits(e.target.value))}
+                                        className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium tracking-wide"
+                                    />
+                                </FormControl>
+                            </div>
                             <FormMessage />
                         </FormItem>
                     )}

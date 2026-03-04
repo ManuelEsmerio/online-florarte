@@ -43,6 +43,7 @@ import {
 import type { User as UserType } from '@/lib/definitions';
 import { Stepper } from '@/components/ui/stepper';
 import { cn } from '@/lib/utils';
+import { PHONE_CODES, parsePhoneValue, sanitizePhoneDigits } from '@/utils/phone';
 
 const generatePassword = (length = 12) => {
     const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
@@ -61,7 +62,8 @@ const customerSchema = z.object({
     .or(z.literal(''))
     .refine(val => !val || /^\d{10}$/.test(val), {
         message: 'El teléfono debe ser un número de 10 dígitos.',
-    }),
+        }),
+    phoneCountryCode: z.enum(PHONE_CODES).default('+52'),
   role: z.enum(['customer', 'admin', 'delivery'], {
     required_error: 'Debes seleccionar un rol.',
   }),
@@ -142,14 +144,37 @@ const Step1_Info = () => {
                 <FormField control={control} name="phone" render={({ field }) => (
                     <FormItem className="space-y-2">
                         <FormLabel className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-5">Teléfono</FormLabel>
-                        <FormControl>
-                            <Input 
-                                type="tel" 
-                                placeholder="+52 000 000 0000" 
-                                {...field} 
-                                className="w-full h-14 md:h-16 bg-muted/30 dark:bg-black/30 border-border/50 dark:border-white/5 rounded-full px-8 focus:ring-2 focus:ring-primary/20 font-medium text-base transition-all outline-none" 
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <FormField
+                                control={control}
+                                name="phoneCountryCode"
+                                render={({ field: codeField }) => (
+                                    <FormItem className="sm:w-[180px]">
+                                        <FormControl>
+                                            <Select onValueChange={codeField.onChange} value={codeField.value}>
+                                                <SelectTrigger className="w-full h-14 md:h-16 bg-muted/30 dark:bg-black/30 border-border/50 dark:border-white/5 rounded-full px-6 focus:ring-2 focus:ring-primary/20 font-medium text-base">
+                                                    <SelectValue placeholder="Prefijo" />
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-[1.5rem] border-none shadow-2xl p-2 bg-background">
+                                                    <SelectItem value="+52">México (+52)</SelectItem>
+                                                    <SelectItem value="+1">Estados Unidos / Canadá (+1)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </FormControl>
+                                    </FormItem>
+                                )}
                             />
-                        </FormControl>
+                            <FormControl>
+                                <Input 
+                                    type="tel" 
+                                    placeholder="33 1234 5678" 
+                                    {...field}
+                                    inputMode="numeric"
+                                    onChange={(e) => field.onChange(sanitizePhoneDigits(e.target.value))}
+                                    className="w-full h-14 md:h-16 bg-muted/30 dark:bg-black/30 border-border/50 dark:border-white/5 rounded-full px-8 focus:ring-2 focus:ring-primary/20 font-medium text-base transition-all outline-none tracking-wide" 
+                                />
+                            </FormControl>
+                        </div>
                         <FormMessage className="ml-5" />
                     </FormItem>
                 )} />
@@ -301,6 +326,7 @@ export function CustomerForm({
         name: '',
         email: '',
         phone: '',
+                phoneCountryCode: '+52',
         role: 'customer',
         password: '',
         generatePassword: true,
@@ -312,10 +338,12 @@ export function CustomerForm({
   useEffect(() => {
     if (isOpen) {
         if (user) {
+                        const parsedPhone = parsePhoneValue(user.phone);
             reset({
               name: user.name,
               email: user.email,
-              phone: user.phone || '',
+                            phone: parsedPhone.digits,
+                            phoneCountryCode: parsedPhone.code,
                             role: toFormRole(user.role),
               password: '',
               generatePassword: false,
@@ -325,6 +353,7 @@ export function CustomerForm({
                 name: '', 
                 email: '', 
                 phone: '', 
+                                phoneCountryCode: '+52',
                 role: 'customer', 
                 password: generatePassword(), 
                 generatePassword: true 

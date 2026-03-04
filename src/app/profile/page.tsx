@@ -47,6 +47,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { PHONE_CODES, parsePhoneValue, sanitizePhoneDigits, formatPhoneDisplay } from '@/utils/phone';
 
 const profileSchema = z.object({
   name: z.string().min(3, 'El nombre es requerido.'),
@@ -57,6 +58,7 @@ const profileSchema = z.object({
     .refine((val) => !val || /^\d{10}$/.test(val), {
         message: 'El teléfono debe ser un número de 10 dígitos.',
     }),
+    phoneCountryCode: z.enum(PHONE_CODES).default('+52'),
   profilePic: z.string().optional(),
 });
 
@@ -146,11 +148,18 @@ function ProfilePageContent() {
   const [addressToDelete, setAddressToDelete] = useState<number | null>(null);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [isDeletingAddress, setIsDeletingAddress] = useState(false);
+    const parsedUserPhone = useMemo(() => parsePhoneValue(user?.phone), [user?.phone]);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
-    defaultValues: { name: '', email: '', phone: '', profilePic: '' },
-    values: user ? { name: user.name, email: user.email, phone: user.phone || '', profilePic: user.profilePicUrl || '' } : undefined,
+        defaultValues: { name: '', email: '', phone: '', phoneCountryCode: parsedUserPhone.code, profilePic: '' },
+        values: user ? {
+                name: user.name,
+                email: user.email,
+                phone: parsedUserPhone.digits,
+                phoneCountryCode: parsedUserPhone.code,
+                profilePic: user.profilePicUrl || '',
+        } : undefined,
   });
 
   const passwordForm = useForm<PasswordFormValues>({
@@ -171,7 +180,12 @@ function ProfilePageContent() {
   const handleUpdateProfile = async (data: ProfileFormValues) => {
     if (!updateUser || !user) return;
     setIsSavingProfile(true);
-    const result = await updateUser(data);
+        const { phoneCountryCode, phone, ...rest } = data;
+        const phoneDigits = sanitizePhoneDigits(phone);
+        const result = await updateUser({
+                ...rest,
+                phone: phoneDigits ? formatPhoneDisplay(phoneCountryCode, phoneDigits) : '',
+        });
     if (result.success) {
         toast({ title: '¡Perfil Actualizado!', description: 'Tu información se ha guardado correctamente.', variant: 'success' });
     } else {
@@ -403,9 +417,37 @@ function ProfilePageContent() {
                                 <FormField control={form.control} name="phone" render={({ field }) => (
                                     <FormItem className="space-y-2">
                                         <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Teléfono</FormLabel>
-                                        <FormControl>
-                                            <Input {...field} placeholder="3312345678" disabled={isSavingProfile} className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium" />
-                                        </FormControl>
+                                        <div className="flex flex-col sm:flex-row gap-3">
+                                            <FormField
+                                                control={form.control}
+                                                name="phoneCountryCode"
+                                                render={({ field: codeField }) => (
+                                                    <FormItem className="sm:w-[160px]">
+                                                        <FormControl>
+                                                            <Select onValueChange={codeField.onChange} value={codeField.value}>
+                                                                <SelectTrigger className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium" disabled={isSavingProfile}>
+                                                                    <SelectValue placeholder="Prefijo" />
+                                                                </SelectTrigger>
+                                                                <SelectContent className="rounded-2xl">
+                                                                    <SelectItem value="+52">México (+52)</SelectItem>
+                                                                    <SelectItem value="+1">Estados Unidos / Canadá (+1)</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormControl>
+                                                <Input
+                                                    {...field}
+                                                    placeholder="33 1234 5678"
+                                                    inputMode="numeric"
+                                                    disabled={isSavingProfile}
+                                                    onChange={(e) => field.onChange(sanitizePhoneDigits(e.target.value))}
+                                                    className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium tracking-wide"
+                                                />
+                                            </FormControl>
+                                        </div>
                                         <FormMessage />
                                     </FormItem>
                                 )} />

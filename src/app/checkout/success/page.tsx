@@ -15,15 +15,49 @@ const CheckoutSuccessContent = () => {
   const { clearCart } = useCart();
   const { user } = useAuth();
   const hasClearedRef = useRef(false);
+  const hasReconciledRef = useRef(false);
 
   const orderId = useMemo(() => searchParams.get('order_id'), [searchParams]);
   const sessionId = useMemo(() => searchParams.get('session_id'), [searchParams]);
+  const mercadoPagoPaymentId = useMemo(
+    () => searchParams.get('payment_id') ?? searchParams.get('collection_id'),
+    [searchParams]
+  );
 
   useEffect(() => {
     if (hasClearedRef.current) return;
     hasClearedRef.current = true;
     clearCart();
   }, [clearCart]);
+
+  useEffect(() => {
+    if (hasReconciledRef.current) return;
+    if (!orderId) return;
+
+    const numericOrderId = Number(orderId);
+    if (!Number.isFinite(numericOrderId) || numericOrderId <= 0) return;
+
+    const payload: Record<string, unknown> = { orderId: numericOrderId };
+    if (sessionId) {
+      payload.gateway = 'stripe';
+      payload.sessionId = sessionId;
+    } else if (mercadoPagoPaymentId) {
+      payload.gateway = 'mercadopago';
+      payload.paymentId = mercadoPagoPaymentId;
+    } else {
+      return;
+    }
+
+    hasReconciledRef.current = true;
+
+    fetch('/api/orders/reconcile-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(error => {
+      console.error('No se pudo reconciliar el pago', error);
+    });
+  }, [orderId, sessionId, mercadoPagoPaymentId]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background">

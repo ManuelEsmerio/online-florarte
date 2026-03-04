@@ -133,10 +133,16 @@ export const orderService = {
       : [];
 
     const latestPaymentGatewayByOrderId = new Map<number, string>();
+    const latestPaymentStatusByOrderId = new Map<number, string>();
+    const hasPaymentTransactionByOrderId = new Map<number, boolean>();
     for (const transaction of transactions) {
       if (!latestPaymentGatewayByOrderId.has(transaction.orderId)) {
         latestPaymentGatewayByOrderId.set(transaction.orderId, String(transaction.gateway ?? '').toLowerCase());
       }
+      if (!latestPaymentStatusByOrderId.has(transaction.orderId)) {
+        latestPaymentStatusByOrderId.set(transaction.orderId, String(transaction.status ?? '').toUpperCase());
+      }
+      hasPaymentTransactionByOrderId.set(transaction.orderId, true);
     }
 
     return {
@@ -155,10 +161,13 @@ export const orderService = {
         shippingAddress: o.orderAddress?.formattedAddress ?? 'Dirección por confirmar',
         delivery_date: o.deliveryDate?.toISOString().slice(0, 10) ?? '',
         delivery_time_slot: o.deliveryTimeSlot,
-        delivery_notes: o.deliveryNotes,
+        deliveryNotes: o.deliveryNotes ?? o.orderAddress?.referenceNotes ?? null,
+        delivery_notes: o.deliveryNotes ?? o.orderAddress?.referenceNotes ?? null,
         created_at: o.createdAt.toISOString(),
         updated_at: o.updatedAt.toISOString(),
         payment_gateway: latestPaymentGatewayByOrderId.get(o.id) ?? null,
+        payment_status: latestPaymentStatusByOrderId.get(o.id) ?? null,
+        has_payment_transaction: hasPaymentTransactionByOrderId.get(o.id) ?? false,
       })),
       total,
       page,
@@ -194,41 +203,74 @@ export const orderService = {
       }
     }
 
-    return orders.map((o: any) => ({
-      id: o.id,
-      user_id: o.userId,
-      customerName: o.user.name,
-      customerEmail: o.user.email,
-      status: mapStatus(o.status) as OrderStatus,
-      subtotal: Number(o.subtotal),
-      total: Number(o.total),
-      shipping_cost: Number(o.shippingCost),
-      recipientName: o.orderAddress?.recipientName ?? null,
-      recipientPhone: o.orderAddress?.recipientPhone ?? null,
-      payment_status: latestPaymentStatusByOrderId.get(o.id) ?? 'PENDING',
-      has_payment_transaction: hasPaymentTransactionByOrderId.get(o.id) ?? false,
-      shippingAddress: o.orderAddress?.formattedAddress ?? '',
-      delivery_date: o.deliveryDate?.toISOString().slice(0, 10) ?? '',
-      delivery_time_slot: o.deliveryTimeSlot,
-      dedication: o.dedication,
-      is_anonymous: o.isAnonymous,
-      signature: o.signature,
-      created_at: o.createdAt.toISOString(),
-      items: o.items.map((it: any) => ({
-        product_id: it.productId,
+    return orders.map((o: any) => {
+      const deliveryDateIso = o.deliveryDate ? o.deliveryDate.toISOString() : null;
+      const createdAtIso = o.createdAt.toISOString();
+      const updatedAtIso = o.updatedAt.toISOString();
+      const paymentStatus = latestPaymentStatusByOrderId.get(o.id) ?? 'PENDING';
+      const hasPaymentTx = hasPaymentTransactionByOrderId.get(o.id) ?? false;
+      const shippingAddress = o.orderAddress?.formattedAddress ?? '';
+      const recipientName = o.orderAddress?.recipientName ?? null;
+      const recipientPhone = o.orderAddress?.recipientPhone ?? null;
+
+      const items = o.items.map((it: any) => ({
+        id: it.id,
+        orderId: it.orderId,
+        productId: it.productId,
+        variantId: it.variantId,
+        productNameSnap: it.productNameSnap,
+        variantNameSnap: it.variantNameSnap,
+        imageSnap: it.imageSnap ?? it.product?.images?.[0]?.src ?? null,
         quantity: it.quantity,
-        price: Number(it.unitPrice),
-        product_name: it.productNameSnap,
-        image: it.imageSnap ?? it.product.images[0]?.src ?? '',
-      })),
-    } as unknown as Order));
+        unitPrice: Number(it.unitPrice),
+        customPhotoUrl: it.customPhotoUrl ?? null,
+        createdAt: it.createdAt?.toISOString?.() ?? null,
+      }));
+
+      return {
+        id: o.id,
+        userId: o.userId,
+        user_id: o.userId,
+        customerName: o.user?.name ?? o.guestName ?? 'Cliente invitado',
+        customerEmail: o.user?.email ?? o.guestEmail ?? '',
+        status: o.status as OrderStatus,
+        subtotal: Number(o.subtotal),
+        couponDiscount: Number(o.couponDiscount ?? 0),
+        coupon_discount: Number(o.couponDiscount ?? 0),
+        shippingCost: Number(o.shippingCost ?? 0),
+        shipping_cost: Number(o.shippingCost ?? 0),
+        total: Number(o.total),
+        deliveryDate: deliveryDateIso,
+        delivery_date: deliveryDateIso,
+        deliveryTimeSlot: o.deliveryTimeSlot ?? '',
+        delivery_time_slot: o.deliveryTimeSlot ?? '',
+        dedication: o.dedication ?? null,
+        deliveryNotes: o.deliveryNotes ?? o.orderAddress?.referenceNotes ?? null,
+        isAnonymous: Boolean(o.isAnonymous),
+        is_anonymous: Boolean(o.isAnonymous),
+        signature: o.signature ?? null,
+        createdAt: createdAtIso,
+        created_at: createdAtIso,
+        updatedAt: updatedAtIso,
+        updated_at: updatedAtIso,
+        payment_status: paymentStatus,
+        has_payment_transaction: hasPaymentTx,
+        shippingAddress,
+        shipping_address_snapshot: shippingAddress,
+        recipientName,
+        recipient_name: recipientName,
+        recipientPhone,
+        recipient_phone: recipientPhone,
+        items,
+      } as unknown as Order;
+    });
   },
 
   async getOrderDetails(orderId: number): Promise<Order | null> {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
-        user: { select: { name: true, email: true } },
+        user: { select: { name: true, email: true, phone: true } },
         coupon: { select: { code: true, discountType: true, discountValue: true } },
         orderAddress: true,
         items: { include: { product: true, variant: true } },
@@ -250,6 +292,7 @@ export const orderService = {
       guest_phone: order.guestPhone,
       customerName: order.user?.name ?? order.guestName ?? 'Cliente invitado',
       customerEmail: order.user?.email ?? order.guestEmail ?? '',
+      customerPhone: order.user?.phone ?? order.guestPhone ?? null,
       status: mapStatus(order.status) as OrderStatus,
       subtotal: Number(order.subtotal),
       coupon_id: order.couponId ?? null,
@@ -265,6 +308,8 @@ export const orderService = {
       payment_gateway: latestPaymentTransaction?.gateway ?? null,
       has_payment_transaction: Boolean(latestPaymentTransaction),
       shippingAddress: order.orderAddress?.formattedAddress ?? '',
+      deliveryNotes: order.deliveryNotes ?? order.orderAddress?.referenceNotes ?? null,
+      delivery_notes: order.deliveryNotes ?? order.orderAddress?.referenceNotes ?? null,
       delivery_date: order.deliveryDate?.toISOString().slice(0, 10) ?? '',
       delivery_time_slot: order.deliveryTimeSlot,
       dedication: order.dedication,

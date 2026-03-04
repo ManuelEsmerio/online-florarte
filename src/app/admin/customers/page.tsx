@@ -165,7 +165,7 @@ export default function CustomersPage() {
       const payload: any = {
         name: formData.name,
         email: formData.email,
-        phone: formData.phone || null,
+        phone: formData.phone ? `${formData.phoneCountryCode}${formData.phone}` : null,
         role: (formData.role as string).toUpperCase(),
       };
       if (formData.password) payload.password = formData.password;

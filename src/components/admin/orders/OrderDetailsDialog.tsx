@@ -54,6 +54,18 @@ const statusLabels: Record<OrderStatus, string> = {
   CANCELLED: 'Cancelado',
 };
 
+const paymentStatusLabels: Record<string, string> = {
+  SUCCEEDED: 'Pagado',
+  PENDING: 'Pago pendiente',
+  FAILED: 'Pago rechazado',
+};
+
+const paymentStatusColors: Record<string, string> = {
+  SUCCEEDED: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800',
+  PENDING: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800',
+  FAILED: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/40 dark:text-rose-300 dark:border-rose-800',
+};
+
 interface OrderDetailsDialogProps {
   order: AdminOrderDetailsDTO | null;
   isOpen: boolean;
@@ -102,7 +114,21 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
   const normalizedStatus = normalizeOrderStatus(order?.status) ?? 'PENDING';
   const nextStatus = nextStatusMap[normalizedStatus];
   const canCancelOrder = normalizedStatus === 'PENDING';
-  const isUnpaidOrder = order?.hasPaymentTransaction === false;
+  const hasPaymentTransaction = Boolean(order?.hasPaymentTransaction ?? order?.has_payment_transaction ?? false);
+  const paymentStatusRaw = String(order?.paymentStatus ?? order?.payment_status ?? '').trim().toUpperCase();
+  const paymentStatusLabel = hasPaymentTransaction
+    ? paymentStatusLabels[paymentStatusRaw] ?? (paymentStatusRaw || 'Pago registrado')
+    : null;
+  const paymentBadgeClass = paymentStatusColors[paymentStatusRaw] ?? 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+  const paymentGatewayRaw = String(order?.paymentGateway ?? order?.payment_gateway ?? '').trim();
+  const paymentGatewayLabel = paymentGatewayRaw
+    ? paymentGatewayRaw
+        .split(/[_\s]/)
+        .filter(Boolean)
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ')
+    : 'Sin registro';
+  const isUnpaidOrder = !hasPaymentTransaction;
   const currentStatusLabel = statusLabels[normalizedStatus];
   const couponTypeRaw = String(order?.couponType ?? '').toUpperCase();
   const couponTypeLabel = couponTypeRaw === 'PERCENTAGE' ? 'Porcentaje' : couponTypeRaw === 'FIXED' ? 'Monto fijo' : null;
@@ -174,7 +200,11 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
                   <span className={cn('px-4 py-1.5 rounded-full border text-xs font-bold tracking-wide uppercase w-fit', statusColors[normalizedStatus])}>
                     {currentStatusLabel}
                   </span>
-                  {isUnpaidOrder ? (
+                  {paymentStatusLabel ? (
+                    <span className={cn('px-4 py-1.5 rounded-full border text-xs font-bold tracking-wide uppercase w-fit', paymentBadgeClass)}>
+                      Pago: {paymentStatusLabel}
+                    </span>
+                  ) : isUnpaidOrder ? (
                     <span className="px-4 py-1.5 rounded-full border text-xs font-bold tracking-wide uppercase w-fit bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/40 dark:text-rose-200 dark:border-rose-800">
                       Sin pagar
                     </span>
@@ -193,10 +223,18 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
                     </span>
                   </div>
                   <div className="space-y-4">
-                    {order.items?.map((item, idx) => (
-                      <div key={idx} className="flex items-center gap-4 md:gap-5 rounded-2xl p-3 border border-transparent hover:border-border/60 hover:bg-muted/20 transition-colors">
+                    {order.items?.map(item => {
+                      const itemKey = `${item.productId ?? 'product'}-${item.variantNameSnap ?? 'base'}-${item.productNameSnap ?? 'item'}`;
+                      return (
+                        <div key={itemKey} className="flex items-center gap-4 md:gap-5 rounded-2xl p-3 border border-transparent hover:border-border/60 hover:bg-muted/20 transition-colors">
                         <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden flex-shrink-0 bg-muted relative">
-                          <Image src={item.imageSnap || '/placehold.webp'} alt={item.productNameSnap || 'Producto'} fill className="object-cover" />
+                          <Image
+                            src={item.imageSnap || '/placehold.webp'}
+                            alt={item.productNameSnap || 'Producto'}
+                            fill
+                            sizes="(max-width: 768px) 80vw, 192px"
+                            className="object-cover"
+                          />
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-base md:text-xl leading-tight text-foreground">{item.productNameSnap}</h3>
@@ -207,8 +245,9 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
                             <span className="text-primary font-bold text-lg">{formatCurrency(item.unitPrice * item.quantity)}</span>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 </section>
 
@@ -320,6 +359,14 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Costo de envío</span>
                       <span className="font-medium">{order.shippingCost === 0 ? 'Gratis' : formatCurrency(order.shippingCost)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Método de pago</span>
+                      <span className="font-semibold text-foreground">{paymentGatewayLabel}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Estado del pago</span>
+                      <span className="font-semibold text-foreground">{paymentStatusLabel ?? (isUnpaidOrder ? 'Sin registro' : 'N/A')}</span>
                     </div>
                     <div className="pt-4 border-t border-border/60 flex justify-between items-end">
                       <div>

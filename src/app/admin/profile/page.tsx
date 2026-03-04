@@ -1,7 +1,7 @@
 // src/app/admin/profile/page.tsx
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +21,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import type { User } from '@/lib/definitions';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { PHONE_CODES, parsePhoneValue, sanitizePhoneDigits, formatPhoneDisplay } from '@/utils/phone';
 
 const profileSchema = z.object({
   name: z.string().min(3, 'El nombre es requerido.'),
@@ -31,6 +32,7 @@ const profileSchema = z.object({
     .refine((val) => !val || /^\d{10}$/.test(val), {
         message: 'El teléfono debe ser un número de 10 dígitos.',
     }),
+  phoneCountryCode: z.enum(PHONE_CODES).default('+52'),
   profilePic: z.string().optional(),
 });
 
@@ -96,10 +98,11 @@ export default function ProfilePageContent() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const parsedUserPhone = useMemo(() => parsePhoneValue(user?.phone), [user?.phone]);
   
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
-    defaultValues: { name: '', email: '', phone: '', profilePic: '' },
+    defaultValues: { name: '', email: '', phone: '', phoneCountryCode: parsedUserPhone.code, profilePic: '' },
   });
   
   const passwordForm = usePasswordForm<PasswordFormValues>({
@@ -109,10 +112,12 @@ export default function ProfilePageContent() {
 
   const fetchUserDataCallback = useCallback(() => {
     if (user) {
+      const parsed = parsePhoneValue(user.phone);
         form.reset({
             name: user.name,
             email: user.email,
-            phone: user.phone || '',
+        phone: parsed.digits,
+        phoneCountryCode: parsed.code,
             profilePic: user.profilePicUrl || '',
         });
     }
@@ -138,8 +143,12 @@ export default function ProfilePageContent() {
   const handleUpdateProfile = async (data: ProfileFormValues) => {
     if (!updateUser || !user) return;
     setIsSavingProfile(true);
-    
-    const result = await updateUser(data);
+    const { phoneCountryCode, phone, ...rest } = data;
+    const phoneDigits = sanitizePhoneDigits(phone);
+    const result = await updateUser({
+      ...rest,
+      phone: phoneDigits ? formatPhoneDisplay(phoneCountryCode, phoneDigits) : '',
+    });
 
     if (result.success) {
         toast({ title: '¡Perfil Actualizado!', description: 'Tu información se ha guardado correctamente.' });
@@ -232,7 +241,46 @@ export default function ProfilePageContent() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Nombre Completo</FormLabel><FormControl><Input {...field} disabled={isSavingProfile} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Correo Electrónico</FormLabel><FormControl><Input type="email" {...field} disabled={isSavingProfile} /></FormControl><FormMessage /></FormItem>)}/>
-                        <FormField control={form.control} name="phone" render={({ field }) => (<FormItem><FormLabel>Teléfono</FormLabel><FormControl><Input {...field} placeholder="Tu número de teléfono" disabled={isSavingProfile} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField
+                          control={form.control}
+                          name="phone"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Teléfono</FormLabel>
+                              <div className="flex flex-col sm:flex-row gap-3">
+                                <FormField
+                                  control={form.control}
+                                  name="phoneCountryCode"
+                                  render={({ field: codeField }) => (
+                                    <FormItem className="sm:w-[150px]">
+                                      <FormControl>
+                                        <Select onValueChange={codeField.onChange} value={codeField.value}>
+                                          <SelectTrigger disabled={isSavingProfile}>
+                                            <SelectValue placeholder="Prefijo" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="+52">México (+52)</SelectItem>
+                                            <SelectItem value="+1">Estados Unidos / Canadá (+1)</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    placeholder="33 1234 5678"
+                                    inputMode="numeric"
+                                    disabled={isSavingProfile}
+                                    onChange={(e) => field.onChange(sanitizePhoneDigits(e.target.value))}
+                                  />
+                                </FormControl>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                     </div>
                     <div className="flex justify-end">
                         <Button type="submit" loading={isSavingProfile}>Guardar Cambios</Button>

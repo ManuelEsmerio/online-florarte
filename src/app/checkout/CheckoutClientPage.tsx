@@ -29,6 +29,7 @@ import { OrderSummary } from '@/components/checkout/OrderSummary';
 import { handleApiResponse } from '@/utils/handleApiResponse';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PHONE_CODES, parsePhoneValue } from '@/utils/phone';
 
 export interface CheckoutBootstrapData {
   phone: string;
@@ -54,6 +55,8 @@ const checkoutSchema = z.object({
   guestPostalCode: z.string().optional(),
   guestReferenceNotes: z.string().optional(),
   phone: z.string().min(10, 'El teléfono debe tener 10 dígitos.'),
+  phoneCountryCode: z.enum(PHONE_CODES).default('+52'),
+  savePhoneToProfile: z.boolean().default(false),
   addressId: z.number().optional().default(0),
   deliveryDate: z.string().min(1, 'La fecha de entrega es requerida.'),
   deliveryTimeSlot: z.string().min(1, 'Debes seleccionar un horario.'),
@@ -137,6 +140,8 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
   const [isValidatingCart, setIsValidatingCart] = useState(true);
   const [isDataSettled, setIsDataSettled] = useState(false);
 
+  const initialPhone = parsePhoneValue(bootstrap.phone);
+
   const form = useForm<CheckoutFormValues>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
@@ -151,7 +156,9 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
       guestState: 'Jalisco',
       guestPostalCode: '',
       guestReferenceNotes: '',
-      phone: bootstrap.phone || '',
+      phone: initialPhone.digits,
+      phoneCountryCode: initialPhone.code,
+      savePhoneToProfile: false,
       addressId: bootstrap.addressId || 0,
       deliveryDate: bootstrap.deliveryDate || '',
       deliveryTimeSlot: '',
@@ -165,6 +172,12 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
   });
 
   const { watch, handleSubmit, trigger, getValues, setValue } = form;
+
+  const applyPhoneValue = useCallback((value?: string | null) => {
+    const parsed = parsePhoneValue(value);
+    setValue('phoneCountryCode', parsed.code, { shouldValidate: true });
+    setValue('phone', parsed.digits, { shouldValidate: true });
+  }, [setValue]);
 
   const watchedGuestName = watch('guestName');
   const watchedGuestEmail = watch('guestEmail');
@@ -221,13 +234,13 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
   useEffect(() => {
     if (isCartLoading || isDataSettled) return;
 
-    if (bootstrap.phone) setValue('phone', bootstrap.phone, { shouldValidate: true });
+    if (bootstrap.phone) applyPhoneValue(bootstrap.phone);
     if (bootstrap.addressId > 0) setValue('addressId', bootstrap.addressId, { shouldValidate: true });
     if (bootstrap.deliveryDate) setValue('deliveryDate', bootstrap.deliveryDate, { shouldValidate: true });
     if (bootstrap.couponCode) setValue('couponCode', bootstrap.couponCode, { shouldValidate: true });
 
     if (user) {
-      if (user.phone) setValue('phone', user.phone, { shouldValidate: true });
+      if (user.phone) applyPhoneValue(user.phone);
       const defaultAddr = user.addresses?.find(a => a.isDefault)?.id || user.addresses?.[0]?.id || 0;
       if (defaultAddr > 0) setValue('addressId', defaultAddr, { shouldValidate: true });
     }
@@ -235,7 +248,7 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
     if (appliedCoupon) setValue('couponCode', appliedCoupon.code, { shouldValidate: true });
 
     setIsDataSettled(true);
-  }, [isCartLoading, user, deliveryDate, appliedCoupon, setValue, isDataSettled, bootstrap]);
+  }, [isCartLoading, user, deliveryDate, appliedCoupon, setValue, isDataSettled, bootstrap, applyPhoneValue]);
 
   useEffect(() => {
     if (!isCartLoading) validateCart();
@@ -309,7 +322,8 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
           addressId: data.addressId,
           guestName: isGuestCheckout ? data.guestName : undefined,
           guestEmail: isGuestCheckout ? data.guestEmail : undefined,
-          guestPhone: data.phone,
+              guestPhone: data.phone,
+              guestPhoneCountryCode: data.phoneCountryCode,
           guestAddressAlias: isGuestCheckout ? data.guestAddressAlias : undefined,
           guestStreetName: isGuestCheckout ? data.guestStreetName : undefined,
           guestStreetNumber: isGuestCheckout ? data.guestStreetNumber : undefined,

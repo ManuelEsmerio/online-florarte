@@ -32,6 +32,112 @@ import { OrderDetailsDialog } from '../../../components/admin/orders/OrderDetail
 
 const EMPTY_DRIVERS: any[] = [];
 
+const normalizeAdminStatus = (value: unknown): OrderStatus => {
+  const raw = String(value ?? 'PENDING')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[^A-Z_]/g, '');
+
+  const map: Record<string, OrderStatus> = {
+    PENDING: 'PENDING',
+    PROCESSING: 'PROCESSING',
+    SHIPPED: 'SHIPPED',
+    DELIVERED: 'DELIVERED',
+    CANCELLED: 'CANCELLED',
+    PENDIENTE: 'PENDING',
+    PROCESANDO: 'PROCESSING',
+    ENPROCESO: 'PROCESSING',
+    ENREPARTO: 'SHIPPED',
+    ENCAMINO: 'SHIPPED',
+    COMPLETADO: 'DELIVERED',
+    CANCELADO: 'CANCELLED',
+  };
+
+  return map[raw] ?? 'PENDING';
+};
+
+const mapAdminOrderDetails = (payload: any, fallbackItems?: any[]): AdminOrderDetailsDTO => {
+  const status = normalizeAdminStatus(payload.status ?? payload.orderStatus);
+  const rawItems = Array.isArray(payload.items) && payload.items.length > 0
+    ? payload.items
+    : Array.isArray(payload.orderItems) && payload.orderItems.length > 0
+      ? payload.orderItems
+      : Array.isArray(fallbackItems)
+        ? fallbackItems
+        : [];
+  const items = rawItems.map((item: any) => ({
+    productId: Number(item.productId ?? item.product_id ?? 0),
+    quantity: Number(item.quantity ?? 0),
+    unitPrice: Number(item.unitPrice ?? item.unit_price ?? item.price ?? 0),
+    productNameSnap: item.productNameSnap ?? item.product_name ?? 'Producto',
+    variantNameSnap: item.variantNameSnap ?? item.variant_name ?? null,
+    imageSnap:
+      item.imageSnap ??
+      item.image ??
+      item.product?.mainImage ??
+      item.product?.main_image ??
+      '',
+    customPhotoUrl: item.customPhotoUrl ?? item.custom_photo_url ?? null,
+  }));
+
+  return {
+    id: Number(payload.id),
+    userId: payload.userId ?? payload.user_id ?? null,
+    isGuest: Boolean(payload.isGuest ?? payload.is_guest ?? false),
+    guestName: payload.guestName ?? payload.guest_name ?? null,
+    guestEmail: payload.guestEmail ?? payload.guest_email ?? null,
+    guestPhone: payload.guestPhone ?? payload.guest_phone ?? null,
+    deliveryDriverId: payload.deliveryDriverId ?? payload.delivery_driver_id ?? null,
+    status,
+    subtotal: Number(payload.subtotal ?? 0),
+    couponDiscount: Number(payload.couponDiscount ?? payload.coupon_discount ?? 0),
+    shippingCost: Number(payload.shippingCost ?? payload.shipping_cost ?? 0),
+    total: Number(payload.total ?? 0),
+    deliveryDate: String(payload.deliveryDate ?? payload.delivery_date ?? ''),
+    deliveryTimeSlot: String(payload.deliveryTimeSlot ?? payload.delivery_time_slot ?? ''),
+    deliveryNotes: payload.deliveryNotes ?? payload.delivery_notes ?? '',
+    createdAt: String(payload.createdAt ?? payload.created_at ?? ''),
+    updatedAt: payload.updatedAt ? String(payload.updatedAt) : (payload.updated_at ? String(payload.updated_at) : undefined),
+    customerName:
+      payload.customerName ??
+      payload.customer_name ??
+      payload.user?.name ??
+      payload.guestName ??
+      payload.guest_name ??
+      'Cliente invitado',
+    customerEmail:
+      payload.customerEmail ??
+      payload.customer_email ??
+      payload.user?.email ??
+      payload.guestEmail ??
+      payload.guest_email ??
+      '',
+    customerPhone:
+      payload.customerPhone ??
+      payload.customer_phone ??
+      payload.user?.phone ??
+      payload.guestPhone ??
+      payload.guest_phone ??
+      null,
+    recipientName: payload.recipientName ?? payload.recipient_name ?? null,
+    recipientPhone: payload.recipientPhone ?? payload.recipient_phone ?? null,
+    shippingAddress: payload.shippingAddress ?? payload.shipping_address_snapshot ?? payload.shipping_address ?? '',
+    deliveryDriverName: payload.deliveryDriverName ?? payload.delivery_driver_name ?? payload.deliveryDriver?.name ?? null,
+    paymentGateway: payload.paymentGateway ?? payload.payment_gateway ?? null,
+    paymentStatus: payload.paymentStatus ?? payload.payment_status ?? null,
+    hasPaymentTransaction: Boolean(payload.hasPaymentTransaction ?? payload.has_payment_transaction ?? false),
+    items,
+    couponId: payload.couponId ?? payload.coupon_id ?? null,
+    couponCodeSnap: payload.couponCodeSnap ?? payload.coupon_code ?? payload.coupon_code_snap ?? null,
+    couponType: payload.couponType ?? payload.coupon_type ?? null,
+    couponValue: payload.couponValue ?? payload.coupon_value ?? null,
+    dedication: payload.dedication ?? null,
+    isAnonymous: Boolean(payload.isAnonymous ?? payload.is_anonymous ?? false),
+    signature: payload.signature ?? null,
+  };
+};
+
 export default function OrdersPage() {
   const { apiFetch } = useAuth();
   const { toast } = useToast();
@@ -62,48 +168,9 @@ const fetchOrders = useCallback(async () => {
       throw new Error(result?.message || 'No se pudieron cargar los pedidos');
     }
 
-    const fetched = (result.data?.orders ?? []).map((order: any) => ({
-      id: Number(order.id),
-      userId: order.userId ?? order.user_id ?? null,
-      isGuest: Boolean(order.isGuest ?? order.is_guest ?? false),
-      guestName: order.guestName ?? order.guest_name ?? null,
-      guestEmail: order.guestEmail ?? order.guest_email ?? null,
-      guestPhone: order.guestPhone ?? order.guest_phone ?? null,
-      deliveryDriverId: order.deliveryDriverId ?? order.delivery_driver_id ?? null,
-      status: String(order.status ?? 'PENDING').toUpperCase() as OrderStatus,
-      subtotal: Number(order.subtotal ?? 0),
-      couponDiscount: Number(order.couponDiscount ?? order.coupon_discount ?? 0),
-      shippingCost: Number(order.shippingCost ?? order.shipping_cost ?? 0),
-      total: Number(order.total ?? 0),
-      deliveryDate: String(order.deliveryDate ?? order.delivery_date ?? ''),
-      deliveryTimeSlot: String(order.deliveryTimeSlot ?? order.delivery_time_slot ?? ''),
-      deliveryNotes: order.deliveryNotes ?? order.delivery_notes ?? '',
-      createdAt: String(order.createdAt ?? order.created_at ?? ''),
-      updatedAt: String(order.updatedAt ?? order.updated_at ?? ''),
-      customerName: order.customerName ?? order.user?.name ?? order.guestName ?? order.guest_name ?? 'Cliente invitado',
-      customerEmail: order.customerEmail ?? order.user?.email ?? order.guestEmail ?? order.guest_email ?? '',
-      customerPhone: order.customerPhone ?? order.user?.phone ?? order.guestPhone ?? order.guest_phone ?? null,
-      recipientName: order.recipientName ?? null,
-      recipientPhone: order.recipientPhone ?? null,
-      shippingAddress: order.shippingAddress ?? '',
-      deliveryDriverName: order.deliveryDriverName ?? order.deliveryDriver?.name ?? null,
-      paymentGateway: order.paymentGateway ?? order.payment_gateway ?? null,
-      items: (order.items ?? []).map((item: any) => ({
-        productId: Number(item.productId ?? item.product_id ?? 0),
-        quantity: Number(item.quantity ?? 0),
-        unitPrice: Number(item.unitPrice ?? item.price ?? 0),
-        productNameSnap: item.productNameSnap ?? item.product_name ?? 'Producto',
-        variantNameSnap: item.variantNameSnap ?? item.variant_name ?? null,
-        imageSnap:
-          item.imageSnap ??
-          item.image ??
-          item.product?.mainImage ??
-          item.product?.main_image ??
-          item.mainImage ??
-          '',
-        customPhotoUrl: item.customPhotoUrl ?? null,
-      })),
-    })) as AdminOrderListDTO[];
+    const fetched = (result.data?.orders ?? []).map((order: any) =>
+      mapAdminOrderDetails(order, Array.isArray(order.items) ? order.items : order.orderItems),
+    ) as AdminOrderListDTO[];
     setOrders(fetched);
     ordersRef.current = fetched;
   } catch (error: any) {
@@ -184,24 +251,45 @@ const fetchOrders = useCallback(async () => {
     setIsSendingUpdateFor(null);
   }, []);
 
-  const handleViewDetails = useCallback((orderId: number) => {
-    const found = ordersRef.current.find(o => o.id === orderId) ?? null;
-    if (!found) return;
+  const handleViewDetails = useCallback(async (orderId: number) => {
+    const cached = ordersRef.current.find(o => o.id === orderId) ?? null;
 
-    setSelectedOrder({
-      ...found,
-      couponId: null,
-      couponCodeSnap: null,
-      couponType: null,
-      couponValue: null,
-      dedication: null,
-      isAnonymous: false,
-      signature: null,
-      paymentStatus: 'PENDING',
-      paymentGateway: found.paymentGateway ?? null,
-      hasPaymentTransaction: false,
-    });
-    setIsDetailsOpen(true);
+    if (cached) {
+      setSelectedOrder(mapAdminOrderDetails(cached));
+      setIsDetailsOpen(true);
+    }
+
+    try {
+      const response = await apiFetchRef.current(`/api/admin/orders/${orderId}`);
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || 'No se pudo cargar el pedido');
+      }
+
+      const detailed = mapAdminOrderDetails(
+        result.data ?? {},
+        Array.isArray(result.data?.items)
+          ? result.data.items
+          : Array.isArray(result.data?.orderItems)
+            ? result.data.orderItems
+            : undefined,
+      );
+
+      setSelectedOrder(detailed);
+      setIsDetailsOpen(true);
+    } catch (error: any) {
+      console.error('[ADMIN_ORDER_DETAILS_FETCH_ERROR]', error);
+      toastRef.current({
+        title: 'Error al obtener el pedido',
+        description: error?.message || 'Intenta de nuevo en unos segundos.',
+        variant: 'destructive',
+      });
+
+      if (!cached) {
+        setIsDetailsOpen(false);
+      }
+    }
   }, []);
   
   const tableColumns = useMemo(() => columns({ 

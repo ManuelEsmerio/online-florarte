@@ -9,6 +9,17 @@ const statusLabels: Record<string, string> = {
   CANCELLED: 'Cancelado',
 };
 
+const paymentStatusLabels: Record<string, string> = {
+  SUCCEEDED: 'Pagado',
+  COMPLETED: 'Pagado',
+  PENDING: 'Pago pendiente',
+  PROCESSING: 'Pago en validación',
+  FAILED: 'Pago rechazado',
+  CANCELED: 'Pago cancelado',
+  CANCELLED: 'Pago cancelado',
+  REFUNDED: 'Pago reembolsado',
+};
+
 const gatewayLabels: Record<string, string> = {
   stripe: 'Stripe',
   mercadopago: 'Mercado Pago',
@@ -95,6 +106,14 @@ export const printOrderTicket = (order: AdminOrderDetailsDTO): void => {
   const paymentPlatformLabel = normalizedGateway
     ? gatewayLabels[normalizedGateway] ?? 'Otra plataforma'
     : 'N/A';
+  const hasPaymentRecord = Boolean((order as any)?.hasPaymentTransaction ?? (order as any)?.has_payment_transaction ?? false);
+  const paymentStatusRaw = String(order.paymentStatus ?? (order as any)?.payment_status ?? '').trim().toUpperCase();
+  const paymentStatusLabel = paymentStatusRaw
+    ? paymentStatusLabels[paymentStatusRaw] ?? paymentStatusRaw
+    : hasPaymentRecord
+      ? 'Pago registrado'
+      : 'Sin registro';
+  const deliveryNotesLabel = (order.deliveryNotes ?? '').trim() || 'Sin notas';
 
   const itemsRows = (order.items ?? [])
     .map((item) => {
@@ -310,6 +329,7 @@ export const printOrderTicket = (order: AdminOrderDetailsDTO): void => {
                 <p class=\"muted\">Fecha de creación: ${escapeHtml(createdAtLabel)}</p>
                 <p class=\"muted\">Cliente: ${escapeHtml(order.customerName || 'N/A')}</p>
                 <p class=\"muted\">Plataforma de pago: ${escapeHtml(paymentPlatformLabel)}</p>
+                <p class="muted">Estatus de pago: ${escapeHtml(paymentStatusLabel)}</p>
               </div>
             </div>
             <div class=\"status-chip\">${escapeHtml(statusLabel)}</div>
@@ -330,7 +350,7 @@ export const printOrderTicket = (order: AdminOrderDetailsDTO): void => {
               <p><strong>Dirección:</strong> ${escapeHtml(order.shippingAddress || 'N/A')}</p>
               <p><strong>Fecha:</strong> ${escapeHtml(deliveryDateLabel)}</p>
               <p><strong>Horario:</strong> ${escapeHtml(deliveryTimeSlotLabel || 'N/A')}</p>
-              <p><strong>Notas:</strong> ${escapeHtml(order.deliveryNotes || 'Sin notas')}</p>
+              <p><strong>Notas:</strong> ${escapeHtml(deliveryNotesLabel)}</p>
             </section>
           </div>
 

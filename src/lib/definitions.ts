@@ -629,6 +629,8 @@ export interface AdminOrderListDTO {
   shippingAddress: string;
   deliveryDriverName?: string | null;
   paymentGateway?: string | null;
+  paymentStatus?: string | null;
+  hasPaymentTransaction?: boolean;
   items?: AdminOrderItemDTO[];
 }
 
@@ -640,9 +642,6 @@ export interface AdminOrderDetailsDTO extends AdminOrderListDTO {
   dedication?: string | null;
   isAnonymous: boolean;
   signature?: string | null;
-  paymentStatus?: string;
-  paymentGateway?: string | null;
-  hasPaymentTransaction?: boolean;
 }
 
 // ============================================================
