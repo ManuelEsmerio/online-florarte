@@ -336,12 +336,14 @@ export default function OrdersPage() {
                 {pageRows.map((row) => {
                   const order = row.original;
                   const isUnpaidOrder = !(order as any).has_payment_transaction;
+                  const isCancelled = order.status === 'CANCELLED';
                   const progressStep = getOrderProgressStep(order.status, isUnpaidOrder);
                   const progressColor = getOrderProgressColor(order.status, isUnpaidOrder);
                   return (
                     <Card key={order.id} className={cn(
                       'rounded-2xl border border-border/60 shadow-sm bg-background overflow-hidden',
-                      isUnpaidOrder && 'ring-1 ring-red-200/40'
+                      isUnpaidOrder && !isCancelled && 'ring-1 ring-red-200/40',
+                      isCancelled && 'opacity-50 grayscale-[40%]'
                     )}>
                       <CardContent className="p-5 space-y-5">
                         <div className="flex justify-between items-center">
@@ -395,19 +397,23 @@ export default function OrdersPage() {
                         </div>
 
                         <div className="flex justify-end">
-                          <DialogCell 
-                            row={order} 
-                            onDataChange={fetchUserOrders}
-                            trigger={
-                              <Button
-                                variant="ghost"
-                                className="group/button h-9 px-3 text-primary font-semibold text-sm rounded-xl border border-transparent gap-1 transition-all duration-200 hover:border-primary/40 hover:bg-primary/5 hover:shadow-[0_8px_25px_rgba(244,37,106,0.18)] dark:hover:shadow-[0_8px_25px_rgba(244,37,106,0.35)] focus-visible:ring-2 focus-visible:ring-primary/40"
-                              >
-                                Ver más
-                                <ChevronRight className="w-4 h-4" />
-                              </Button>
-                            }
-                          />
+                          {isCancelled ? (
+                            <span className="text-xs font-semibold text-muted-foreground/60 px-3 py-2">Cancelado</span>
+                          ) : (
+                            <DialogCell
+                              row={order}
+                              onDataChange={fetchUserOrders}
+                              trigger={
+                                <Button
+                                  variant="ghost"
+                                  className="group/button h-9 px-3 text-primary font-semibold text-sm rounded-xl border border-transparent gap-1 transition-all duration-200 hover:border-primary/40 hover:bg-primary/5 hover:shadow-[0_8px_25px_rgba(244,37,106,0.18)] dark:hover:shadow-[0_8px_25px_rgba(244,37,106,0.35)] focus-visible:ring-2 focus-visible:ring-primary/40"
+                                >
+                                  Ver más
+                                  <ChevronRight className="w-4 h-4" />
+                                </Button>
+                              }
+                            />
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -428,6 +434,7 @@ export default function OrdersPage() {
                   {pageRows.map((row) => {
                     const order = row.original;
                     const isUnpaidOrder = !(order as any).has_payment_transaction;
+                    const isCancelled = order.status === 'CANCELLED';
                     const progressStep = getOrderProgressStep(order.status, isUnpaidOrder);
                     const progressColor = getOrderProgressColor(order.status, isUnpaidOrder);
 
@@ -435,8 +442,10 @@ export default function OrdersPage() {
                       <div
                         key={order.id}
                         className={cn(
-                          'group relative px-6 lg:px-8 py-6 transition-all duration-300 bg-background border-l-4 border-transparent hover:border-primary/50 dark:hover:border-white/40 hover:bg-gradient-to-r hover:from-primary/10 hover:to-transparent dark:hover:from-white/10 dark:hover:to-transparent hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)] dark:hover:shadow-[0_18px_40px_rgba(0,0,0,0.6)]',
-                          isUnpaidOrder && 'opacity-85'
+                          'group relative px-6 lg:px-8 py-6 transition-all duration-300 bg-background border-l-4 border-transparent',
+                          !isCancelled && 'hover:border-primary/50 dark:hover:border-white/40 hover:bg-gradient-to-r hover:from-primary/10 hover:to-transparent dark:hover:from-white/10 dark:hover:to-transparent hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)] dark:hover:shadow-[0_18px_40px_rgba(0,0,0,0.6)]',
+                          isCancelled && 'opacity-50 grayscale-[40%]',
+                          isUnpaidOrder && !isCancelled && 'opacity-85'
                         )}
                       >
                         <div className="grid grid-cols-12 gap-4 items-center">
@@ -469,19 +478,23 @@ export default function OrdersPage() {
                           </div>
 
                           <div className="col-span-2 flex justify-end">
-                            <DialogCell
-                              row={order}
-                              onDataChange={fetchUserOrders}
-                              trigger={
-                                <Button
-                                  variant="ghost"
-                                  className="group/button text-primary font-semibold text-sm rounded-xl px-3 py-2 border border-transparent gap-1 transition-all duration-200 hover:border-primary/40 hover:bg-primary/5 hover:shadow-[0_12px_30px_rgba(244,37,106,0.15)] dark:hover:shadow-[0_12px_30px_rgba(244,37,106,0.35)] focus-visible:ring-2 focus-visible:ring-primary/40"
-                                >
-                                  Ver más
-                                  <ChevronRight className="w-4 h-4" />
-                                </Button>
-                              }
-                            />
+                            {isCancelled ? (
+                              <span className="text-xs font-semibold text-muted-foreground/60 px-3 py-2">Cancelado</span>
+                            ) : (
+                              <DialogCell
+                                row={order}
+                                onDataChange={fetchUserOrders}
+                                trigger={
+                                  <Button
+                                    variant="ghost"
+                                    className="group/button text-primary font-semibold text-sm rounded-xl px-3 py-2 border border-transparent gap-1 transition-all duration-200 hover:border-primary/40 hover:bg-primary/5 hover:shadow-[0_12px_30px_rgba(244,37,106,0.15)] dark:hover:shadow-[0_12px_30px_rgba(244,37,106,0.35)] focus-visible:ring-2 focus-visible:ring-primary/40"
+                                  >
+                                    Ver más
+                                    <ChevronRight className="w-4 h-4" />
+                                  </Button>
+                                }
+                              />
+                            )}
                           </div>
                         </div>
 

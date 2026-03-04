@@ -1,4 +1,5 @@
 // src/services/orderService.ts
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { cartService } from './cartService';
 import { orderAddressService } from './orderAddressService';
@@ -76,10 +77,53 @@ const getPaymentTransactionModel = (dbClient: any) => {
   return (dbClient as {
     paymentTransaction: {
       findFirst: (args: any) => Promise<any | null>;
+      update: (args: any) => Promise<any>;
       upsert: (args: any) => Promise<any>;
     };
   }).paymentTransaction;
 };
+
+type PaymentUpsertParams = {
+  orderId: number;
+  externalPaymentId: string;
+  gateway: 'stripe' | 'mercadopago';
+  amount: number;
+  status: 'SUCCEEDED' | 'FAILED';
+};
+
+async function safeUpsertPaymentTransaction(model: any, params: PaymentUpsertParams) {
+  try {
+    await model.upsert({
+      where: { externalPaymentId: params.externalPaymentId },
+      create: {
+        orderId: params.orderId,
+        externalPaymentId: params.externalPaymentId,
+        gateway: params.gateway,
+        amount: params.amount,
+        status: params.status,
+      },
+      update: {
+        orderId: params.orderId,
+        amount: params.amount,
+        status: params.status,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      await model.update({
+        where: { externalPaymentId: params.externalPaymentId },
+        data: {
+          orderId: params.orderId,
+          amount: params.amount,
+          status: params.status,
+        },
+      });
+      return;
+    }
+
+    throw error;
+  }
+}
 
 export const orderService = {
   async getAllOrdersForAdmin(filters: any) {
@@ -652,20 +696,12 @@ export const orderService = {
         data: { status: 'PENDING' },
       });
 
-      await paymentTxModel.upsert({
-        where: { externalPaymentId: params.externalPaymentId },
-        create: {
-          orderId: params.orderId,
-          externalPaymentId: params.externalPaymentId,
-          gateway: params.gateway,
-          amount: params.amount,
-          status: 'SUCCEEDED',
-        },
-        update: {
-          orderId: params.orderId,
-          amount: params.amount,
-          status: 'SUCCEEDED',
-        },
+      await safeUpsertPaymentTransaction(paymentTxModel, {
+        orderId: params.orderId,
+        externalPaymentId: params.externalPaymentId,
+        gateway: params.gateway,
+        amount: params.amount,
+        status: 'SUCCEEDED',
       });
 
       return existingTransaction?.status !== 'SUCCEEDED';
@@ -695,20 +731,12 @@ export const orderService = {
         select: { status: true },
       });
 
-      await paymentTxModel.upsert({
-        where: { externalPaymentId: params.externalPaymentId },
-        create: {
-          orderId: params.orderId,
-          externalPaymentId: params.externalPaymentId,
-          gateway: params.gateway,
-          amount: params.amount,
-          status: 'FAILED',
-        },
-        update: {
-          orderId: params.orderId,
-          amount: params.amount,
-          status: 'FAILED',
-        },
+      await safeUpsertPaymentTransaction(paymentTxModel, {
+        orderId: params.orderId,
+        externalPaymentId: params.externalPaymentId,
+        gateway: params.gateway,
+        amount: params.amount,
+        status: 'FAILED',
       });
 
       return existingTransaction?.status !== 'FAILED';
