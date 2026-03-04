@@ -54,16 +54,17 @@ export function Categories({ categories, isLoading }: CategoriesProps) {
               mainCategories.map((category, index) => (
                  <CarouselItem key={category.id} className="basis-[70%] sm:basis-1/3 lg:basis-1/4 pl-2 md:pl-4 animate-fade-in-up" style={{ animationDelay: `${index * 100}ms` }}>
                     <Link href={`/categories/${category.slug}`} className="group relative block h-full">
-                        <Card className="overflow-hidden h-full aspect-[4/5] rounded-3xl shadow-md transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 border-none">
+                      <Card className="relative overflow-hidden h-full aspect-[4/5] rounded-[2.5rem] shadow-md border-none transition-[border-radius,transform,box-shadow] duration-500 ease-[cubic-bezier(.25,1,.5,1)] group-hover:shadow-2xl group-hover:-translate-y-2 group-hover:rounded-[3rem]">
                             <Image
                                 src={category.imageUrl || '/placehold.webp'}
                                 alt={`Colección de ${category.name}`}
                                 fill
-                                className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-110"
+                              className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-110"
+                              style={{ borderRadius: 'inherit' }}
                                 sizes="(max-width: 640px) 70vw, (max-width: 1024px) 33vw, 25vw"
                                 data-ai-hint={category.name.toLowerCase()}
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-6 flex flex-col justify-end items-center text-center transition-all duration-500 group-hover:via-black/40">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-6 flex flex-col justify-end items-center text-center transition-all duration-500 group-hover:via-black/40" style={{ borderRadius: 'inherit' }}>
                                 <h3 className="text-2xl md:text-3xl font-bold text-white mb-1 drop-shadow-md">{category.name}</h3>
                                 <div className="h-1 w-8 bg-primary rounded-full transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500" />
                             </div>
