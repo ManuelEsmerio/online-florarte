@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken } from '@/utils/auth';
 import { orderService } from '@/services/orderService';
+import { orderEmailService } from '@/services/orderEmailService';
 import { getCancellationInfo } from '@/lib/business-logic/order-logic';
 
 export async function POST(
@@ -21,6 +22,7 @@ export async function POST(
       return errorHandler(new Error('ID de pedido inválido.'), 400);
     }
 
+    // Fetch full order — also performs IDOR check
     const order = await orderService.getOrderDetails(orderId);
     if (!order) {
       return errorHandler(new Error('Pedido no encontrado.'), 404);
@@ -31,14 +33,24 @@ export async function POST(
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 
+    // Business-rule eligibility check (status + 24-hour window)
     const { canCancel, message } = getCancellationInfo(order);
     if (!canCancel) {
       return errorHandler(new Error(message), 422);
     }
 
-    await orderService.cancelAbandonedOrder(orderId);
+    // Execute cancellation with automatic Stripe refund when payment exists
+    const result = await orderService.cancelOrderWithRefund(orderId);
 
-    return successResponse({ message: 'Pedido cancelado exitosamente.' });
+    // Fire email asynchronously — failure must never block the HTTP response
+    orderEmailService.sendRefundNotificationEmail(orderId, result.refunded).catch((emailError) => {
+      console.error('[CANCEL_ORDER_EMAIL_ERROR]', { orderId, error: (emailError as Error).message });
+    });
+
+    return successResponse({
+      message: 'Pedido cancelado exitosamente.',
+      refunded: result.refunded,
+    });
   } catch (error) {
     console.error('[API_CANCEL_ORDER_ERROR]', error);
     return errorHandler(error);

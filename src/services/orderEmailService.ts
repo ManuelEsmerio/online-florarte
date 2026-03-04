@@ -4,6 +4,7 @@ import type { OrderStatus } from '@/lib/definitions';
 import { renderOrderConfirmationTemplate } from '@/lib/email-templates/order-confirmation.template';
 import { renderNewOrderNotificationTemplate } from '@/lib/email-templates/new-order-notification.template';
 import { renderOrderStatusUpdateTemplate } from '@/lib/email-templates/order-status-update.template';
+import { renderRefundNotificationTemplate } from '@/lib/email-templates/refund-notification.template';
 import type { OrderEmailPayload, PaymentSummary } from '@/lib/email-templates/types';
 
 type OrderWithRelations = {
@@ -279,6 +280,29 @@ export const orderEmailService = {
     } catch (error) {
       console.error('[ORDER_STATUS_EMAIL_ERROR]', error);
     }
+  },
+
+  async sendRefundNotificationEmail(orderId: number, refunded: boolean) {
+    const orderRecord = await getOrderWithRelations(orderId);
+    if (!orderRecord) return;
+
+    const order = normalizeOrderForEmail(orderRecord);
+    const customerEmail = order.customerEmail?.trim();
+    if (!customerEmail) return;
+
+    const subject = refunded
+      ? `Tu reembolso está en proceso · ${order.code}`
+      : `Tu pedido fue cancelado · ${order.code}`;
+
+    await sendEmail({
+      to: customerEmail,
+      subject,
+      html: renderRefundNotificationTemplate({
+        userName: order.customerName,
+        order,
+        refunded,
+      }),
+    });
   },
 
   async sendFailedPaymentAdminNotification(orderId: number) {

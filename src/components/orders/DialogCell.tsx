@@ -284,6 +284,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
     const [isPayAlertOpen, setIsPayAlertOpen] = useState(false);
     const [confirmText, setConfirmText] = useState('');
     const [cancellationInfo, setCancellationInfo] = useState<{canCancel: boolean, message: string}>({canCancel: false, message: ''});
+    const [cancelResult, setCancelResult] = useState<{ refunded: boolean } | null>(null);
     const [view, setView] = useState<'details' | 'review'>('details');
     const [paymentStatus, setPaymentStatus] = useState<string>(String((row as any).payment_status || 'PENDING'));
     const [hasPaymentTransaction, setHasPaymentTransaction] = useState<boolean>(Boolean((row as any).has_payment_transaction));
@@ -343,11 +344,12 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
         setIsCancelling(true);
         try {
             const response = await apiFetch(`/api/orders/${row.id}/cancel`, { method: 'POST' });
-            await handleApiResponse(response);
-            toast({ title: 'Pedido Cancelado', description: 'Tu pedido ha sido cancelado exitosamente.' });
+            const data = await handleApiResponse<{ refunded?: boolean }>(response);
             setIsCancelAlertOpen(false);
+            setConfirmText('');
+            setCancelResult({ refunded: data?.refunded === true });
+            // Refresh the list in the background so the table is up to date when the modal closes
             if (onDataChange) onDataChange();
-            else window.location.reload();
         } catch (error: any) {
             toast({ title: 'Error al cancelar', description: error.message, variant: 'destructive' });
         } finally {
@@ -396,11 +398,12 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
         <AlertDialog open={isCancelAlertOpen} onOpenChange={(open) => { setIsCancelAlertOpen(open); if (!open) setConfirmText(''); }}>
             <AlertDialogContent className="rounded-[2rem] border-border/50 shadow-2xl text-center max-w-md">
                 <AlertDialogHeader className="text-center items-center">
-                    <AlertDialogTitle className="font-headline text-3xl text-center">¿Confirmas la cancelación?</AlertDialogTitle>
+                    <AlertDialogTitle className="font-headline text-3xl text-center">¿Deseas cancelar tu pedido?</AlertDialogTitle>
                     <AlertDialogDescription asChild>
                         <div className="space-y-3 mt-2">
                             <p className="text-base text-muted-foreground leading-relaxed">
-                                Se aplicará un reembolso completo (100%) a tu método de pago original.
+                                Tu pago será reembolsado al método de pago original.
+                                El proceso puede tardar entre <span className="font-semibold text-foreground">5 y 12 días hábiles</span> dependiendo de tu banco.
                             </p>
                             <p className="text-sm font-medium text-foreground">
                                 Para confirmar, escribe <span className="font-bold select-all">CANCELAR</span> en el campo de abajo.
@@ -430,7 +433,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                         className="bg-[#FF4D4D] hover:bg-[#ff3333] rounded-xl h-11 font-bold flex-1 shadow-lg shadow-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
                         loading={isCancelling}
                     >
-                        Sí, cancelar pedido
+                        Confirmar cancelación
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
@@ -493,8 +496,9 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
         <Dialog onOpenChange={(open) => {
             if (open) {
                 void fetchOrderDetails();
+            } else {
+                setTimeout(() => { setView('details'); setCancelResult(null); }, 300);
             }
-            else setTimeout(() => setView('details'), 300);
         }}>
             <DialogTrigger asChild>
                 {trigger}
@@ -515,7 +519,36 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar px-6 md:px-10 py-6 md:py-8">
-                    {view === 'review' ? (
+                    {cancelResult !== null ? (
+                        <div className="flex flex-col items-center justify-center text-center py-10 gap-6 max-w-sm mx-auto">
+                            <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center">
+                                <CheckCircle className="w-10 h-10 text-green-500" />
+                            </div>
+                            <div className="space-y-3">
+                                <h3 className="text-2xl font-bold font-headline">Tu pedido fue cancelado exitosamente.</h3>
+                                {cancelResult.refunded ? (
+                                    <>
+                                        <p className="text-muted-foreground leading-relaxed">
+                                            Tu reembolso ya está en proceso. El dinero será devuelto al método de pago original.
+                                        </p>
+                                        <p className="text-sm font-semibold text-foreground">
+                                            El proceso puede tardar entre 5 y 12 días hábiles dependiendo de tu banco.
+                                        </p>
+                                    </>
+                                ) : (
+                                    <p className="text-muted-foreground leading-relaxed">
+                                        Como el pedido no había sido pagado, no se generará ningún reembolso.
+                                    </p>
+                                )}
+                            </div>
+                            <Link
+                                href="/customer-service"
+                                className="text-sm text-primary underline underline-offset-4 font-medium"
+                            >
+                                ¿El reembolso tarda más de lo esperado? Contactar soporte
+                            </Link>
+                        </div>
+                    ) : view === 'review' ? (
                         <ReviewForm orderId={currentOrder.id} onReviewSubmit={onReviewSubmit} onCancel={() => setView('details')} existingReview={(currentOrder as any).testimonial as any} />
                     ) : isFetchingDetails ? (
                         <OrderDetailsSkeleton />
@@ -690,7 +723,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                     )}
                 </div>
 
-                {view === 'details' && (
+                {view === 'details' && cancelResult === null && (
                     <div className="px-6 md:px-10 py-5 border-t border-border/50 bg-background/80 flex flex-col sm:flex-row gap-3">
                         {isFetchingDetails ? (
                             <>

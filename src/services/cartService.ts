@@ -206,7 +206,8 @@ export const cartService = {
   },
 
   async removeItem(cartItemId: number, identity: GetContentsParams) {
-    await prisma.cartItem.delete({ where: { id: cartItemId } });
+    // deleteMany is idempotent — no P2025 if item was already removed (e.g. after checkout)
+    await prisma.cartItem.deleteMany({ where: { id: cartItemId } });
     await this.revalidateCoupons(identity);
   },
 

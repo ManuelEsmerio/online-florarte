@@ -6,8 +6,6 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -32,6 +30,7 @@ import {
   RefreshCcw,
   Ban,
 } from 'lucide-react';
+import { AdminCancelOrderDialog } from './AdminCancelOrderDialog';
 
 const formatCurrency = (amount: number | null | undefined) => {
   if (amount === null || amount === undefined) return 'N/A';
@@ -75,6 +74,7 @@ interface OrderDetailsDialogProps {
     newStatus: OrderStatus,
     payload: { deliveryDriverId?: number; deliveryNotes?: string }
   ) => Promise<void>;
+  onCancelOrder?: (orderId: number) => void;
 }
 
 const nextStatusMap: Partial<Record<OrderStatus, OrderStatus>> = {
@@ -107,13 +107,11 @@ const normalizeOrderStatus = (value: unknown): OrderStatus | null => {
     return map[raw] ?? null;
 };
 
-export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus }: OrderDetailsDialogProps) => {
+export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus, onCancelOrder }: OrderDetailsDialogProps) => {
   const [isUpdating, setIsUpdating] = useState(false);
-  const [isCancelling, setIsCancelling] = useState(false);
-  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const normalizedStatus = normalizeOrderStatus(order?.status) ?? 'PENDING';
   const nextStatus = nextStatusMap[normalizedStatus];
-  const canCancelOrder = normalizedStatus === 'PENDING';
+  const canCancelOrder = normalizedStatus !== 'CANCELLED';
   const hasPaymentTransaction = Boolean(order?.hasPaymentTransaction ?? order?.has_payment_transaction ?? false);
   const paymentStatusRaw = String(order?.paymentStatus ?? order?.payment_status ?? '').trim().toUpperCase();
   const paymentStatusLabel = hasPaymentTransaction
@@ -151,25 +149,6 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
       await onUpdateStatus(order.id, nextStatus, {});
     } finally {
       setIsUpdating(false);
-    }
-  };
-
-  const handleRequestCancel = () => {
-    if (!order?.id || !canCancelOrder || isCancelling) return;
-    if (typeof onUpdateStatus !== 'function') return;
-    setIsCancelDialogOpen(true);
-  };
-
-  const confirmCancelOrder = async () => {
-    if (!order?.id || !canCancelOrder || isCancelling) return;
-    if (typeof onUpdateStatus !== 'function') return;
-
-    setIsCancelling(true);
-    try {
-      await onUpdateStatus(order.id, 'CANCELLED', {});
-      setIsCancelDialogOpen(false);
-    } finally {
-      setIsCancelling(false);
     }
   };
 
@@ -401,16 +380,23 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
                 </Button>
               </div>
               <div className="flex gap-3 w-full sm:w-auto">
-                {canCancelOrder && (
-                  <Button
-                    variant="ghost"
-                    onClick={handleRequestCancel}
-                    disabled={isCancelling || typeof onUpdateStatus !== 'function'}
-                    className="flex-1 sm:flex-none gap-2 border border-primary/30 text-primary hover:bg-primary/10 hover:text-primary transition-all font-medium h-11 rounded-xl"
-                  >
-                    <Ban className="h-5 w-5" />
-                    {isCancelling ? 'Cancelando...' : 'Cancelar Pedido'}
-                  </Button>
+                {canCancelOrder && order && (
+                  <AdminCancelOrderDialog
+                    order={order as any}
+                    onSuccess={(orderId) => {
+                      onCancelOrder?.(orderId);
+                      onOpenChange(false);
+                    }}
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        className="flex-1 sm:flex-none gap-2 border border-primary/30 text-primary hover:bg-primary/10 hover:text-primary transition-all font-medium h-11 rounded-xl"
+                      >
+                        <Ban className="h-5 w-5" />
+                        Cancelar Pedido
+                      </Button>
+                    }
+                  />
                 )}
                 <Button
                  onClick={handleQuickStatusUpdate}
@@ -425,45 +411,6 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
         )}
       </DialogContent>
 
-      <Dialog open={isCancelDialogOpen} onOpenChange={(open) => { if (!isCancelling) setIsCancelDialogOpen(open); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Cancelar pedido</DialogTitle>
-            <DialogDescription>
-              Esta acción no se puede deshacer. Se notificará al cliente y el pedido #{order?.id} quedará marcado como cancelado.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <p><span className="font-semibold text-foreground">Cliente:</span> {order?.customerName}</p>
-            <p><span className="font-semibold text-foreground">Total:</span> {formatCurrency(order?.total)}</p>
-            <p><span className="font-semibold text-foreground">Estado actual:</span> {currentStatusLabel}</p>
-            {order?.createdAt ? (
-              <p><span className="font-semibold text-foreground">Creado:</span> {format(parseISO(order.createdAt), "d 'de' MMMM, yyyy HH:mm", { locale: es })}</p>
-            ) : null}
-            {order?.deliveryDate ? (
-              <p><span className="font-semibold text-foreground">Entrega programada:</span> {format(parseISO(order.deliveryDate), "d 'de' MMMM, yyyy", { locale: es })}</p>
-            ) : null}
-          </div>
-          <DialogFooter className="sm:justify-between">
-            <Button
-              variant="outline"
-              onClick={() => setIsCancelDialogOpen(false)}
-              disabled={isCancelling}
-              className="h-11 rounded-xl"
-            >
-              Mantener pedido
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmCancelOrder}
-              disabled={isCancelling}
-              className="h-11 rounded-xl"
-            >
-              {isCancelling ? 'Cancelando...' : 'Sí, cancelar pedido'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Dialog>
   );
 };

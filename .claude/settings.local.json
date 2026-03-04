@@ -30,7 +30,11 @@
       "Bash(xargs grep -l \"from.*data/\\\\|from.*lib/data\")",
       "Bash(grep -r \"from.*data/\" src/lib/data/*.ts)",
       "Bash(grep -n \"HomeDataCache\\\\|interface Home\\\\|type Home\" src/app/categories/[slug]/category-page-client.tsx)",
-      "Bash(cut -d'\\(' -f1)"
+      "Bash(cut -d'\\(' -f1)",
+      "Bash(npx prisma migrate dev --name add_refund_model)",
+      "Bash(npx prisma migrate dev --name add_cancellation_log)",
+      "Bash(npx prisma migrate dev --name rename_stripe_refund_id_to_external_refund_id)",
+      "Bash(npx prisma migrate dev --name rename_stripe_refund_id_to_external_refund_id --create-only)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Manuel Esmerio G\\.claude\\projects\\c--Users-Manuel-Esmerio-G-Documents-Projects-online-florarte\\memory"

@@ -19,3 +19,24 @@ export interface CheckoutResult {
 export interface PaymentProvider {
   createCheckoutSession(params: CreateCheckoutParams): Promise<CheckoutResult>;
 }
+
+export interface RefundParams {
+  /** Provider-specific payment ID (Stripe payment_intent or MP payment_id) */
+  externalPaymentId: string;
+  /** Amount to refund in MXN major units. Omit for full refund. */
+  amount?: number;
+  reason?: string;
+}
+
+export interface RefundResult {
+  /** Provider-specific refund ID */
+  externalRefundId: string;
+  /** Provider-reported status (e.g. 'pending', 'succeeded', 'approved') */
+  status: string;
+  /** Actual amount refunded in MXN major units */
+  amount: number;
+}
+
+export interface RefundProvider {
+  createRefund(params: RefundParams): Promise<RefundResult>;
+}

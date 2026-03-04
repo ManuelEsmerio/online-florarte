@@ -64,19 +64,19 @@ export default function CancellationPolicyPage() {
     cursorY += 8;
 
     doc.setFontSize(10);
-    doc.text('Última actualización: 19 de febrero de 2026', margin, cursorY);
+    doc.text('Última actualización: 4 de marzo de 2026', margin, cursorY);
     doc.setLineWidth(0.5);
     cursorY += 5;
     doc.line(margin, cursorY, pageWidth - margin, cursorY);
     cursorY += 10;
 
     const sections = [
-      { title: '1. Consideraciones Generales', content: 'Productos personalizados y perecederos elaborados artesanalmente. No pueden ser cancelados ni reembolsados una vez iniciada su preparación.' },
-      { title: '2. Política de Cancelaciones', content: '2.1 Permitidas: En estatus "Pendiente" o "Confirmado" antes de preparación. Reembolso al mismo método de pago. 2.2 No permitidas: Estatus "En Proceso", "Ruta" o "Entregado". Pedidos urgentes (<24h) o personalizados.' },
-      { title: '3. Política de Reembolsos', content: '3.1 Aplica: Cancelado en plazo, daños graves comprobables o error de Florarte. 3.2 No aplica: Pedido ya elaborado, ausencia del destinatario o errores en datos del cliente.' },
-      { title: '4. Procedimiento', content: 'Contactar en las primeras 24h a soporte@floreriaflorarte.com con número de pedido y fotos.' },
-      { title: '6. Plazo de Reembolso', content: 'De 3 a 7 días hábiles una vez aprobado.' },
-      { title: '7. Responsabilidad', content: 'Limitada al monto efectivamente pagado por el cliente.' }
+      { title: '1. Consideraciones Generales', content: 'Productos personalizados y perecederos elaborados artesanalmente. Una vez iniciada la preparación, el porcentaje de reembolso varía según el estado del pedido.' },
+      { title: '2. Política de Cancelaciones', content: 'Los clientes pueden solicitar la cancelación desde "Mi cuenta → Mis pedidos" únicamente cuando el pedido esté en estatus "Pendiente". Los pedidos en estado "En Proceso", "En Reparto" o "Entregado" sólo pueden ser cancelados por el equipo de Florarte.' },
+      { title: '3. Política de Reembolsos', content: 'Pendiente: reembolso del 100% del monto pagado. En Proceso: reembolso del 50%. En Reparto: reembolso del 20%. Entregado: porcentaje definido por el administrador (10%–30%) según el caso. Sin pago registrado: cancelación sin reembolso.' },
+      { title: '4. Procedimiento', content: 'Para pedidos ya entregados o situaciones especiales, contáctanos en las primeras 24h con número de pedido y evidencia fotográfica a soporte@floreriaflorarte.com.' },
+      { title: '5. Plazo de Reembolso', content: 'De 5 a 12 días hábiles una vez procesado, dependiendo de tu banco o pasarela de pago (Stripe o Mercado Pago).' },
+      { title: '6. Responsabilidad', content: 'Limitada al porcentaje del monto efectivamente pagado según el estado del pedido al momento de la cancelación.' }
     ];
 
     sections.forEach(s => {
@@ -133,7 +133,7 @@ export default function CancellationPolicyPage() {
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-slate-500 text-[10px] md:text-xs font-bold uppercase tracking-widest">
               <span className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-primary/60" />
-                Actualización: 19 de febrero de 2026
+                Actualización: 4 de marzo de 2026
               </span>
             </div>
           </div>
@@ -162,16 +162,62 @@ export default function CancellationPolicyPage() {
             <div className="space-y-8">
               <div className="flex items-center gap-4">
                 <span className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-bold text-lg shrink-0">2</span>
-                <h2 className="text-2xl md:text-3xl font-headline font-bold text-slate-900 dark:text-white">Política de Cancelaciones</h2>
+                <h2 className="text-2xl md:text-3xl font-headline font-bold text-slate-900 dark:text-white">Política de Cancelaciones y Reembolsos</h2>
               </div>
-              <div className="sm:pl-14 space-y-8">
-                <div className="p-6 bg-emerald-50/50 dark:bg-emerald-500/5 rounded-3xl border border-emerald-100 dark:border-emerald-500/20">
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-emerald-600 mb-3 flex items-center gap-2"><CheckCircle2 className="w-4 h-4"/> 2.1 Cancelaciones Permitidas</h3>
-                  <p className="text-sm md:text-base text-slate-600 dark:text-slate-400">Únicamente cuando el pedido esté en estatus <span className="font-bold text-slate-900 dark:text-white">"Pendiente" o "Confirmado"</span> antes de su preparación.</p>
+              <div className="sm:pl-14 space-y-4">
+                <p className="text-base md:text-lg leading-relaxed text-slate-600 dark:text-slate-400 font-medium">
+                  El porcentaje de reembolso depende del estado del pedido al momento de la cancelación:
+                </p>
+                <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-white/5">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-white/5 border-b border-slate-100 dark:border-white/5">
+                        <th className="text-left px-5 py-3 font-bold text-slate-700 dark:text-slate-300">Estado del pedido</th>
+                        <th className="text-left px-5 py-3 font-bold text-slate-700 dark:text-slate-300">Quién puede cancelar</th>
+                        <th className="text-right px-5 py-3 font-bold text-slate-700 dark:text-slate-300">Reembolso</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                      <tr className="bg-white dark:bg-transparent">
+                        <td className="px-5 py-3 font-medium text-slate-800 dark:text-slate-200">Pendiente</td>
+                        <td className="px-5 py-3 text-slate-600 dark:text-slate-400">Cliente o administrador</td>
+                        <td className="px-5 py-3 text-right font-bold text-emerald-600">100%</td>
+                      </tr>
+                      <tr className="bg-slate-50/50 dark:bg-white/[0.02]">
+                        <td className="px-5 py-3 font-medium text-slate-800 dark:text-slate-200">En Proceso</td>
+                        <td className="px-5 py-3 text-slate-600 dark:text-slate-400">Solo administrador</td>
+                        <td className="px-5 py-3 text-right font-bold text-yellow-600">50%</td>
+                      </tr>
+                      <tr className="bg-white dark:bg-transparent">
+                        <td className="px-5 py-3 font-medium text-slate-800 dark:text-slate-200">En Reparto</td>
+                        <td className="px-5 py-3 text-slate-600 dark:text-slate-400">Solo administrador</td>
+                        <td className="px-5 py-3 text-right font-bold text-orange-600">20%</td>
+                      </tr>
+                      <tr className="bg-slate-50/50 dark:bg-white/[0.02]">
+                        <td className="px-5 py-3 font-medium text-slate-800 dark:text-slate-200">Entregado</td>
+                        <td className="px-5 py-3 text-slate-600 dark:text-slate-400">Solo administrador</td>
+                        <td className="px-5 py-3 text-right font-bold text-slate-600 dark:text-slate-400">10%–30% (caso a caso)</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
-                <div className="p-6 bg-red-50/50 dark:bg-red-500/5 rounded-3xl border border-red-100 dark:border-red-500/20">
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-red-600 mb-3 flex items-center gap-2"><XCircle className="w-4 h-4"/> 2.2 Cancelaciones No Permitidas</h3>
-                  <p className="text-sm md:text-base text-slate-600 dark:text-slate-400">No será posible cancelar cuando el estatus sea "En Proceso", "En Preparación", "En Ruta" o "Entregado".</p>
+
+                <div className="p-5 bg-emerald-50/50 dark:bg-emerald-500/5 rounded-2xl border border-emerald-100 dark:border-emerald-500/20">
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-emerald-600 mb-2 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4"/> Cancelación por el cliente
+                  </h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Puedes cancelar tu pedido desde <span className="font-semibold text-slate-800 dark:text-white">Mi cuenta → Mis pedidos</span> siempre que el estado sea <span className="font-semibold text-slate-800 dark:text-white">"Pendiente"</span>. El reembolso se procesará automáticamente al mismo método de pago.
+                  </p>
+                </div>
+
+                <div className="p-5 bg-blue-50/50 dark:bg-blue-500/5 rounded-2xl border border-blue-100 dark:border-blue-500/20">
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-blue-600 mb-2 flex items-center gap-2">
+                    <Undo2 className="w-4 h-4"/> Plazo de acreditación
+                  </h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Los reembolsos se reflejan en tu cuenta en un plazo de <span className="font-semibold text-slate-800 dark:text-white">5 a 12 días hábiles</span>, según tu banco o pasarela de pago.
+                  </p>
                 </div>
               </div>
             </div>

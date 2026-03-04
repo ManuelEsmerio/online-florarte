@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     const checkoutSession = await stripeService.createCheckoutSession({
       orderId,
       amountInCents,
-      successUrl: `${origin}/order/processing?orderId=${orderId}`,
+      successUrl: `${origin}/order/processing?orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${origin}/order/error?orderId=${orderId}&reason=payment_failed`,
       userId: session?.dbId,
       sessionId,

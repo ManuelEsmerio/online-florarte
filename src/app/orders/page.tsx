@@ -30,7 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { SlidersHorizontal, Package, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { SlidersHorizontal, Package, Search, ChevronLeft, ChevronRight, Headphones } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -398,7 +398,16 @@ export default function OrdersPage() {
 
                         <div className="flex justify-end">
                           {isCancelled ? (
-                            <span className="text-xs font-semibold text-muted-foreground/60 px-3 py-2">Cancelado</span>
+                            <Link href="/customer-service">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-9 px-3 text-muted-foreground font-semibold text-xs rounded-xl border border-transparent gap-1.5 hover:border-muted-foreground/30 hover:bg-muted/50 transition-all"
+                              >
+                                <Headphones className="w-3.5 h-3.5" />
+                                Soporte
+                              </Button>
+                            </Link>
                           ) : (
                             <DialogCell
                               row={order}
@@ -479,7 +488,15 @@ export default function OrdersPage() {
 
                           <div className="col-span-2 flex justify-end">
                             {isCancelled ? (
-                              <span className="text-xs font-semibold text-muted-foreground/60 px-3 py-2">Cancelado</span>
+                              <Link href="/customer-service">
+                                <Button
+                                  variant="ghost"
+                                  className="h-9 px-3 text-muted-foreground font-semibold text-sm rounded-xl border border-transparent gap-1.5 hover:border-muted-foreground/30 hover:bg-muted/50 transition-all"
+                                >
+                                  <Headphones className="w-4 h-4" />
+                                  Contactar soporte
+                                </Button>
+                              </Link>
                             ) : (
                               <DialogCell
                                 row={order}

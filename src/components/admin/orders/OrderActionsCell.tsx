@@ -28,17 +28,6 @@ import {
   DialogClose,
   DialogDescription,
 } from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -50,13 +39,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { AdminOrderListDTO, OrderStatus } from '@/lib/definitions';
-import { getCancellationInfo } from '@/lib/business-logic/order-logic';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { OrderColumnsProps } from '@/app/admin/orders/columns';
+import { AdminCancelOrderDialog } from './AdminCancelOrderDialog';
 
 const availableTransitions: { [key in OrderStatus]?: OrderStatus[] } = {
-  PENDING: ['PROCESSING', 'CANCELLED'],
-  PROCESSING: ['SHIPPED', 'CANCELLED'],
+  PENDING: ['PROCESSING'],
+  PROCESSING: ['SHIPPED'],
   SHIPPED: ['DELIVERED'],
 };
 
@@ -88,9 +77,10 @@ export const OrderActionsCell = ({
   );
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const { canCancel, message: cancelMessage } = getCancellationInfo(order as any);
-  const isActionable =
-    order.status !== 'DELIVERED' && order.status !== 'CANCELLED';
+
+  // Allow cancel for every status except CANCELLED
+  const isCancellable = order.status !== 'CANCELLED';
+  const isEditable = order.status !== 'CANCELLED' && order.status !== 'DELIVERED';
   const possibleNextStatuses = availableTransitions[order.status] || [];
   const isSendingUpdate = isSendingUpdateFor === order.id;
 
@@ -197,7 +187,7 @@ export const OrderActionsCell = ({
                   e.preventDefault();
                   setIsEditOpen(true);
                 }}
-                disabled={!isActionable}
+                disabled={!isEditable}
               >
                 <PenSquare className="mr-2 h-4 w-4" />
                 Editar Estado
@@ -206,7 +196,7 @@ export const OrderActionsCell = ({
             <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
               <DialogHeader>
                 <DialogTitle className="font-headline text-2xl">
-                  Editar Pedido: ORD${String(order.id).padStart(4, '0')}
+                  Editar Pedido: ORD{String(order.id).padStart(4, '0')}
                 </DialogTitle>
                 <DialogDescription>
                   Selecciona el nuevo estado para el pedido.
@@ -303,32 +293,19 @@ export const OrderActionsCell = ({
                 <div className="mt-2">{getStatusAlert(newStatus)}</div>
               </div>
               <DialogFooter className="flex-col sm:flex-row sm:justify-between w-full space-y-2 sm:space-y-0">
-                {isActionable && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
+                {isCancellable && (
+                  <AdminCancelOrderDialog
+                    order={order}
+                    onSuccess={(orderId) => {
+                      onCancelOrder(orderId);
+                      setIsEditOpen(false);
+                    }}
+                    trigger={
                       <Button variant="destructive" type="button" className="w-full sm:w-auto">
                         Cancelar Pedido
                       </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>¿Confirmar cancelación?</AlertDialogTitle>
-                        <AlertDialogDescription>{cancelMessage}</AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Volver</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => {
-                            onCancelOrder(order.id);
-                            setIsEditOpen(false);
-                          }}
-                          className="bg-destructive hover:bg-destructive/90"
-                        >
-                          Sí, cancelar pedido
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                    }
+                  />
                 )}
                 <div className="flex gap-2 w-full sm:w-auto justify-end">
                   <DialogClose asChild>

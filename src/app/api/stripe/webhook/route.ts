@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
+import { prisma } from '@/lib/prisma';
 import { orderService } from '@/services/orderService';
 
 export const runtime = 'nodejs';
@@ -74,6 +75,76 @@ export async function POST(req: Request) {
             externalPaymentId: paymentIntent.id,
             gateway: 'stripe',
           });
+        }
+        break;
+      }
+
+      // Fired when a charge is fully or partially refunded.
+      // Used to sync Refund.status and recover from DB failures after stripe.refunds.create().
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge;
+        const refunds = (charge.refunds as Stripe.ApiList<Stripe.Refund> | null)?.data ?? [];
+
+        for (const refund of refunds) {
+          const existingRefund = await (prisma as any).refund.findUnique({
+            where: { externalRefundId: refund.id },
+            select: { id: true, status: true },
+          });
+
+          if (existingRefund) {
+            // Update status if it changed (pending → succeeded)
+            if (existingRefund.status !== refund.status) {
+              await (prisma as any).refund.update({
+                where: { id: existingRefund.id },
+                data: { status: refund.status },
+              });
+              console.info('[STRIPE_WEBHOOK] refund_status_updated', { stripeRefundId: refund.id, status: refund.status });
+            }
+          } else {
+            // Refund exists in Stripe but not in DB — recover from partial DB failure.
+            // Find the PaymentTransaction by the charge's payment_intent.
+            const paymentIntentId = typeof charge.payment_intent === 'string'
+              ? charge.payment_intent
+              : charge.payment_intent?.id ?? null;
+
+            if (paymentIntentId) {
+              const paymentTx = await (prisma as any).paymentTransaction.findUnique({
+                where: { externalPaymentId: paymentIntentId },
+                select: { id: true, orderId: true, amount: true },
+              });
+
+              if (paymentTx) {
+                try {
+                  await (prisma as any).refund.create({
+                    data: {
+                      paymentTransactionId: paymentTx.id,
+                      externalRefundId: refund.id,
+                      amount: Number(refund.amount) / 100,
+                      status: refund.status,
+                      reason: refund.reason ?? 'requested_by_customer',
+                    },
+                  });
+                  await (prisma as any).paymentTransaction.update({
+                    where: { id: paymentTx.id },
+                    data: { status: 'CANCELED' },
+                  });
+                  await prisma.order.update({
+                    where: { id: paymentTx.orderId },
+                    data: { status: 'CANCELLED' },
+                  });
+                  console.info('[STRIPE_WEBHOOK] refund_db_recovery', {
+                    orderId: paymentTx.orderId,
+                    externalRefundId: refund.id,
+                  });
+                } catch (recoveryError: any) {
+                  // P2002 = unique constraint (concurrent webhook) — safe to ignore
+                  if (recoveryError?.code !== 'P2002') {
+                    console.error('[STRIPE_WEBHOOK] refund_recovery_error', recoveryError);
+                  }
+                }
+              }
+            }
+          }
         }
         break;
       }

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { cartService } from './cartService';
 import { orderAddressService } from './orderAddressService';
 import { orderEmailService } from './orderEmailService';
+import { stripeService } from './stripeService';
 import type { DbCartItem, Order, OrderStatus } from '@/lib/definitions';
 
 const paymentTransactionModel = (prisma as unknown as {
@@ -795,5 +796,341 @@ export const orderService = {
         data: { status: 'CANCELLED' },
       });
     });
+  },
+
+  /**
+   * User-initiated cancellation with automatic Stripe refund.
+   *
+   * Flow:
+   * 1. Verify order is still PENDING (guard against race conditions).
+   * 2. Find the SUCCEEDED PaymentTransaction for the order.
+   * 3. If no payment → simple cancellation without refund (abandoned order).
+   * 4. Idempotency: if a Refund record already exists, skip Stripe and sync DB state.
+   * 5. Call Stripe to issue a full refund (outside the DB transaction).
+   * 6. Commit Prisma transaction: create Refund record, mark Order CANCELLED,
+   *    mark PaymentTransaction CANCELED, restore inventory, revert coupon.
+   */
+  async cancelOrderWithRefund(orderId: number): Promise<{ refunded: boolean; stripeRefundId?: string }> {
+    // --- 1. Fetch order with items ---
+    const rawOrder = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        status: true,
+        couponId: true,
+        items: { select: { productId: true, variantId: true, quantity: true } },
+      },
+    });
+
+    if (!rawOrder) throw new Error('Pedido no encontrado.');
+
+    // Double-check status (may have changed since getCancellationInfo ran in the route)
+    if (rawOrder.status !== 'PENDING') {
+      throw new Error('El pedido ya no puede cancelarse porque su estado cambió.');
+    }
+
+    // --- 2. Find SUCCEEDED payment transaction ---
+    const paymentTx = await (prisma as any).paymentTransaction.findFirst({
+      where: { orderId, status: 'SUCCEEDED' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, externalPaymentId: true, gateway: true, amount: true },
+    });
+
+    // --- 3. No payment found: simple cancellation, no refund ---
+    if (!paymentTx) {
+      await prisma.$transaction(async (tx: any) => {
+        for (const item of rawOrder.items) {
+          if (item.variantId) {
+            await tx.productVariant.update({ where: { id: item.variantId }, data: { stock: { increment: item.quantity } } });
+          } else {
+            await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
+          }
+        }
+        if (rawOrder.couponId) {
+          await tx.coupon.updateMany({ where: { id: rawOrder.couponId, usesCount: { gt: 0 } }, data: { usesCount: { decrement: 1 } } });
+        }
+        await tx.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
+        await (tx as any).orderCancellationLog.create({
+          data: {
+            orderId,
+            cancelledBy: 'USER',
+            cancellationReason: 'customer_request',
+          },
+        });
+      });
+      console.info('[AUDIT] order_cancelled_no_payment', { orderId });
+      return { refunded: false };
+    }
+
+    // --- 4. Idempotency: check if refund already exists ---
+    const existingRefund = await (prisma as any).refund.findUnique({
+      where: { paymentTransactionId: paymentTx.id },
+      select: { externalRefundId: true, status: true },
+    });
+
+    if (existingRefund) {
+      // Refund already issued. Ensure DB state is consistent.
+      const currentOrder = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
+      if (currentOrder?.status !== 'CANCELLED') {
+        await prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
+        await (prisma as any).paymentTransaction.update({ where: { id: paymentTx.id }, data: { status: 'CANCELED' } });
+      }
+      console.info('[AUDIT] order_cancel_idempotent_hit', { orderId, externalRefundId: existingRefund.externalRefundId });
+      return { refunded: true, stripeRefundId: existingRefund.externalRefundId };
+    }
+
+    // --- 5. Call Stripe to issue the refund (outside the DB transaction) ---
+    let stripeRefund: { id: string; status: string };
+    try {
+      stripeRefund = await stripeService.createRefund({
+        paymentIntentId: paymentTx.externalPaymentId,
+        reason: 'requested_by_customer',
+      });
+    } catch (stripeError: any) {
+      const code: string = stripeError?.code ?? '';
+      // If Stripe says it's already refunded, handle gracefully
+      if (code === 'charge_already_refunded') {
+        console.warn('[STRIPE_REFUND] charge_already_refunded — syncing DB state', { orderId });
+        await prisma.$transaction(async (tx: any) => {
+          await tx.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
+          await (tx as any).paymentTransaction.update({ where: { id: paymentTx.id }, data: { status: 'CANCELED' } });
+          for (const item of rawOrder.items) {
+            if (item.variantId) {
+              await tx.productVariant.update({ where: { id: item.variantId }, data: { stock: { increment: item.quantity } } });
+            } else {
+              await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
+            }
+          }
+          if (rawOrder.couponId) {
+            await tx.coupon.updateMany({ where: { id: rawOrder.couponId, usesCount: { gt: 0 } }, data: { usesCount: { decrement: 1 } } });
+          }
+        });
+        console.info('[AUDIT] order_cancelled_stripe_already_refunded', { orderId });
+        return { refunded: true };
+      }
+      console.error('[STRIPE_REFUND_ERROR]', { orderId, code, message: stripeError?.message });
+      throw new Error(`No se pudo procesar el reembolso con Stripe: ${stripeError?.message ?? 'error desconocido'}`);
+    }
+
+    // --- 6. Commit everything in a single Prisma transaction ---
+    await prisma.$transaction(async (tx: any) => {
+      // Refund audit record — @unique on paymentTransactionId prevents double-writes
+      const refundRecord = await (tx as any).refund.create({
+        data: {
+          paymentTransactionId: paymentTx.id,
+          externalRefundId: stripeRefund.id,
+          amount: Number(paymentTx.amount),
+          status: stripeRefund.status, // 'pending' or 'succeeded'
+          reason: 'requested_by_customer',
+        },
+        select: { id: true },
+      });
+
+      await (tx as any).paymentTransaction.update({
+        where: { id: paymentTx.id },
+        data: { status: 'CANCELED' },
+      });
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'CANCELLED' },
+      });
+
+      // Restore inventory
+      for (const item of rawOrder.items) {
+        if (item.variantId) {
+          await tx.productVariant.update({ where: { id: item.variantId }, data: { stock: { increment: item.quantity } } });
+        } else {
+          await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
+        }
+      }
+
+      // Revert coupon usage
+      if (rawOrder.couponId) {
+        await tx.coupon.updateMany({
+          where: { id: rawOrder.couponId, usesCount: { gt: 0 } },
+          data: { usesCount: { decrement: 1 } },
+        });
+      }
+
+      // Cancellation audit log
+      await (tx as any).orderCancellationLog.create({
+        data: {
+          orderId,
+          refundId: refundRecord.id,
+          cancelledBy: 'USER',
+          refundPercentage: 100,
+          refundAmount: Number(paymentTx.amount),
+          cancellationReason: 'customer_request',
+        },
+      });
+    });
+
+    console.info('[AUDIT] order_cancelled_with_refund', {
+      orderId,
+      paymentTransactionId: paymentTx.id,
+      externalRefundId: stripeRefund.id,
+      amount: Number(paymentTx.amount),
+    });
+
+    return { refunded: true, stripeRefundId: stripeRefund.id };
+  },
+
+  /**
+   * Admin-initiated cancellation with percentage-based multi-gateway refund.
+   *
+   * Supported statuses: all except CANCELLED.
+   * Refund is proportional to the percentage the admin selects (0–100).
+   * Creates an OrderCancellationLog audit record for every cancellation.
+   */
+  async adminCancelOrderWithRefund(params: {
+    orderId: number;
+    adminId: number;
+    /** Refund percentage 0–100. Pass 0 to cancel without issuing a refund. */
+    refundPercentage: number;
+    cancellationReason: string;
+    customReason?: string;
+  }): Promise<{ refunded: boolean; refundAmount: number; externalRefundId?: string }> {
+    const { orderId, adminId, refundPercentage, cancellationReason, customReason } = params;
+
+    // --- 1. Fetch order ---
+    const rawOrder = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        status: true,
+        total: true,
+        couponId: true,
+        items: { select: { productId: true, variantId: true, quantity: true } },
+      },
+    });
+
+    if (!rawOrder) throw new Error('Pedido no encontrado.');
+    if (rawOrder.status === 'CANCELLED') throw new Error('El pedido ya está cancelado.');
+
+    // --- 2. Find SUCCEEDED payment transaction ---
+    const paymentTx = await (prisma as any).paymentTransaction.findFirst({
+      where: { orderId, status: 'SUCCEEDED' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, externalPaymentId: true, gateway: true, amount: true },
+    });
+
+    const shouldRefund = refundPercentage > 0 && paymentTx !== null;
+    const paidAmount = paymentTx ? Number(paymentTx.amount) : 0;
+    const refundAmount = shouldRefund
+      ? Math.round(paidAmount * (refundPercentage / 100) * 100) / 100
+      : 0;
+
+    let refundResult: { externalRefundId: string; status: string; amount: number } | null = null;
+
+    if (shouldRefund) {
+      // --- 3. Idempotency check ---
+      const existingRefund = await (prisma as any).refund.findUnique({
+        where: { paymentTransactionId: paymentTx.id },
+        select: { externalRefundId: true, amount: true },
+      });
+
+      if (existingRefund) {
+        console.info('[AUDIT] admin_cancel_idempotent_hit', { orderId, externalRefundId: existingRefund.externalRefundId });
+        refundResult = { externalRefundId: existingRefund.externalRefundId, status: 'already_refunded', amount: Number(existingRefund.amount) };
+      } else {
+        // --- 4. Call payment provider (OUTSIDE DB transaction) ---
+        const { getRefundProvider } = await import('@/lib/payment/refundProviderRouter');
+        const provider = getRefundProvider(paymentTx.gateway ?? 'stripe');
+
+        try {
+          const result = await provider.createRefund({
+            externalPaymentId: paymentTx.externalPaymentId,
+            amount: refundPercentage === 100 ? undefined : refundAmount,
+            reason: 'requested_by_customer',
+          });
+          refundResult = result;
+        } catch (providerError: any) {
+          const code: string = providerError?.code ?? '';
+          if (code === 'charge_already_refunded') {
+            console.warn('[ADMIN_CANCEL] charge_already_refunded — continuing with DB update', { orderId });
+            refundResult = null; // Will mark cancelled without new refund record
+          } else {
+            console.error('[ADMIN_CANCEL_REFUND_ERROR]', { orderId, gateway: paymentTx.gateway, error: providerError?.message });
+            throw new Error(`No se pudo procesar el reembolso: ${providerError?.message ?? 'error desconocido'}`);
+          }
+        }
+      }
+    }
+
+    // --- 5. Commit all DB changes atomically ---
+    await prisma.$transaction(async (tx: any) => {
+      let refundDbId: number | null = null;
+
+      if (refundResult && !refundResult.status.includes('already_refunded')) {
+        const refundRecord = await (tx as any).refund.create({
+          data: {
+            paymentTransactionId: paymentTx!.id,
+            externalRefundId: refundResult.externalRefundId,
+            amount: refundResult.amount,
+            status: refundResult.status,
+            reason: 'requested_by_customer',
+          },
+          select: { id: true },
+        });
+        refundDbId = refundRecord.id;
+
+        await (tx as any).paymentTransaction.update({
+          where: { id: paymentTx!.id },
+          data: { status: 'CANCELED' },
+        });
+      }
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'CANCELLED' },
+      });
+
+      // Restore inventory
+      for (const item of rawOrder.items) {
+        if (item.variantId) {
+          await tx.productVariant.update({ where: { id: item.variantId }, data: { stock: { increment: item.quantity } } });
+        } else {
+          await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
+        }
+      }
+
+      // Revert coupon usage
+      if (rawOrder.couponId) {
+        await tx.coupon.updateMany({
+          where: { id: rawOrder.couponId, usesCount: { gt: 0 } },
+          data: { usesCount: { decrement: 1 } },
+        });
+      }
+
+      // Audit log
+      await (tx as any).orderCancellationLog.create({
+        data: {
+          orderId,
+          refundId: refundDbId ?? null,
+          cancelledBy: 'ADMIN',
+          adminId,
+          refundPercentage: shouldRefund ? refundPercentage : null,
+          refundAmount: refundAmount > 0 ? refundAmount : null,
+          cancellationReason,
+          customReason: customReason ?? null,
+        },
+      });
+    });
+
+    console.info('[AUDIT] admin_order_cancelled', {
+      orderId,
+      adminId,
+      refundPercentage,
+      refundAmount,
+      externalRefundId: refundResult?.externalRefundId ?? null,
+      gateway: paymentTx?.gateway ?? null,
+    });
+
+    return {
+      refunded: Boolean(refundResult),
+      refundAmount,
+      externalRefundId: refundResult?.externalRefundId,
+    };
   },
 };

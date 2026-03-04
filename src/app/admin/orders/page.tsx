@@ -237,12 +237,15 @@ const fetchOrders = useCallback(async () => {
     [] // 🚨 SIN DEPENDENCIAS
   );
 
-  const handleCancelOrder = useCallback(
-    (orderId: number) => {
-      handleUpdateStatus(orderId, 'CANCELLED', {});
-    },
-    [handleUpdateStatus]
-  );
+  // Called by AdminCancelOrderDialog after the cancel API succeeds — updates local state only
+  const handleCancelOrder = useCallback((orderId: number) => {
+    setOrders(prev => {
+      const next = prev.map(o => o.id === orderId ? { ...o, status: 'CANCELLED' as const } : o);
+      ordersRef.current = next;
+      return next;
+    });
+    setSelectedOrder(prev => prev?.id === orderId ? { ...prev, status: 'CANCELLED' as const } : prev);
+  }, []);
 
   const handleSendUpdate = useCallback(async (order: AdminOrderListDTO) => {
     setIsSendingUpdateFor(order.id);
@@ -413,6 +416,7 @@ const fetchOrders = useCallback(async () => {
           if (!open) setSelectedOrder(null);
         }}
         onUpdateStatus={handleUpdateStatus}
+        onCancelOrder={handleCancelOrder}
       />
     </div>
   );
