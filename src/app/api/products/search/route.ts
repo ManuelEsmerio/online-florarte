@@ -13,7 +13,7 @@ import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 export async function GET(req: NextRequest) {
   try {
     const ip = getClientIp(req);
-    const rl = checkRateLimit(`product_search:${ip}`, 30, 60 * 1000);
+    const rl = await checkRateLimit(`product_search:${ip}`, 30, 60 * 1000);
     if (!rl.allowed) {
       return errorHandler(new Error('Demasiadas solicitudes. Intenta de nuevo en unos momentos.'), 429);
     }

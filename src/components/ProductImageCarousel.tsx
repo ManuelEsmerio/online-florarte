@@ -92,7 +92,7 @@ const ProductImageCarousel = ({ images }: ProductImageCarouselProps) => {
                             className={cn(
                                 "aspect-square relative cursor-pointer rounded-2xl overflow-hidden transition-all duration-300",
                                 selectedIndex === index 
-                                    ? "border-2 border-primary shadow-[0_0_15px_rgba(255,45,120,0.3)] ring-2 ring-primary/10 scale-95" 
+                                    ? "border-2 border-primary shadow-[0_0_15px_hsl(var(--primary)/0.3)] ring-2 ring-primary/10 scale-95" 
                                     : "border border-border/50 opacity-60 hover:opacity-100 hover:scale-[0.98]"
                             )}
                         >

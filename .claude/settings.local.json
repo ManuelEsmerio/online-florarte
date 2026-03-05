@@ -36,7 +36,20 @@
       "Bash(npx prisma migrate dev --name rename_stripe_refund_id_to_external_refund_id)",
       "Bash(npx prisma migrate dev --name rename_stripe_refund_id_to_external_refund_id --create-only)",
       "Read(//c/Users/Manuel Esmerio G/.claude/projects/c--Users-Manuel-Esmerio-G-Documents-Projects-online-florarte/34077475-037d-4cc7-837e-804d7297326a/tool-results/**)",
-      "Read(//c/Users/Manuel Esmerio G/**)"
+      "Read(//c/Users/Manuel Esmerio G/**)",
+      "Bash(node __fix_admin_auth.js)",
+      "Bash(node -e \"const fs=require\\(''fs''\\); const c=fs.readFileSync\\(''src/app/api/admin/products/route.ts'',''utf8''\\); const lines=c.split\\(''\\\\n''\\); [25,26,27,28,29,30,118,119,120,121,122,123].forEach\\(i=>console.log\\(i+1,JSON.stringify\\(lines[i]\\)\\)\\)\")",
+      "Bash(npx prisma migrate dev --create-only --name add_user_token_indexes)",
+      "Bash(npx dotenv -e .env.local -- prisma migrate dev --create-only --name add_user_token_indexes)",
+      "Bash(npx prisma:*)",
+      "Bash(DATABASE_URL=\"mysql://root:30deAgosto95*@localhost:3306/online-florarte-stress\" npx prisma generate)",
+      "Bash(node -e \"const {PrismaClient} = require\\(''@prisma/client''\\); const p = new PrismaClient\\(\\); console.log\\(typeof p.paymentTransaction\\); p.$disconnect\\(\\);\")",
+      "Bash(node -e \"const p=require\\(''./node_modules/@prisma/client''\\); const c=new p.PrismaClient\\(\\); console.log\\(''paymentTransaction'' in c\\); c.$disconnect\\(\\);\")",
+      "Read(//c/Users/Manuel/ Esmerio/ G/Documents/Projects/online-florarte/src/app/categories/[slug/]/**)",
+      "Read(//c/Users/Manuel/ Esmerio/ G/Documents/Projects/online-florarte/src/components/**)",
+      "Read(//c/Users/Manuel/ Esmerio/ G/Documents/Projects/online-florarte/src/app/products/**)",
+      "Read(//c/Users/Manuel/ Esmerio/ G/Documents/Projects/online-florarte/src/app/categories/[slug]/**)",
+      "Bash(xargs grep -l \"bg-slate\\\\|dark:bg-zinc\\\\|dark:border-white\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Manuel Esmerio G\\.claude\\projects\\c--Users-Manuel-Esmerio-G-Documents-Projects-online-florarte\\memory"

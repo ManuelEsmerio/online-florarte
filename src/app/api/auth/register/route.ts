@@ -10,7 +10,7 @@ import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from '@/utils/passwordPolic
 export async function POST(req: NextRequest) {
   // 10 registros por IP cada hora
   const ip = getClientIp(req);
-  const rl = checkRateLimit(`register:${ip}`, 10, 60 * 60 * 1000);
+  const rl = await checkRateLimit(`register:${ip}`, 10, 60 * 60 * 1000);
   if (!rl.allowed) {
     return errorHandler(new Error('Demasiados registros desde esta dirección. Intenta más tarde.'), 429);
   }

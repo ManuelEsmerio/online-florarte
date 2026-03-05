@@ -2,7 +2,6 @@
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
-import { userService } from '@/services/userService';
 import { couponService } from '@/services/couponService';
 import { ZodError } from 'zod';
 
@@ -16,10 +15,7 @@ export async function GET(req: NextRequest) {
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
-    const user = await userService.getUserById(session.dbId);
-    if (!isAdminRole(user?.role)) {
-      return errorHandler(new Error('Acceso prohibido.'), 403);
-    }
+        if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
@@ -47,10 +43,7 @@ export async function POST(req: NextRequest) {
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
-    const user = await userService.getUserById(session.dbId);
-    if (!isAdminRole(user?.role)) {
-      return errorHandler(new Error('Acceso prohibido.'), 403);
-    }
+        if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
     
     const body = await req.json();
     const newCoupon = await couponService.createCoupon(body, session.dbId);
@@ -75,10 +68,7 @@ export async function DELETE(req: NextRequest) {
         if (!session?.dbId) {
             return errorHandler(new Error('Acceso denegado.'), 401);
         }
-        const user = await userService.getUserById(session.dbId);
-        if (!isAdminRole(user?.role)) {
-            return errorHandler(new Error('Acceso prohibido.'), 403);
-        }
+                if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
         const { ids } = await req.json();
         if (!Array.isArray(ids) || ids.length === 0) {

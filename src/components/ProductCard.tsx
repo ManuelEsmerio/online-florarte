@@ -161,7 +161,7 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
     if (tag === 'MÁS VENDIDO') {
         return (
             <div className="absolute top-4 left-4 z-20">
-                <span className="bg-[#FACC15] text-black text-[10px] font-bold tracking-widest px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xl">
+                <span className="bg-yellow-400 text-yellow-900 text-[10px] font-bold tracking-widest px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xl">
                     <Sparkles className="w-3 h-3" />
                     MÁS VENDIDO
                 </span>
@@ -180,9 +180,9 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
   };
 
   return (
-    <Card 
+    <Card
         className={cn(
-            "group relative overflow-hidden rounded-[2rem] bg-white dark:bg-zinc-900/50 transition-all duration-300 hover:translate-y-[-4px] border border-transparent dark:border-white/5 shadow-xl flex flex-col h-full animate-fade-in-up"
+            "group relative overflow-hidden rounded-card bg-card transition-transform duration-300 hover:translate-y-[-4px] border border-transparent dark:border-white/5 shadow-xl flex flex-col h-full animate-fade-in-up"
         )}
         style={{ animationDelay: `${index * 100}ms` }}
         onTouchStart={handlePressStart}
@@ -195,8 +195,8 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
             <button 
                 onClick={handleWishlistToggle}
                 className={cn(
-                    "absolute top-4 right-4 z-20 w-9 h-9 md:w-10 md:h-10 bg-white/90 dark:bg-zinc-800 shadow-lg rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 group/heart",
-                    isProductInWishlist ? "text-primary" : "text-slate-800 dark:text-slate-200"
+                    "absolute top-4 right-4 z-20 w-9 h-9 md:w-10 md:h-10 bg-card/90 shadow-lg rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 group/heart",
+                    isProductInWishlist ? "text-primary" : "text-card-foreground"
                 )}
                 aria-label="Añadir a favoritos"
             >
@@ -209,7 +209,7 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-12 h-12 md:w-14 md:h-14 bg-white/20 backdrop-blur-md text-white rounded-full flex items-center justify-center opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 shadow-2xl hover:bg-primary/80"
                 aria-label="Vista rápida"
             >
-                <Eye className="h-6 w-6 md:h-7 md:h-7" />
+                <Eye className="h-6 w-6 md:w-7 md:h-7" />
             </button>
 
             <Link href={`/products/${product.slug}`} className="block h-full relative">
@@ -217,7 +217,7 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
                     src={product.mainImage || '/placehold.webp'}
                     alt={product.name}
                     fill
-                    className="object-cover transition-transform duration-700 group-hover:scale-110"
+                    className="object-cover transition-transform duration-300 group-hover:scale-110"
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60"></div>
@@ -236,11 +236,11 @@ export function ProductCard({ product, index = 0, onQuickViewOpen, variant = 'de
             </button>
 
             <Link href={`/products/${product.slug}`} className="block mb-4">
-                <h3 className="font-headline text-lg md:text-2xl font-bold text-slate-900 dark:text-white transition-colors duration-300 leading-tight line-clamp-2">
+                <h3 className="font-headline text-lg md:text-2xl font-bold text-card-foreground transition-colors duration-300 leading-tight line-clamp-2">
                     {displayTitle}
                 </h3>
                 {hasVariantContext && (
-                    <p className="mt-1 text-sm md:text-base text-slate-500 dark:text-slate-400 leading-tight line-clamp-1">
+                    <p className="mt-1 text-sm md:text-base text-muted-foreground leading-tight line-clamp-1">
                         {variantLabel}
                     </p>
                 )}

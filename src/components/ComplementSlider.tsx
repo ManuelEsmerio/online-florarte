@@ -150,7 +150,7 @@ export function ComplementSlider({ product, parentCartItemId }: ComplementSlider
         <div className="mt-4 max-w-xs mx-auto md:hidden">
             <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
                 <div 
-                    className="h-full bg-primary rounded-full shadow-[0_0_10px_rgba(255,45,117,0.5)] transition-all duration-300"
+                    className="h-full bg-primary rounded-full shadow-[0_0_10px_hsl(var(--primary)/0.5)] transition-all duration-300"
                     style={{ width: `${progress}%` }}
                 ></div>
             </div>

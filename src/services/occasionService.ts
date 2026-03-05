@@ -89,7 +89,19 @@ export const occasionService = {
     const existing = await prisma.occasion.findUnique({ where: { id } });
     if (!existing) throw new UserFacingError('Ocasión no encontrada.');
 
-    const validatedData = occasionSchema.parse(data);
+    const normalizedPayload = {
+      name: data?.name ?? existing.name,
+      description: data?.description ?? existing.description,
+      // permit both snake_case and camelCase from the UI, fallback to current value
+      show_on_home:
+        typeof data?.show_on_home === 'boolean'
+          ? data.show_on_home
+          : typeof data?.showOnHome === 'boolean'
+            ? data.showOnHome
+            : existing.showOnHome,
+    };
+
+    const validatedData = occasionSchema.parse(normalizedPayload);
     const slug = slugify(validatedData.name, { lower: true, strict: true });
 
     const existingSlug = await prisma.occasion.findUnique({ where: { slug } });

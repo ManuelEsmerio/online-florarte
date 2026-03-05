@@ -32,25 +32,29 @@ const TwitterIcon = () => (
 );
 
 const PaymentIcons = () => (
-  <div className="flex flex-wrap justify-center items-center gap-6 md:gap-10 mb-10">
-    {/* VISA */}
-    <svg className="h-4 w-auto text-slate-400 dark:text-slate-500 fill-current opacity-50 hover:opacity-100 transition-opacity duration-300" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <path d="M31.8 14.4h-4.2c-.9 0-1.6.5-1.9 1.3l-7.4 17.9h4.6l.9-2.5h5.6l.5 2.5h4.1l-2.2-19.2zm-5.8 13.1l2.3-6.4 1.3 6.4h-3.6zM11.1 14.4l-4.2 13.8-.4-2.1c-.7-2.4-2.9-5-5.4-6.6l3.5 12.8h4.8l7.1-17.9H11.1zm35.8 0h-3.7c-1.1 0-2 .7-2.3 1.7l-3.3 16.2h4.6l.9-4.5h5.6l.5 4.5h4.1l-2.4-17.9z"/>
-    </svg>
-    {/* Mastercard */}
-    <svg className="h-6 w-auto text-slate-400 dark:text-slate-500 fill-current opacity-50 hover:opacity-100 transition-opacity duration-300" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <path d="M15.5 14c-5.5 0-10 4.5-10 10s4.5 10 10 10 10-4.5 10-10-4.5-10-10-10zm17 0c-5.5 0-10 4.5-10 10s4.5 10 10 10 10-4.5 10-10-4.5-10-10-10zm-8.5 3.3c1.8 1.8 2.8 4.2 2.8 6.7s-1 4.9-2.8 6.7c-1.8-1.8-2.8-4.2-2.8-6.7s1-4.9 2.8-6.7z"/>
-    </svg>
-    {/* AMEX */}
-    <svg className="h-6 w-auto text-slate-400 dark:text-slate-500 fill-current opacity-50 hover:opacity-100 transition-opacity duration-300" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <path d="M4 10v28h40V10H4zm10.5 19.5h-2.2l-.4-1.2h-3.3l-.4 1.2H6l3.1-8.6h2.3l3.1 8.6zm10.2 0h-2.1V25l-1.8 4.5h-1.4l-1.8-4.5v4.5H15.5V20.9h2.5l2.1 5.3 2.1-5.3h2.5v8.6zm10.3 0h-6.5V20.9h6.5v1.8h-4.4v1.6h4.1v1.8h-4.1v1.6h4.4v1.8zm7 0h-2.3l-1.6-2.5-1.6 2.5h-2.3l2.7-4.3-2.7-4.3h2.3l1.6 2.5 1.6-2.5h2.3l-2.7 4.3 2.7 4.3zM10.8 26.5l-1.3-3.6-1.3 3.6h2.6z"/>
-    </svg>
+  <div className="flex flex-wrap justify-center items-center gap-4 md:gap-6 mb-10">
+    {/* Visa — brand color badge */}
+    <div className="h-8 px-3 bg-[#1A1F71] rounded flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300" title="Visa">
+      <span className="text-white font-black text-sm italic tracking-wider select-none">VISA</span>
+    </div>
+    {/* Mastercard — two overlapping circles */}
+    <div className="h-8 px-2 bg-card rounded border border-border/40 flex items-center opacity-60 hover:opacity-100 transition-opacity duration-300" title="Mastercard">
+      <div className="relative flex items-center w-10">
+        <div className="w-6 h-6 rounded-full bg-[#EB001B]" />
+        <div className="w-6 h-6 rounded-full bg-[#F79E1B] -ml-3" />
+      </div>
+    </div>
+    {/* American Express */}
+    <div className="h-8 px-3 bg-[#2E77BC] rounded flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300" title="American Express">
+      <span className="text-white font-bold text-[11px] tracking-wider select-none">AMEX</span>
+    </div>
     {/* PayPal */}
-    <svg className="h-6 w-auto text-slate-400 dark:text-slate-500 fill-current opacity-50 hover:opacity-100 transition-opacity duration-300" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <path d="M20.067 8.178c-.552 4.153-3.26 6.339-7.374 6.339h-1.693c-.469 0-.806.353-.933.839l-1.121 4.232c-.061.225-.242.412-.467.412h-3.41c-.367 0-.533-.33-.407-.67l2.226-8.41c.127-.48.519-.831.988-.831h1.121c3.738 0 5.952-1.885 6.411-5.355.218-1.656-.12-3.049-1.214-4.062-.305-.282-.015-.67.367-.67h.11c3.275 0 5.513 1.843 5.399 8.158zm-8.235-3.328h-1.121c-.469 0-.861.351-.988.831l-2.226 8.41c-.126.34.04.67.407.67h3.41c.225 0 .406-.187.467-.412l1.121-4.232c.127-.486.464-.839.933-.839h1.693c4.114 0 6.822-2.186 7.374-6.339.114-6.315-2.124-8.158-5.399-8.158h-.11c-.382 0-.672.388-.367.67 1.094 1.013 1.432 2.406 1.214 4.062-.459 3.47-2.673 5.355-6.411 5.355z"/>
-    </svg>
+    <div className="h-8 px-2.5 bg-[#003087] rounded flex items-center gap-0.5 opacity-60 hover:opacity-100 transition-opacity duration-300" title="PayPal">
+      <span className="text-[#009CDE] font-black text-sm tracking-tight select-none">Pay</span>
+      <span className="text-[#009CDE] font-black text-sm tracking-tight select-none opacity-70">Pal</span>
+    </div>
     {/* OXXO PAY */}
-    <div className="flex items-center text-[10px] font-bold tracking-[0.1em] text-slate-400 dark:text-slate-500 border border-slate-300 dark:border-slate-700 px-3 py-1.5 rounded-lg opacity-50 hover:opacity-100 transition-all duration-300 cursor-default">
+    <div className="flex items-center h-8 text-[11px] font-bold tracking-[0.1em] text-muted-foreground border border-border px-3 rounded opacity-60 hover:opacity-100 transition-all duration-300 cursor-default select-none">
       OXXO PAY
     </div>
   </div>
@@ -116,7 +120,7 @@ export function Footer() {
 
   return (
     <footer className={cn(
-      "bg-background dark:bg-zinc-950 text-slate-600 dark:text-slate-400 pt-16 pb-8 border-t border-slate-200 dark:border-white/5 font-sans transition-colors duration-300",
+      "bg-background text-muted-foreground pt-16 pb-8 border-t border-border font-sans transition-colors duration-300",
       pathname !== '/' && "max-md:hidden"
     )}>
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
@@ -125,21 +129,22 @@ export function Footer() {
           <div className="col-span-2 lg:col-span-4 space-y-8">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center shadow-lg shadow-primary/20">
-                <Isotype className="h-6 w-6 brightness-0 invert dark:brightness-0" />
+                <Isotype className="h-6 w-6 brightness-0 invert" />
               </div>
-              <span className="text-3xl font-headline font-bold text-slate-900 dark:text-white tracking-tight">Florarte</span>
+              <span className="text-3xl font-headline font-bold text-foreground tracking-tight">Florarte</span>
             </div>
             <p className="text-base leading-relaxed max-w-sm">
               Creando momentos inolvidables con el lenguaje de las flores en Tequila, Jalisco y la Región Valles.
             </p>
             <div className="flex items-center gap-5">
-              <a href="https://www.facebook.com/florarte" target="_blank" rel="noopener noreferrer" className="social-icon text-slate-400 dark:text-slate-500 hover:text-primary transition-all duration-300 hover:-translate-y-1" aria-label="Facebook">
+              {/* TODO: reemplazar con las URLs reales de redes sociales de Florarte */}
+              <a href="https://www.facebook.com/florarte" target="_blank" rel="noopener noreferrer" className="social-icon text-muted-foreground hover:text-primary transition-all duration-300 hover:-translate-y-1" aria-label="Facebook">
                 <FacebookIcon />
               </a>
-              <a href="https://www.instagram.com/florarte" target="_blank" rel="noopener noreferrer" className="social-icon text-slate-400 dark:text-slate-500 hover:text-primary transition-all duration-300 hover:-translate-y-1" aria-label="Instagram">
+              <a href="https://www.instagram.com/florarte" target="_blank" rel="noopener noreferrer" className="social-icon text-muted-foreground hover:text-primary transition-all duration-300 hover:-translate-y-1" aria-label="Instagram">
                 <InstagramIcon />
               </a>
-              <a href="https://www.twitter.com/florarte" target="_blank" rel="noopener noreferrer" className="social-icon text-slate-400 dark:text-slate-500 hover:text-primary transition-all duration-300 hover:-translate-y-1" aria-label="Twitter">
+              <a href="https://www.twitter.com/florarte" target="_blank" rel="noopener noreferrer" className="social-icon text-muted-foreground hover:text-primary transition-all duration-300 hover:-translate-y-1" aria-label="Twitter">
                 <TwitterIcon />
               </a>
             </div>
@@ -147,7 +152,7 @@ export function Footer() {
 
           {/* Collections */}
           <div className="col-span-1 lg:col-span-2">
-            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-900 dark:text-white mb-8">Colecciones</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest text-foreground mb-8">Colecciones</h4>
             <ul className="space-y-4 text-sm font-medium">
               <li><Link href="/products/all" className="hover:text-primary transition-colors">Ver Todo</Link></li>
               <li><Link href="/categories/arreglos-florales" className="hover:text-primary transition-colors">Arreglos</Link></li>
@@ -160,7 +165,7 @@ export function Footer() {
 
           {/* Company */}
           <div className="col-span-1 lg:col-span-2">
-            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-900 dark:text-white mb-8">Empresa</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest text-foreground mb-8">Empresa</h4>
             <ul className="space-y-4 text-sm font-medium">
               <li><Link href="/about" className="hover:text-primary transition-colors">Sobre Nosotros</Link></li>
               <li><Link href="/contact" className="hover:text-primary transition-colors">Contacto</Link></li>
@@ -171,9 +176,9 @@ export function Footer() {
 
           {/* Newsletter */}
           <div className="col-span-2 lg:col-span-4">
-            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-900 dark:text-white mb-8">Newsletter</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest text-foreground mb-8">Newsletter</h4>
             <p className="text-sm mb-6 leading-relaxed">Suscríbete para recibir ofertas exclusivas y consejos de cuidado floral.</p>
-            
+
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3" suppressHydrationWarning>
                 <FormField
@@ -182,11 +187,11 @@ export function Footer() {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input 
-                          placeholder="Tu correo electrónico" 
-                          {...field} 
+                        <Input
+                          placeholder="Tu correo electrónico"
+                          {...field}
                           disabled={isSubmitting || !mounted}
-                          className="h-12 rounded bg-slate-100 dark:bg-white/5 border-none focus:ring-2 focus:ring-primary/50 text-slate-900 dark:text-white"
+                          className="h-12 rounded bg-muted border-none focus:ring-2 focus:ring-primary/50 text-foreground"
                         />
                       </FormControl>
                       <FormMessage className="text-xs" />
@@ -206,23 +211,23 @@ export function Footer() {
         </div>
 
         {/* Bottom Section */}
-        <div className="pt-12 border-t border-slate-200 dark:border-white/5 flex flex-col items-center">
+        <div className="pt-12 border-t border-border flex flex-col items-center">
           <PaymentIcons />
-          
-          <nav className="flex flex-wrap justify-center items-center gap-x-4 gap-y-2 text-xs text-slate-400 dark:text-slate-500 mb-8">
+
+          <nav className="flex flex-wrap justify-center items-center gap-x-4 gap-y-2 text-xs text-muted-foreground mb-8">
             {legalLinks.map((link, index) => (
               <React.Fragment key={link.href}>
                 <Link href={link.href} className="hover:text-primary transition-all active:scale-95">
                   {link.label}
                 </Link>
                 {index < legalLinks.length - 1 && (
-                  <span className="hidden md:inline w-1 h-1 bg-slate-300 dark:bg-slate-700 rounded-full"></span>
+                  <span className="hidden md:inline w-1 h-1 bg-border rounded-full"></span>
                 )}
               </React.Fragment>
             ))}
           </nav>
 
-          <p className="text-[11px] text-slate-400 dark:text-slate-600 uppercase tracking-widest text-center font-bold">
+          <p className="text-[11px] text-muted-foreground uppercase tracking-widest text-center font-bold">
             &copy; {currentYear} Florarte. Todos los derechos reservados.
           </p>
         </div>

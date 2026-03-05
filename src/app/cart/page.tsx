@@ -276,17 +276,18 @@ export default function CartPage() {
                                 return (
                                     <div key={item.cartItemId} className="flex gap-4 p-6 border-b last:border-b-0 bg-background dark:bg-zinc-900 transition-colors font-sans">
                                         <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl border border-border/50 shadow-sm">
-                                            <Image src={item.image || '/placehold.webp'} alt={item.name ?? ''} fill className="object-cover" />
+                                            <Image src={item.image || '/placehold.webp'} alt={item.name ?? 'Imagen del producto'} fill className="object-cover" />
                                         </div>
                                         <div className="flex-grow flex flex-col justify-between py-1">
                                             <div className="flex justify-between items-start">
                                                 <h3 className="font-semibold text-foreground text-sm md:text-base leading-tight pr-2 line-clamp-2">{item.name}</h3>
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="icon" 
-                                                    className="h-8 w-8 text-muted-foreground/40 hover:text-destructive transition-colors -mt-1 -mr-1" 
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-muted-foreground/40 hover:text-destructive transition-colors -mt-1 -mr-1"
                                                     onClick={() => removeFromCart(item.cartItemId ?? String(item.id))}
                                                     disabled={isUpdating}
+                                                    aria-label={`Eliminar ${item.name ?? 'producto'} del carrito`}
                                                 >
                                                     {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                                                 </Button>
@@ -296,18 +297,20 @@ export default function CartPage() {
                                                     {formatCurrency(item.price ?? item.unitPrice)}
                                                 </span>
                                                 <div className="flex items-center bg-muted/50 dark:bg-zinc-800 rounded-full border border-border/50 p-1">
-                                                    <button 
-                                                        className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-primary active:scale-90 transition-all disabled:opacity-30" 
+                                                    <button
+                                                        className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-primary active:scale-90 transition-all disabled:opacity-30"
                                                         onClick={() => updateQuantity(item.cartItemId ?? String(item.id), item.quantity - 1)}
                                                         disabled={isUpdating || item.quantity <= 1}
+                                                        aria-label="Reducir cantidad"
                                                     >
                                                         <Minus className="h-3.5 w-3.5" />
                                                     </button>
-                                                    <span className="w-8 text-center text-xs font-bold font-sans">{item.quantity}</span>
-                                                    <button 
-                                                        className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-primary active:scale-90 transition-all disabled:opacity-30" 
+                                                    <span className="w-8 text-center text-xs font-bold font-sans" aria-live="polite" aria-label={`Cantidad: ${item.quantity}`}>{item.quantity}</span>
+                                                    <button
+                                                        className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-primary active:scale-90 transition-all disabled:opacity-30"
                                                         onClick={() => updateQuantity(item.cartItemId ?? String(item.id), item.quantity + 1)}
                                                         disabled={isUpdating}
+                                                        aria-label="Aumentar cantidad"
                                                     >
                                                         <Plus className="h-3.5 w-3.5" />
                                                     </button>
@@ -395,7 +398,7 @@ export default function CartPage() {
                                               <TicketIcon className="w-5 h-5 text-green-600" />
                                               <span className="text-sm font-bold text-green-700 dark:text-green-400 font-sans">{appliedCoupon.code}</span>
                                           </div>
-                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-green-700 hover:bg-green-100" onClick={handleRemoveCoupon}>
+                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-green-700 hover:bg-green-100" onClick={handleRemoveCoupon} aria-label="Eliminar cupón">
                                               <X className="h-4 w-4" />
                                           </Button>
                                       </div>
@@ -541,6 +544,9 @@ export default function CartPage() {
                     disabled={isApplyingCoupon}
                     className="h-14 rounded-2xl text-center font-bold tracking-widest text-lg bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 transition-all uppercase font-sans"
                 />
+                                <p className="text-xs text-muted-foreground/80 text-center font-medium">
+                                    Cada cupón se puede usar una sola vez por cuenta.
+                                </p>
             </div>
           </div>
           <DialogFooter className="flex-col sm:flex-col gap-2">

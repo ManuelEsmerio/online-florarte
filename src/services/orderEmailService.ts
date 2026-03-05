@@ -70,7 +70,7 @@ const STATUS_SUBJECT_LABELS: Record<OrderStatus, string> = {
 };
 
 async function getOrderWithRelations(orderId: number): Promise<OrderWithRelations | null> {
-  return (await (prisma as any).order.findUnique({
+  return (await prisma.order.findUnique({
     where: { id: orderId },
     include: {
       user: { select: { id: true, name: true, email: true } },

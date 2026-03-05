@@ -1,6 +1,7 @@
 // src/services/orderService.ts
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { resolveShippingCost } from '@/lib/checkout/resolveShippingCost';
 import { cartService } from './cartService';
 import { orderAddressService } from './orderAddressService';
 import { orderEmailService } from './orderEmailService';
@@ -8,19 +9,14 @@ import { stripeService } from './stripeService';
 import type { DbCartItem, Order, OrderStatus } from '@/lib/definitions';
 import { UserFacingError } from '@/utils/errors';
 
-const paymentTransactionModel = (prisma as unknown as {
-  paymentTransaction: {
-    findMany: (args: any) => Promise<any[]>;
-    findFirst: (args: any) => Promise<any | null>;
-  };
-}).paymentTransaction;
-
 const ORDER_STATUS_MAP: Record<string, string> = {
   PENDING: 'pendiente',
+  PAYMENT_FAILED: 'pago_fallido',
   PROCESSING: 'procesando',
   SHIPPED: 'en_reparto',
   DELIVERED: 'completado',
   CANCELLED: 'cancelado',
+  EXPIRED: 'expirado',
 };
 
 function mapStatus(status: string): string {
@@ -85,10 +81,12 @@ const getPaymentTransactionModel = (dbClient: any) => {
   }).paymentTransaction;
 };
 
+type SupportedGateway = 'stripe' | 'mercadopago' | 'paypal';
+
 type PaymentUpsertParams = {
   orderId: number;
   externalPaymentId: string;
-  gateway: 'stripe' | 'mercadopago';
+  gateway: SupportedGateway;
   amount: number;
   status: 'SUCCEEDED' | 'FAILED';
 };
@@ -125,6 +123,24 @@ async function safeUpsertPaymentTransaction(model: any, params: PaymentUpsertPar
 
     throw error;
   }
+}
+
+function ensureValidDeliveryDate(rawValue: unknown): Date {
+  if (!rawValue) {
+    throw new UserFacingError('Debes seleccionar una fecha de entrega.');
+  }
+
+  const deliveryDate = new Date(rawValue as any);
+  if (Number.isNaN(deliveryDate.getTime())) {
+    throw new UserFacingError('La fecha de entrega proporcionada es inválida.');
+  }
+
+  const now = Date.now();
+  if (deliveryDate.getTime() < now - 60 * 60 * 1000) {
+    throw new UserFacingError('La fecha de entrega no puede estar en el pasado.');
+  }
+
+  return deliveryDate;
 }
 
 export const orderService = {
@@ -172,7 +188,7 @@ export const orderService = {
 
     const orderIds = orders.map((order: any) => order.id);
     const transactions = orderIds.length > 0
-      ? await paymentTransactionModel.findMany({
+      ? await prisma.paymentTransaction.findMany({
           where: { orderId: { in: orderIds } },
           orderBy: { createdAt: 'desc' },
         })
@@ -234,7 +250,7 @@ export const orderService = {
 
     const orderIds = orders.map((order: any) => order.id);
     const transactions = orderIds.length > 0
-      ? await paymentTransactionModel.findMany({
+      ? await prisma.paymentTransaction.findMany({
           where: { orderId: { in: orderIds } },
           orderBy: { createdAt: 'desc' },
         })
@@ -324,7 +340,7 @@ export const orderService = {
     });
     if (!order) return null;
 
-    const latestPaymentTransaction = await paymentTransactionModel.findFirst({
+    const latestPaymentTransaction = await prisma.paymentTransaction.findFirst({
       where: { orderId: order.id },
       orderBy: { createdAt: 'desc' },
     });
@@ -405,6 +421,7 @@ export const orderService = {
       : null;
     const normalizedUserId = validUser?.id ?? null;
     const isGuest = !normalizedUserId;
+    const normalizedAddressId = Number.isFinite(Number(params.addressId)) ? Number(params.addressId) : null;
 
     if (!normalizedUserId && !normalizedSessionId) {
       throw new UserFacingError('No se pudo identificar la sesión del carrito.');
@@ -422,6 +439,7 @@ export const orderService = {
     const guestState = normalizeGuestText(params.guestState) ?? 'Jalisco';
     const guestPostalCode = normalizeGuestText(params.guestPostalCode);
     const guestReferenceNotes = normalizeGuestText(params.guestReferenceNotes);
+    const deliveryDate = ensureValidDeliveryDate(params.deliveryDate ?? params.p_delivery_date);
 
     if (isGuest) {
       if (!guestName) {
@@ -463,7 +481,7 @@ export const orderService = {
           userId: normalizedUserId,
           sessionId: normalizedSessionId,
           couponCode,
-          deliveryDate: params.deliveryDate ?? params.p_delivery_date ?? null,
+          deliveryDate: deliveryDate.toISOString(),
         });
 
         appliedCoupon = {
@@ -479,28 +497,35 @@ export const orderService = {
       }
     }
 
-    const subtotal = cartData.subtotal;
-    const shippingCost = params.shippingCost ?? 0;
-    const couponDiscount = calculateCouponDiscount(subtotal, appliedCoupon ?? (cartData.coupon ?? null));
-    const total = Math.max(0, subtotal - couponDiscount + shippingCost);
-
-    if (normalizedUserId && !params.addressId) {
+    if (normalizedUserId && !normalizedAddressId) {
       throw new UserFacingError('Debes seleccionar una dirección guardada para completar tu compra.');
     }
 
-    const selectedAddress = normalizedUserId && params.addressId
+    const selectedAddress = normalizedUserId && normalizedAddressId
       ? await prisma.address.findFirst({
           where: {
-            id: Number(params.addressId),
+            id: normalizedAddressId,
             userId: normalizedUserId,
             isDeleted: false,
           },
         })
       : null;
 
-    if (normalizedUserId && params.addressId && !selectedAddress) {
+    if (normalizedUserId && normalizedAddressId && !selectedAddress) {
       throw new UserFacingError('La dirección seleccionada no existe o no pertenece al usuario.');
     }
+
+    const resolvedShippingCost = await resolveShippingCost(
+      selectedAddress?.id ?? normalizedAddressId,
+      guestPostalCode,
+    );
+    const shippingCost = Number.isFinite(Number(resolvedShippingCost))
+      ? Math.max(0, Number(resolvedShippingCost))
+      : 0;
+
+    const subtotal = cartData.subtotal;
+    const couponDiscount = calculateCouponDiscount(subtotal, appliedCoupon ?? (cartData.coupon ?? null));
+    const total = Math.max(0, Number((subtotal - couponDiscount + shippingCost).toFixed(2)));
 
     const snapshotData = selectedAddress
       ? orderAddressService.normalizeSnapshot({
@@ -558,16 +583,17 @@ export const orderService = {
 
     const newOrder = await prisma.$transaction(async (tx: any) => {
       if (appliedCoupon && normalizedUserId) {
-        const alreadyUsedByUser = await tx.order.findFirst({
+        const existingRedemption = await tx.couponRedemption.findUnique({
           where: {
-            userId: normalizedUserId,
-            couponId: appliedCoupon.id,
-            status: { not: 'CANCELLED' },
+            couponId_userId: {
+              couponId: appliedCoupon.id,
+              userId: normalizedUserId,
+            },
           },
           select: { id: true },
         });
 
-        if (alreadyUsedByUser) {
+        if (existingRedemption) {
           throw new UserFacingError('Este cupón ya fue utilizado por tu cuenta.');
         }
       }
@@ -649,6 +675,16 @@ export const orderService = {
         }
       }
 
+      if (appliedCoupon && normalizedUserId) {
+        await tx.couponRedemption.create({
+          data: {
+            couponId: appliedCoupon.id,
+            userId: normalizedUserId,
+            orderId: createdOrder.id,
+          },
+        });
+      }
+
       const activeCart = await tx.cart.findFirst({
         where: {
           status: 'ACTIVE',
@@ -675,29 +711,52 @@ export const orderService = {
     };
   },
 
-  async finalizeOrderFromWebhook(params: any) {
-    await prisma.order.update({ where: { id: params.orderId }, data: { status: 'PENDING' } });
-    return { success: true, orderId: params.orderId };
-  },
-
   async finalizeSuccessfulPaymentFromWebhook(params: {
     orderId: number;
     externalPaymentId: string;
-    gateway: 'stripe' | 'mercadopago';
+    gateway: SupportedGateway;
     amount: number;
   }) {
-    const shouldSendEmails = await prisma.$transaction(
+    let amountMismatchDetected = false;
+
+    const { shouldSendEmails, cartIdentity } = await prisma.$transaction(
       async (tx: any) => {
         const paymentTxModel = getPaymentTransactionModel(tx);
-        const existingTransaction = await paymentTxModel.findFirst({
-          where: { externalPaymentId: params.externalPaymentId },
-          select: { status: true },
-        });
+        const [existingTransaction, order] = await Promise.all([
+          paymentTxModel.findFirst({
+            where: { externalPaymentId: params.externalPaymentId },
+            select: { status: true },
+          }),
+          tx.order.findUnique({
+            where: { id: params.orderId },
+            select: { id: true, total: true, status: true, userId: true, sessionId: true },
+          }),
+        ]);
 
-        await tx.order.update({
-          where: { id: params.orderId },
-          data: { status: 'PENDING' },
-        });
+        if (!order) {
+          throw new UserFacingError('Pedido no encontrado para registrar el pago.');
+        }
+
+        const orderTotal = Number(order.total);
+        const normalizedAmount = Number(params.amount);
+        if (!Number.isFinite(orderTotal) || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+          throw new UserFacingError('Monto del pedido o del pago inválido.');
+        }
+
+        if (Math.abs(orderTotal - normalizedAmount) > 0.5) {
+          amountMismatchDetected = true;
+          await safeUpsertPaymentTransaction(paymentTxModel, {
+            orderId: params.orderId,
+            externalPaymentId: params.externalPaymentId,
+            gateway: params.gateway,
+            amount: params.amount,
+            status: 'FAILED',
+          });
+          return {
+            shouldSendEmails: false,
+            cartIdentity: { userId: order.userId ?? null, sessionId: order.sessionId ?? null },
+          };
+        }
 
         await safeUpsertPaymentTransaction(paymentTxModel, {
           orderId: params.orderId,
@@ -707,10 +766,45 @@ export const orderService = {
           status: 'SUCCEEDED',
         });
 
-        return existingTransaction?.status !== 'SUCCEEDED';
+        // Advance from any pre-payment state to PROCESSING
+        if (['PENDING', 'PAYMENT_FAILED'].includes(order.status)) {
+          await tx.order.update({
+            where: { id: params.orderId },
+            data: { status: 'PROCESSING' },
+          });
+        }
+
+        return {
+          shouldSendEmails: existingTransaction?.status !== 'SUCCEEDED',
+          cartIdentity: { userId: order.userId ?? null, sessionId: order.sessionId ?? null },
+        };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }
     );
+
+    if (amountMismatchDetected) {
+      console.error('[ORDER_PAYMENT_AMOUNT_MISMATCH]', {
+        orderId: params.orderId,
+        gateway: params.gateway,
+        reportedAmount: params.amount,
+      });
+      await this.cancelAbandonedOrder(params.orderId);
+      return { success: false, orderId: params.orderId };
+    }
+
+    if (cartIdentity?.userId || cartIdentity?.sessionId) {
+      try {
+        await cartService.clearCart({
+          userId: cartIdentity.userId ?? null,
+          sessionId: cartIdentity.sessionId ?? null,
+        });
+      } catch (error) {
+        console.error('[ORDER_CLEAR_CART_AFTER_PAYMENT_ERROR]', {
+          orderId: params.orderId,
+          error,
+        });
+      }
+    }
 
     if (shouldSendEmails) {
       try {
@@ -726,16 +820,27 @@ export const orderService = {
   async registerFailedPaymentFromWebhook(params: {
     orderId: number;
     externalPaymentId: string;
-    gateway: 'stripe' | 'mercadopago';
+    gateway: SupportedGateway;
     amount: number;
   }) {
     const shouldSendFailureEmail = await prisma.$transaction(
       async (tx: any) => {
         const paymentTxModel = getPaymentTransactionModel(tx);
-        const existingTransaction = await paymentTxModel.findFirst({
-          where: { externalPaymentId: params.externalPaymentId },
-          select: { status: true },
-        });
+        const [existingTransaction, order] = await Promise.all([
+          paymentTxModel.findFirst({
+            where: { externalPaymentId: params.externalPaymentId },
+            select: { status: true },
+          }),
+          tx.order.findUnique({
+            where: { id: params.orderId },
+            select: { status: true },
+          }),
+        ]);
+
+        // Idempotency: already in a terminal state — nothing to do
+        if (!order || ['PROCESSING', 'DELIVERED', 'CANCELLED', 'EXPIRED'].includes(order.status)) {
+          return false;
+        }
 
         await safeUpsertPaymentTransaction(paymentTxModel, {
           orderId: params.orderId,
@@ -743,6 +848,12 @@ export const orderService = {
           gateway: params.gateway,
           amount: params.amount,
           status: 'FAILED',
+        });
+
+        // Mark the order as PAYMENT_FAILED — keeps it alive for retry within Stripe Checkout
+        await tx.order.update({
+          where: { id: params.orderId },
+          data: { status: 'PAYMENT_FAILED' },
         });
 
         return existingTransaction?.status !== 'FAILED';
@@ -761,7 +872,17 @@ export const orderService = {
     return { success: true, orderId: params.orderId };
   },
 
-  async cancelAbandonedOrder(orderId: number): Promise<void> {
+  /**
+   * Expires or cancels a pre-payment order (no refund needed — payment never succeeded).
+   * Called by:
+   *  - Stripe webhook `checkout.session.expired` → targetStatus = 'EXPIRED'
+   *  - Stripe webhook `payment_intent.canceled`  → targetStatus = 'CANCELLED'
+   *  - Amount-mismatch path in finalizeSuccessfulPaymentFromWebhook → targetStatus = 'CANCELLED'
+   */
+  async cancelAbandonedOrder(
+    orderId: number,
+    targetStatus: 'CANCELLED' | 'EXPIRED' = 'CANCELLED',
+  ): Promise<void> {
     await prisma.$transaction(async (tx: any) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -773,7 +894,8 @@ export const orderService = {
         },
       });
 
-      if (!order || order.status !== 'PENDING') return;
+      // Only act on pre-payment states
+      if (!order || !['PENDING', 'PAYMENT_FAILED'].includes(order.status)) return;
 
       // Restaurar stock de cada ítem
       for (const item of order.items) {
@@ -796,11 +918,12 @@ export const orderService = {
           where: { id: order.couponId, usesCount: { gt: 0 } },
           data: { usesCount: { decrement: 1 } },
         });
+        await tx.couponRedemption.deleteMany({ where: { orderId } });
       }
 
       await tx.order.update({
         where: { id: orderId },
-        data: { status: 'CANCELLED' },
+        data: { status: targetStatus },
       });
     });
   },
@@ -832,12 +955,12 @@ export const orderService = {
     if (!rawOrder) throw new UserFacingError('Pedido no encontrado.');
 
     // Double-check status (may have changed since getCancellationInfo ran in the route)
-    if (rawOrder.status !== 'PENDING') {
+    if (!['PENDING', 'PAYMENT_FAILED'].includes(rawOrder.status)) {
       throw new UserFacingError('El pedido ya no puede cancelarse porque su estado cambió.');
     }
 
     // --- 2. Find SUCCEEDED payment transaction ---
-    const paymentTx = await (prisma as any).paymentTransaction.findFirst({
+    const paymentTx = await prisma.paymentTransaction.findFirst({
       where: { orderId, status: 'SUCCEEDED' },
       orderBy: { createdAt: 'desc' },
       select: { id: true, externalPaymentId: true, gateway: true, amount: true },
@@ -855,6 +978,7 @@ export const orderService = {
         }
         if (rawOrder.couponId) {
           await tx.coupon.updateMany({ where: { id: rawOrder.couponId, usesCount: { gt: 0 } }, data: { usesCount: { decrement: 1 } } });
+          await tx.couponRedemption.deleteMany({ where: { orderId } });
         }
         await tx.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
         await (tx as any).orderCancellationLog.create({
@@ -870,7 +994,7 @@ export const orderService = {
     }
 
     // --- 4. Idempotency: check if refund already exists ---
-    const existingRefund = await (prisma as any).refund.findUnique({
+    const existingRefund = await prisma.refund.findUnique({
       where: { paymentTransactionId: paymentTx.id },
       select: { externalRefundId: true, status: true },
     });
@@ -880,7 +1004,7 @@ export const orderService = {
       const currentOrder = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
       if (currentOrder?.status !== 'CANCELLED') {
         await prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
-        await (prisma as any).paymentTransaction.update({ where: { id: paymentTx.id }, data: { status: 'CANCELED' } });
+        await prisma.paymentTransaction.update({ where: { id: paymentTx.id }, data: { status: 'CANCELED' } });
       }
       console.info('[AUDIT] order_cancel_idempotent_hit', { orderId, externalRefundId: existingRefund.externalRefundId });
       return { refunded: true, stripeRefundId: existingRefund.externalRefundId };
@@ -958,6 +1082,7 @@ export const orderService = {
           where: { id: rawOrder.couponId, usesCount: { gt: 0 } },
           data: { usesCount: { decrement: 1 } },
         });
+        await tx.couponRedemption.deleteMany({ where: { orderId } });
       }
 
       // Cancellation audit log
@@ -1016,7 +1141,7 @@ export const orderService = {
     if (rawOrder.status === 'CANCELLED') throw new UserFacingError('El pedido ya está cancelado.');
 
     // --- 2. Find SUCCEEDED payment transaction ---
-    const paymentTx = await (prisma as any).paymentTransaction.findFirst({
+    const paymentTx = await prisma.paymentTransaction.findFirst({
       where: { orderId, status: 'SUCCEEDED' },
       orderBy: { createdAt: 'desc' },
       select: { id: true, externalPaymentId: true, gateway: true, amount: true },
@@ -1032,7 +1157,7 @@ export const orderService = {
 
     if (shouldRefund) {
       // --- 3. Idempotency check ---
-      const existingRefund = await (prisma as any).refund.findUnique({
+      const existingRefund = await prisma.refund.findUnique({
         where: { paymentTransactionId: paymentTx.id },
         select: { externalRefundId: true, amount: true },
       });
@@ -1108,6 +1233,7 @@ export const orderService = {
           where: { id: rawOrder.couponId, usesCount: { gt: 0 } },
           data: { usesCount: { decrement: 1 } },
         });
+        await tx.couponRedemption.deleteMany({ where: { orderId } });
       }
 
       // Audit log

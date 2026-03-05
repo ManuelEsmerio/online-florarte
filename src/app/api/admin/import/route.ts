@@ -94,8 +94,7 @@ export async function POST(req: NextRequest) {
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
-    const user = await userService.getUserById(session.dbId);
-    if (!isAdminRole(user?.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
+        if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const formData = await req.formData();
     const dataType = formData.get('dataType') as keyof typeof importSchemas;

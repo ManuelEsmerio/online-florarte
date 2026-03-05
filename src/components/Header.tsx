@@ -5,7 +5,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, User, LogOut, LayoutDashboard, Search, Heart, Ticket, UserCircle, ShoppingBag, Gem, LogIn, UserPlus, PhoneCall, ShieldCheck, FileText, Scale } from 'lucide-react';
+import { Menu, User, LogOut, LayoutDashboard, Search, Heart, Ticket, UserCircle, ShoppingBag, Gem, LogIn, UserPlus, PhoneCall, ShieldCheck, FileText, Scale, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import {
   DropdownMenu,
@@ -323,8 +323,9 @@ const HeaderContent = () => {
               </div>
               <div className="flex items-center justify-between border-t p-4 bg-muted/20">
                 {isClient && user ? (
-                  <Button onClick={() => { logout(); handleMobileLinkClick(); }} variant="ghost" size="icon" className="text-destructive rounded-xl" aria-label="Cerrar Sesión">
-                    <LogOut className="h-6 w-6" />
+                  <Button onClick={() => { logout(); handleMobileLinkClick(); }} variant="ghost" className="text-destructive rounded-xl gap-2 px-3" aria-label="Cerrar Sesión">
+                    <LogOut className="h-5 w-5" />
+                    <span className="text-sm font-medium">Salir</span>
                   </Button>
                 ) : (
                   <Button asChild variant="outline" className="rounded-xl font-bold">
@@ -377,10 +378,6 @@ const Header = () => (
   <Suspense fallback={<div className="h-20" />}>
     <HeaderContent />
   </Suspense>
-);
-
-const RefreshCw = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
 );
 
 export default Header;

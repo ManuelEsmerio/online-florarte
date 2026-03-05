@@ -32,7 +32,6 @@ import {
 } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import jsPDF from 'jspdf';
 import { cn } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
@@ -50,8 +49,10 @@ export default function CookiesPolicyPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDownloadPDF = () => {
-    const doc = new jsPDF();
+  const handleDownloadPDF = async () => {
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const doc = new jsPDF();
     const margin = 20;
     const pageWidth = 210;
     const contentWidth = pageWidth - (margin * 2);
@@ -109,8 +110,12 @@ export default function CookiesPolicyPage() {
       cursorY += 5;
     });
 
-    doc.save('aviso-uso-cookies-florarte.pdf');
-    toast({ title: 'Descarga iniciada', description: 'El documento oficial se está descargando.' });
+      doc.save('aviso-uso-cookies-florarte.pdf');
+      toast({ title: 'Descarga iniciada', description: 'El documento oficial se está descargando.' });
+    } catch (error) {
+      console.error('[cookies-policy] Error generando PDF', error);
+      toast({ title: 'No pudimos generar el PDF', description: 'Intenta de nuevo en unos segundos.', variant: 'destructive' });
+    }
   };
 
   const handleSaveSettings = () => {
@@ -235,7 +240,7 @@ export default function CookiesPolicyPage() {
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center relative z-10 px-4 items-center">
-                <Button asChild size="lg" className="w-full sm:w-auto h-14 md:h-16 px-10 rounded-full font-bold text-base md:text-lg bg-primary hover:bg-primary/90 shadow-[0_0_30px_rgba(255,45,120,0.3)] gap-3 group border-none">
+                <Button asChild size="lg" className="w-full sm:w-auto h-14 md:h-16 px-10 rounded-full font-bold text-base md:text-lg bg-primary hover:bg-primary/90 premium-glow-strong gap-3 group border-none">
                   <Link href="/contact" className="flex items-center gap-2">
                     <MessageCircle className="w-5 h-5 group-hover:scale-110 transition-transform" />
                     Hablar con Soporte
@@ -259,6 +264,7 @@ export default function CookiesPolicyPage() {
 
       <button 
         onClick={scrollToTop}
+        aria-label="Volver al inicio"
         className="fixed bottom-24 right-6 w-12 h-12 md:w-14 md:h-14 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-2xl flex items-center justify-center hover:bg-primary dark:hover:bg-primary dark:hover:text-white transition-all group z-40 active:scale-90"
       >
         <ArrowUp className="w-5 h-5 md:w-6 md:h-6 group-hover:-translate-y-1 transition-transform" />

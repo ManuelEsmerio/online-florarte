@@ -29,11 +29,12 @@ function StripeLogo() {
 }
 
 function MercadoPagoLogo() {
+  // HTML badge — avoids SVG <text> font-rendering inconsistencies across OSes
   return (
-    <svg viewBox="0 0 120 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-6 w-auto">
-      <rect width="120" height="32" rx="4" fill="#009EE3"/>
-      <text x="8" y="22" fontFamily="Arial" fontWeight="bold" fontSize="13" fill="white">Mercado Pago</text>
-    </svg>
+    <div className="inline-flex items-center gap-1 h-6 bg-[#009EE3] rounded px-2.5 py-0.5" aria-label="Mercado Pago">
+      <span className="text-white font-bold text-[11px] leading-none tracking-tight">Mercado</span>
+      <span className="text-white font-bold text-[11px] leading-none tracking-tight">Pago</span>
+    </div>
   );
 }
 
@@ -109,7 +110,7 @@ export function StepPayment({
                             <span>Tu Tarjeta de Dedicatoria</span>
                         </div>
                         {(hasNoDedication || (hasNoSignature && !values.isAnonymous)) && (
-                            <Badge variant="warning" className="text-[8px] h-5 font-bold tracking-tight rounded-full px-2 gap-1.5 animate-pulse bg-amber-100 text-amber-700 border-amber-200 flex items-center justify-center">
+                            <Badge variant="warning" className="text-[11px] h-5 font-bold tracking-tight rounded-full px-2 gap-1.5 animate-warn-pulse bg-amber-100 text-amber-700 border-amber-200 flex items-center justify-center">
                                 <AlertTriangle className="w-2.5 h-2.5" strokeWidth={3} />
                                 <span className="translate-y-[0.5px]">Tarjeta Incompleta</span>
                             </Badge>
@@ -143,10 +144,13 @@ export function StepPayment({
                     value={selectedGateway}
                     onValueChange={(val) => setValue('gateway', val, { shouldValidate: true })}
                     className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                    aria-label="Método de pago"
                 >
                     <RadioGroup.Item value="stripe" asChild>
                         <button
                             type="button"
+                            aria-label="Pagar con tarjeta de crédito o débito (Stripe)"
+                            aria-pressed={selectedGateway === 'stripe'}
                             className={cn(
                                 "flex flex-col items-start gap-3 p-5 rounded-2xl border-2 text-left transition-all cursor-pointer w-full",
                                 selectedGateway === 'stripe'
@@ -175,6 +179,8 @@ export function StepPayment({
                     <RadioGroup.Item value="mercadopago" asChild>
                         <button
                             type="button"
+                            aria-label="Pagar con Mercado Pago (efectivo, transferencia y más)"
+                            aria-pressed={selectedGateway === 'mercadopago'}
                             className={cn(
                                 "flex flex-col items-start gap-3 p-5 rounded-2xl border-2 text-left transition-all cursor-pointer w-full",
                                 selectedGateway === 'mercadopago'
@@ -231,7 +237,7 @@ export function StepPayment({
                 </Button>
             </div>
 
-            <div className="flex items-center justify-center gap-2 text-[9px] font-bold text-muted-foreground/40 uppercase tracking-[0.25em]">
+            <div className="flex items-center justify-center gap-2 text-[11px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">
                 <Lock className="w-3 h-3" />
                 Pago Seguro SSL • Florarte
             </div>

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
-import { userService } from '@/services/userService';
 import { shippingZoneService } from '@/services/shippingZoneService';
 
 /** Escapa un valor para CSV: envuelve en comillas y escapa comillas internas. */
@@ -27,8 +26,7 @@ export async function GET(req: NextRequest) {
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
-    const user = await userService.getUserById(session.dbId);
-    if (!isAdminRole(user?.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
+        if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const zones = await shippingZoneService.getAllShippingZones();
     if (!zones.length) {

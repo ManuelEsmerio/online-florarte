@@ -9,7 +9,7 @@ import crypto from 'crypto';
 export async function POST(req: NextRequest) {
   // 3 reenvíos por email cada 15 minutos
   const ip = getClientIp(req);
-  const ipRl = checkRateLimit(`resend_verify_ip:${ip}`, 5, 15 * 60 * 1000);
+  const ipRl = await checkRateLimit(`resend_verify_ip:${ip}`, 5, 15 * 60 * 1000);
   if (!ipRl.allowed) {
     return errorHandler(new Error('Demasiadas solicitudes. Intenta de nuevo en 15 minutos.'), 429);
   }
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Rate limit per email address as well
-    const emailRl = checkRateLimit(`resend_verify_email:${email}`, 3, 15 * 60 * 1000);
+    const emailRl = await checkRateLimit(`resend_verify_email:${email}`, 3, 15 * 60 * 1000);
     if (!emailRl.allowed) {
       return errorHandler(new Error('Demasiadas solicitudes para este correo. Intenta de nuevo en 15 minutos.'), 429);
     }

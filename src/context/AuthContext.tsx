@@ -17,6 +17,12 @@ let shippingZonesMemoryCache: { zones: ShippingZone[]; fetchedAt: number } | nul
 const SHIPPING_ZONES_TTL = 5 * 60 * 1000; // 5 minutes
 let shippingZonesInFlight: Promise<ShippingZone[]> | null = null;
 
+// SEC-006: Store only non-sensitive fields in localStorage.
+// Full profile is always refreshed from the server on mount.
+function toSafeUserCache(user: User): Pick<User, 'id' | 'name' | 'role'> {
+  return { id: user.id, name: user.name, role: user.role };
+}
+
 const buildWishlistSelectionKey = (productId: number, variantId?: number | null) =>
   variantId ? `variant:${variantId}` : `product:${productId}`;
 
@@ -168,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const result = await res.json();
         const userData = result.data;
         setUser(userData);
-        localStorage.setItem('florarte_user_session', JSON.stringify(userData));
+        localStorage.setItem('florarte_user_session', JSON.stringify(toSafeUserCache(userData)));
 
         // Wishlist: fire-and-forget — NO await aquí.
         // profileInFlight resuelve inmediatamente después de setUser,
@@ -282,7 +288,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const userData = result.data || result;
-      localStorage.setItem('florarte_user_session', JSON.stringify(userData));
+      localStorage.setItem('florarte_user_session', JSON.stringify(toSafeUserCache(userData)));
       setUser(userData);
 
       return { success: true, message: 'Login exitoso', data: userData };
@@ -371,7 +377,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const updatedUser = result.data;
-      localStorage.setItem('florarte_user_session', JSON.stringify(updatedUser));
+      localStorage.setItem('florarte_user_session', JSON.stringify(toSafeUserCache(updatedUser)));
       setUser(updatedUser);
 
       return { success: true, message: 'Perfil actualizado', data: updatedUser };

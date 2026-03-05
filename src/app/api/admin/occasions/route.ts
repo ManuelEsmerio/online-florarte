@@ -2,7 +2,6 @@
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
-import { userService } from '@/services/userService';
 import { occasionService } from '@/services/occasionService';
 
 /**
@@ -14,8 +13,7 @@ export async function GET(req: NextRequest) {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
     
-    const user = await userService.getUserById(session.dbId);
-    if (!isAdminRole(user?.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
+        if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
     
     const occasions = await occasionService.getAllOccasions();
     return successResponse(occasions);
@@ -34,8 +32,7 @@ export async function POST(req: NextRequest) {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
 
-    const user = await userService.getUserById(session.dbId);
-    if (!isAdminRole(user?.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
+        if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const formData = await req.formData();
     const occasionDataString = formData.get('occasionData') as string;

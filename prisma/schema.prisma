@@ -37,11 +37,13 @@ enum ProductStatus {
 }
 
 enum OrderStatus {
-  PENDING    // pendiente
-  PROCESSING // procesando
-  SHIPPED    // enviado
-  DELIVERED  // completado (en reparto → delivered)
-  CANCELLED  // cancelado
+  PENDING         // creada, esperando pago
+  PAYMENT_FAILED  // intento fallido — sigue activa para reintento
+  PROCESSING      // pago confirmado, preparando pedido
+  SHIPPED         // en reparto
+  DELIVERED       // entregado
+  CANCELLED       // cancelado manualmente o por Stripe
+  EXPIRED         // nunca pagada, expiró por tiempo
 }
 
 enum DiscountType {
@@ -126,11 +128,14 @@ model User {
   loyaltyHistory LoyaltyHistory[]
   testimonials   Testimonial[]
   couponUsers    CouponUser[]
+  couponRedemptions CouponRedemption[]
   wishlistItems  WishlistItem[]
   carts          Cart[]
   /// Cancellations performed by this admin user
   adminCancellations OrderCancellationLog[] @relation("AdminCancellations")
 
+  @@index([emailVerificationToken])
+  @@index([passwordResetToken])
   @@map("users")
 }
 
@@ -372,6 +377,7 @@ model Order {
   deliveryDriver          User?       @relation("DeliveryDriverOrders", fields: [deliveryDriverId], references: [id])
   couponId                Int?
   coupon                  Coupon?     @relation(fields: [couponId], references: [id])
+  couponRedemptions       CouponRedemption[]
   /// Snapshot of the coupon code used, for historical purposes
   couponCodeSnap          String?     @db.VarChar(50)
   status                  OrderStatus @default(PENDING)
@@ -485,8 +491,27 @@ model Coupon {
   couponUsers      CouponUser[]
   couponCategories CouponCategory[]
   couponProducts   CouponProduct[]
+  redemptions      CouponRedemption[]
 
   @@map("coupons")
+  @@index([scope, status])
+}
+
+model CouponRedemption {
+  id         Int       @id @default(autoincrement())
+  couponId   Int
+  userId     Int
+  orderId    Int?
+  redeemedAt DateTime  @default(now())
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order  Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@unique([couponId, userId])
+  @@index([userId])
+  @@index([orderId])
+  @@map("coupon_redemptions")
 }
 
 // ============================================================
@@ -545,6 +570,7 @@ model CouponUser {
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([couponId, userId])
+  @@index([userId])
   @@map("coupon_users")
 }
 
@@ -556,6 +582,7 @@ model CouponCategory {
   category   ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@id([couponId, categoryId])
+  @@index([categoryId])
   @@map("coupon_categories")
 }
 
@@ -567,6 +594,7 @@ model CouponProduct {
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@id([couponId, productId])
+  @@index([productId])
   @@map("coupon_products")
 }
 

@@ -138,6 +138,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   // varias veces antes de que la anterior complete (ej. Strict Mode, renders rápidos).
   const fetchCartInFlight = useRef<Promise<void> | null>(null);
   const skipFirstFetchRef = useRef(Boolean(initialBootstrap));
+  const suppressCouponRemovalToastRef = useRef(false);
+  const previousCouponCodeRef = useRef<string | null>(initialBootstrap?.coupon?.code ?? null);
+  const skipCouponToastRef = useRef(true);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.__FLORARTE_CART_BOOTSTRAP__) {
@@ -218,6 +221,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, [fetchCart, apiFetch]);
 
   const removeFromCart = useCallback(async (cartItemId: string) => {
+    const prevCart = cart;
+    const prevSubtotal = subtotal;
+    const removedItem = cart.find(i => (i.cartItemId ?? String(i.id)) === cartItemId);
+    setCart(prev => prev.filter(i => (i.cartItemId ?? String(i.id)) !== cartItemId));
+    if (removedItem) {
+      const unitPrice = removedItem.price ?? (removedItem as any).unitPrice ?? 0;
+      setSubtotal(prev => Math.max(0, prev - unitPrice * removedItem.quantity));
+    }
     setUpdatingItemId(cartItemId);
     try {
       const result = await handleApiResponse<{ items: CartItemCompat[]; subtotal: number; coupon: CouponCompat | null }>(await apiFetch(`/api/cart/remove/${cartItemId}`, {
@@ -226,33 +237,47 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       setCart(result.items || []);
       setSubtotal(result.subtotal || 0);
       setAppliedCoupon((result.coupon as Coupon) || null);
+      if (removedItem) toast.success('Producto eliminado', { description: removedItem.name });
     } catch (error: any) {
+      setCart(prevCart);
+      setSubtotal(prevSubtotal);
       toast.error('Error al eliminar', { description: error.message });
-      await fetchCart();
     } finally {
-        setUpdatingItemId(null);
+      setUpdatingItemId(null);
     }
-  }, [apiFetch, fetchCart]);
+  }, [cart, subtotal, apiFetch]);
 
   const updateQuantity = useCallback(async (cartItemId: string, newQuantity: number) => {
+    const quantityAsNumber = Math.max(0, parseInt(String(newQuantity), 10));
+    if (quantityAsNumber < 1) {
+      await removeFromCart(cartItemId);
+      return;
+    }
+    const prevCart = cart;
+    const prevSubtotal = subtotal;
+    const item = cart.find(i => (i.cartItemId ?? String(i.id)) === cartItemId);
+    setCart(prev => prev.map(i =>
+      (i.cartItemId ?? String(i.id)) === cartItemId ? { ...i, quantity: quantityAsNumber } : i
+    ));
+    if (item) {
+      const unitPrice = item.price ?? (item as any).unitPrice ?? 0;
+      setSubtotal(prev => Math.max(0, prev + unitPrice * (quantityAsNumber - item.quantity)));
+    }
     setUpdatingItemId(cartItemId);
     try {
-      const quantityAsNumber = Math.max(0, parseInt(String(newQuantity), 10));
-      if (quantityAsNumber < 1) {
-          await removeFromCart(cartItemId);
-          return;
-      }
       await handleApiResponse(await apiFetch(`/api/cart/update/${cartItemId}`, {
         method: 'POST',
         body: JSON.stringify({ quantity: quantityAsNumber })
       }));
       await fetchCart();
     } catch (error: any) {
+      setCart(prevCart);
+      setSubtotal(prevSubtotal);
       toast.error('Error al actualizar', { description: error.message });
     } finally {
       setUpdatingItemId(null);
     }
-  }, [removeFromCart, fetchCart, apiFetch]);
+  }, [removeFromCart, cart, subtotal, fetchCart, apiFetch]);
 
   const toggleComplement = useCallback(async (complement: Product, parentCartItemId?: string) => {
     setIsTogglingComplement(true);
@@ -303,26 +328,50 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   const removeCoupon = useCallback(async () => {
     try {
+        suppressCouponRemovalToastRef.current = true;
         await apiFetch('/api/coupons/remove', { method: 'POST' });
         setAppliedCoupon(null);
         await fetchCart();
         toast.info('Cupón removido');
     } catch (error: any) {
+      suppressCouponRemovalToastRef.current = false;
         toast.error('Error', { description: 'No se pudo quitar el cupón.' });
     }
   }, [apiFetch, fetchCart]);
 
   const clearCart = useCallback(async () => {
     try {
+      suppressCouponRemovalToastRef.current = true;
       await apiFetch('/api/cart', { method: 'DELETE' });
       setCart([]);
       setSubtotal(0);
       setAppliedCoupon(null);
       toast.info('Carrito vacío');
     } catch (e) {
+      suppressCouponRemovalToastRef.current = false;
       toast.error('Error al vaciar');
     }
   }, [apiFetch]);
+
+  useEffect(() => {
+    if (skipCouponToastRef.current) {
+      skipCouponToastRef.current = false;
+      previousCouponCodeRef.current = appliedCoupon?.code ?? null;
+      return;
+    }
+
+    if (previousCouponCodeRef.current && !appliedCoupon) {
+      if (suppressCouponRemovalToastRef.current) {
+        suppressCouponRemovalToastRef.current = false;
+      } else {
+        toast.info('Cupón ya no válido', {
+          description: 'Se eliminó automáticamente porque tu carrito dejó de cumplir las condiciones del cupón.',
+        });
+      }
+    }
+
+    previousCouponCodeRef.current = appliedCoupon?.code ?? null;
+  }, [appliedCoupon]);
 
   const getDiscountAmount = useCallback((currentSubtotal: number): number => {
     if (!appliedCoupon) return 0;

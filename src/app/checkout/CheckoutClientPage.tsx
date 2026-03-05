@@ -101,6 +101,29 @@ const checkoutSchema = z.object({
 
 export type CheckoutFormValues = z.infer<typeof checkoutSchema>;
 
+const buildDeliveryDateTimeIso = (dateStr?: string, timeSlot?: string): string | null => {
+  if (!dateStr || !timeSlot) return null;
+
+  const dateParts = dateStr.split('-').map((part) => Number(part));
+  if (dateParts.length !== 3 || dateParts.some((value) => Number.isNaN(value))) {
+    return null;
+  }
+
+  const [year, month, day] = dateParts;
+  const [startRange] = timeSlot.split('-');
+  const startHour = Number(startRange);
+  if (Number.isNaN(startHour)) {
+    return null;
+  }
+
+  const localDate = new Date(year, month - 1, day, startHour, 0, 0, 0);
+  if (Number.isNaN(localDate.getTime())) {
+    return null;
+  }
+
+  return localDate.toISOString();
+};
+
 interface ValidationIssue {
   cartItemId: string;
   productId: number;
@@ -312,6 +335,10 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
     try {
       const data = getValues();
       const selectedAddress = user?.addresses?.find((address) => address.id === data.addressId);
+      const deliveryDateIso = buildDeliveryDateTimeIso(data.deliveryDate, data.deliveryTimeSlot);
+      if (!deliveryDateIso) {
+        throw new Error('Selecciona una fecha y horario válidos.');
+      }
       const endpoint = data.gateway === 'mercadopago'
         ? '/api/mercadopago/checkout-session'
         : '/api/stripe/checkout-session';
@@ -336,7 +363,7 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
           recipientName: selectedAddress?.recipientName,
           recipientPhone: selectedAddress?.recipientPhone,
           couponCode: isGuestCheckout ? undefined : data.couponCode,
-          deliveryDate: data.deliveryDate,
+          deliveryDate: deliveryDateIso,
           deliveryTimeSlot: data.deliveryTimeSlot,
           dedication: data.dedication,
           isAnonymous: data.isAnonymous,
@@ -413,8 +440,14 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
                 <StepDedication isActive={activeStep === 4} setActiveStep={setActiveStep} disabled={hasValidationIssues} currentStep={activeStep} />
                 <StepPayment isActive={activeStep === 5} isProcessing={isProcessing} disabled={hasValidationIssues} />
               </div>
-              <div className="lg:col-span-4 lg:sticky lg:top-24 w-full">
+              <div className="lg:col-span-4 lg:sticky lg:top-24 w-full space-y-4">
                 <OrderSummary shippingCost={shippingCost ?? ctxShippingCost} validationIssues={validationIssues} isValidating={isValidatingCart} />
+                {isGuestCheckout && (
+                  <p className="text-xs text-muted-foreground text-center px-2">
+                    Los cupones de descuento no están disponibles para compras de invitado.{' '}
+                    <a href="/login" className="underline hover:text-foreground">Inicia sesión</a> para usarlos.
+                  </p>
+                )}
               </div>
             </form>
           </FormProvider>

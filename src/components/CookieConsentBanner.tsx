@@ -62,7 +62,7 @@ export const CookieConsentBanner = () => {
             
             <Button 
                 onClick={handleAccept} 
-                className="flex-1 md:flex-none h-10 px-8 rounded-full font-bold shadow-[0_0_20px_rgba(255,45,120,0.3)] bg-primary hover:bg-primary/90 text-white transition-all active:scale-95 text-xs"
+                className="flex-1 md:flex-none h-10 px-8 rounded-full font-bold shadow-[0_0_20px_hsl(var(--primary)/0.3)] bg-primary hover:bg-primary/90 text-white transition-all active:scale-95 text-xs"
             >
                 Aceptar Todo
             </Button>

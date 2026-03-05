@@ -47,23 +47,15 @@ export async function POST(req: Request) {
         break;
       }
 
-      case 'payment_intent.succeeded': {
-        const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        const orderId = Number(paymentIntent.metadata?.orderId);
-        const amount = (paymentIntent.amount_received ?? paymentIntent.amount ?? 0) / 100;
-
-        if (orderId > 0) {
-          await orderService.finalizeSuccessfulPaymentFromWebhook({
-            orderId,
-            amount,
-            externalPaymentId: paymentIntent.id,
-            gateway: 'stripe',
-          });
-        }
-        break;
-      }
+      // NOTE: payment_intent.succeeded is intentionally NOT handled here.
+      // For Checkout Sessions both checkout.session.completed AND payment_intent.succeeded
+      // fire for the same payment — handling both would create a duplicate PaymentTransaction.
+      // checkout.session.completed is the single canonical success event for this flow.
 
       case 'payment_intent.payment_failed': {
+        // A card attempt failed inside Stripe Checkout.
+        // The session is still open — Stripe lets the customer correct the card and retry.
+        // We record the failure and mark the order PAYMENT_FAILED; we do NOT cancel it.
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         const orderId = Number(paymentIntent.metadata?.orderId);
         const amount = (paymentIntent.amount ?? 0) / 100;
@@ -79,6 +71,30 @@ export async function POST(req: Request) {
         break;
       }
 
+      case 'checkout.session.expired': {
+        // The customer abandoned the checkout and the session timed out.
+        // Restore stock + coupon and mark the order EXPIRED.
+        const session = event.data.object as Stripe.Checkout.Session;
+        const orderId = Number(session.metadata?.orderId);
+
+        if (orderId > 0) {
+          await orderService.cancelAbandonedOrder(orderId, 'EXPIRED');
+        }
+        break;
+      }
+
+      case 'payment_intent.canceled': {
+        // PaymentIntent cancelled (e.g. manually via Stripe Dashboard).
+        // Restore stock + coupon and mark the order CANCELLED.
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        const orderId = Number(paymentIntent.metadata?.orderId);
+
+        if (orderId > 0) {
+          await orderService.cancelAbandonedOrder(orderId, 'CANCELLED');
+        }
+        break;
+      }
+
       // Fired when a charge is fully or partially refunded.
       // Used to sync Refund.status and recover from DB failures after stripe.refunds.create().
       case 'charge.refunded': {
@@ -86,7 +102,7 @@ export async function POST(req: Request) {
         const refunds = (charge.refunds as Stripe.ApiList<Stripe.Refund> | null)?.data ?? [];
 
         for (const refund of refunds) {
-          const existingRefund = await (prisma as any).refund.findUnique({
+          const existingRefund = await prisma.refund.findUnique({
             where: { externalRefundId: refund.id },
             select: { id: true, status: true },
           });
@@ -94,7 +110,7 @@ export async function POST(req: Request) {
           if (existingRefund) {
             // Update status if it changed (pending → succeeded)
             if (existingRefund.status !== refund.status) {
-              await (prisma as any).refund.update({
+              await prisma.refund.update({
                 where: { id: existingRefund.id },
                 data: { status: refund.status },
               });
@@ -108,14 +124,14 @@ export async function POST(req: Request) {
               : charge.payment_intent?.id ?? null;
 
             if (paymentIntentId) {
-              const paymentTx = await (prisma as any).paymentTransaction.findUnique({
+              const paymentTx = await prisma.paymentTransaction.findUnique({
                 where: { externalPaymentId: paymentIntentId },
                 select: { id: true, orderId: true, amount: true },
               });
 
               if (paymentTx) {
                 try {
-                  await (prisma as any).refund.create({
+                  await prisma.refund.create({
                     data: {
                       paymentTransactionId: paymentTx.id,
                       externalRefundId: refund.id,
@@ -124,7 +140,7 @@ export async function POST(req: Request) {
                       reason: refund.reason ?? 'requested_by_customer',
                     },
                   });
-                  await (prisma as any).paymentTransaction.update({
+                  await prisma.paymentTransaction.update({
                     where: { id: paymentTx.id },
                     data: { status: 'CANCELED' },
                   });

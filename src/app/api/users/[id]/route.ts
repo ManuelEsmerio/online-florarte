@@ -18,7 +18,6 @@ export async function GET(req: NextRequest) {
       return errorHandler(new Error('No autorizado. Sesión inválida.'), 401);
     }
     
-    // Usamos el ID de la base de datos (obtenido a través del UID de Firebase) para buscar al usuario.
     const user = await userService.getUserById(session.dbId);
 
     if (!user) {

@@ -2,15 +2,13 @@
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
-import { userService } from '@/services/userService';
 import { getAllAnnouncements, create } from '@/services/announcementService';
 
 export async function GET(req: NextRequest) {
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (session?.dbId === undefined) return errorHandler(new Error('Acceso denegado.'), 401);
-    const user = await userService.getUserById(session.dbId);
-    if (!isAdminRole(user?.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
+        if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
     
     const announcements = await getAllAnnouncements();
     return successResponse(announcements);
@@ -23,8 +21,7 @@ export async function POST(req: NextRequest) {
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (session?.dbId === undefined) return errorHandler(new Error('Acceso denegado.'), 401);
-    const user = await userService.getUserById(session.dbId);
-    if (!isAdminRole(user?.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
+        if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const formData = await req.formData();
     const announcementData = JSON.parse(formData.get('announcementData') as string);

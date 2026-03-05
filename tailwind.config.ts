@@ -61,11 +61,22 @@ const config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          foreground: 'hsl(var(--warning-foreground))',
+        },
+        info: {
+          DEFAULT: 'hsl(var(--info))',
+          foreground: 'hsl(var(--info-foreground))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+        // Semantic card radii — use these instead of arbitrary values like rounded-[2rem]
+        card: '2rem',       // standard card (ProductCard, StepPayment cards, etc.)
+        'card-lg': '2.5rem', // prominent cards (OrderSummary, ShippingDateSelector)
       },
       keyframes: {
         'accordion-down': {
