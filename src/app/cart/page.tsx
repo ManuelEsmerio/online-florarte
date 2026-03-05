@@ -162,7 +162,7 @@ export default function CartPage() {
     return isShippingInfoComplete && selectedCity !== null && cart.length > 0;
   }, [isShippingInfoComplete, selectedCity, cart]);
 
-    const isAuthenticated = useMemo(() => Boolean(user?.id), [user?.id]);
+    const isAuthenticated = Boolean(user?.id);
 
   const handleSaveShippingDate = (date: Date) => {
     if (setDeliveryDate) {

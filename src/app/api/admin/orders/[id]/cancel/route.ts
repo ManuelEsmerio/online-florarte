@@ -4,6 +4,7 @@ import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
 import { orderService } from '@/services/orderService';
 import { orderEmailService } from '@/services/orderEmailService';
+import { prisma } from '@/lib/prisma';
 
 const VALID_REASONS = [
   'out_of_stock',
@@ -13,6 +14,14 @@ const VALID_REASONS = [
   'delivery_problem',
   'other',
 ] as const;
+
+/** Maximum refund percentage allowed per order status */
+const MAX_REFUND_BY_STATUS: Record<string, number> = {
+  PENDING: 100,
+  PROCESSING: 50,
+  SHIPPED: 20,
+  DELIVERED: 30,
+};
 
 export async function POST(
   req: NextRequest,
@@ -44,6 +53,19 @@ export async function POST(
     }
     if (!VALID_REASONS.includes(cancellationReason as any)) {
       return errorHandler(new Error('Razón de cancelación inválida.'), 400);
+    }
+
+    // Enforce max refund percentage based on current order status
+    const order = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
+    if (!order) {
+      return errorHandler(new Error('Pedido no encontrado.'), 404);
+    }
+    const maxRefund = MAX_REFUND_BY_STATUS[order.status] ?? 0;
+    if (refundPercentage > maxRefund) {
+      return errorHandler(
+        new Error(`El reembolso máximo permitido para pedidos en estado "${order.status}" es ${maxRefund}%.`),
+        422,
+      );
     }
 
     const result = await orderService.adminCancelOrderWithRefund({

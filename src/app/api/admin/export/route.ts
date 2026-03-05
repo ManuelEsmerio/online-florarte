@@ -17,7 +17,7 @@ type DataFetcher = (from?: string, to?: string) => Promise<any[]>;
 const dataFetchers: Record<string, DataFetcher> = {
   products: async () => (await productService.getAdminProductList()).products,
   orders: async (from, to) => (await orderService.getAllOrdersForAdmin({ search: '', status: [], from, to })).orders,
-  users: async () => userService.getAllUsersForAdmin({ status: 'all', searchTerm: '', roles: [] }),
+  users: async () => (await userService.getAllUsersForAdmin({ status: 'all', searchTerm: '', roles: [], limit: 9999 })).users,
   coupons: async () => (await couponService.getAllCoupons({ search: '', status: [], page: 1, limit: 9999 })).coupons,
   categories: async () => categoryService.getAllCategories(),
   tags: async () => tagService.getAllTags(),

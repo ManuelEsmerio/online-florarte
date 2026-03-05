@@ -230,7 +230,19 @@ export const userService = {
     });
   },
 
-  async getAllUsersForAdmin({ status, searchTerm, roles }: { status: 'active' | 'deleted' | 'all'; searchTerm: string; roles: string[] }) {
+  async getAllUsersForAdmin({
+    status,
+    searchTerm,
+    roles,
+    page = 1,
+    limit = 50,
+  }: {
+    status: 'active' | 'deleted' | 'all';
+    searchTerm: string;
+    roles: string[];
+    page?: number;
+    limit?: number;
+  }) {
     const where: any = {};
 
     if (status === 'active') where.isDeleted = false;
@@ -247,12 +259,27 @@ export const userService = {
       where.role = { in: roles.map(r => r.toUpperCase()) };
     }
 
-    const users = await prisma.user.findMany({
-      where,
-      orderBy: { name: 'asc' },
-    });
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(Math.max(1, limit), 100);
+    const skip = (safePage - 1) * safeLimit;
 
-    return users.map(({ passwordHash, ...u }) => u);
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        skip,
+        take: safeLimit,
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    return {
+      users: users.map(({ passwordHash, ...u }) => u),
+      total,
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.ceil(total / safeLimit),
+    };
   },
 
   async createUserByAdmin(data: any, adminId: number) {

@@ -4,6 +4,7 @@ import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getIdentity } from '@/utils/request-utils';
 import { cartService } from '@/services/cartService';
 import { ZodError } from 'zod';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 
 /**
  * POST /api/coupons/validate
@@ -11,6 +12,12 @@ import { ZodError } from 'zod';
  */
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(`coupon_validate:${ip}`, 20, 60 * 1000);
+    if (!rl.allowed) {
+      return errorHandler(new Error('Demasiadas solicitudes. Intenta de nuevo en unos minutos.'), 429);
+    }
+
     const { userId, sessionId } = await getIdentity(req);
     const { couponCode, deliveryDate } = await req.json();
 

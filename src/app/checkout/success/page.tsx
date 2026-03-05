@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -17,12 +17,9 @@ const CheckoutSuccessContent = () => {
   const hasClearedRef = useRef(false);
   const hasReconciledRef = useRef(false);
 
-  const orderId = useMemo(() => searchParams.get('order_id'), [searchParams]);
-  const sessionId = useMemo(() => searchParams.get('session_id'), [searchParams]);
-  const mercadoPagoPaymentId = useMemo(
-    () => searchParams.get('payment_id') ?? searchParams.get('collection_id'),
-    [searchParams]
-  );
+  const orderId = searchParams.get('order_id');
+  const sessionId = searchParams.get('session_id');
+  const mercadoPagoPaymentId = searchParams.get('payment_id') ?? searchParams.get('collection_id');
 
   useEffect(() => {
     if (hasClearedRef.current) return;

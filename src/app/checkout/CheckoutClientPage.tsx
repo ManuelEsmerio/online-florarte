@@ -254,8 +254,8 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
     if (!isCartLoading) validateCart();
   }, [isCartLoading, validateCart]);
 
-  const hasValidationIssues = useMemo(() => validationIssues.length > 0, [validationIssues]);
-  const isGuestCheckout = useMemo(() => !user?.id, [user?.id]);
+  const hasValidationIssues = validationIssues.length > 0;
+  const isGuestCheckout = !user?.id;
 
   const isCurrentStepValid = useMemo(() => {
     if (!isDataSettled || isValidatingCart || hasValidationIssues || isProcessing) return false;

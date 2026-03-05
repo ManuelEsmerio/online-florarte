@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useReducer } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -93,27 +93,84 @@ interface Props {
   onSuccess: (orderId: number) => void;
 }
 
+// ─── Reducer ──────────────────────────────────────────────────────────────────
+
+interface DialogState {
+  open: boolean;
+  step: Step;
+  isSubmitting: boolean;
+  selectedValue: string;
+  customPct: string;
+  reason: string;
+  customReason: string;
+  cancelResult: { refunded: boolean; refundAmount: number } | null;
+}
+
+type DialogAction =
+  | { type: 'open'; defaultValue: string }
+  | { type: 'close' }
+  | { type: 'reset'; defaultValue: string }
+  | { type: 'set_step'; step: Step }
+  | { type: 'set_selected_value'; value: string }
+  | { type: 'set_custom_pct'; value: string }
+  | { type: 'set_reason'; value: string }
+  | { type: 'set_custom_reason'; value: string }
+  | { type: 'submit_start' }
+  | { type: 'submit_success'; result: { refunded: boolean; refundAmount: number } }
+  | { type: 'submit_end' };
+
+function makeInitialState(defaultValue: string): DialogState {
+  return {
+    open: false,
+    step: 'refund',
+    isSubmitting: false,
+    selectedValue: defaultValue,
+    customPct: '',
+    reason: '',
+    customReason: '',
+    cancelResult: null,
+  };
+}
+
+function dialogReducer(state: DialogState, action: DialogAction): DialogState {
+  switch (action.type) {
+    case 'open':
+      return { ...makeInitialState(action.defaultValue), open: true };
+    case 'close':
+      return { ...state, open: false };
+    case 'reset':
+      return makeInitialState(action.defaultValue);
+    case 'set_step':
+      return { ...state, step: action.step };
+    case 'set_selected_value':
+      return { ...state, selectedValue: action.value };
+    case 'set_custom_pct':
+      return { ...state, customPct: action.value };
+    case 'set_reason':
+      return { ...state, reason: action.value };
+    case 'set_custom_reason':
+      return { ...state, customReason: action.value };
+    case 'submit_start':
+      return { ...state, isSubmitting: true };
+    case 'submit_success':
+      return { ...state, cancelResult: action.result, step: 'result' };
+    case 'submit_end':
+      return { ...state, isSubmitting: false };
+    default:
+      return state;
+  }
+}
+
 export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
   const { apiFetch } = useAuth();
   const { toast } = useToast();
 
-  const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<Step>('refund');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   const options = REFUND_OPTIONS[order.status] ?? [];
   const defaultOption = options.find((o) => o.isDefault) ?? options[0];
+  const defaultValue = String(defaultOption?.value ?? 0);
 
-  const [selectedValue, setSelectedValue] = useState<string>(
-    String(defaultOption?.value ?? 0),
-  );
-  const [customPct, setCustomPct] = useState<string>('');
-  const [reason, setReason] = useState<string>('');
-  const [customReason, setCustomReason] = useState<string>('');
-  const [cancelResult, setCancelResult] = useState<{
-    refunded: boolean;
-    refundAmount: number;
-  } | null>(null);
+  const [state, dispatch] = useReducer(dialogReducer, defaultValue, makeInitialState);
+  const { open, step, isSubmitting, selectedValue, customPct, reason, customReason, cancelResult } = state;
 
   const effectivePct =
     selectedValue === '-1'
@@ -131,31 +188,20 @@ export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
   const isReasonStepValid =
     reason !== '' && (reason !== 'other' || customReason.trim().length > 0);
 
-  function resetState() {
-    setStep('refund');
-    setSelectedValue(String(defaultOption?.value ?? 0));
-    setCustomPct('');
-    setReason('');
-    setCustomReason('');
-    setCancelResult(null);
-    setIsSubmitting(false);
-  }
-
   function handleOpenChange(value: boolean) {
     if (!value) {
       if (!isSubmitting) {
-        setOpen(false);
+        dispatch({ type: 'close' });
         // Small delay so the closing animation completes before reset
-        setTimeout(resetState, 300);
+        setTimeout(() => dispatch({ type: 'reset', defaultValue }), 300);
       }
     } else {
-      resetState();
-      setOpen(true);
+      dispatch({ type: 'open', defaultValue });
     }
   }
 
   async function handleSubmit() {
-    setIsSubmitting(true);
+    dispatch({ type: 'submit_start' });
     try {
       const response = await apiFetch(`/api/admin/orders/${order.id}/cancel`, {
         method: 'POST',
@@ -172,11 +218,13 @@ export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
         throw new Error(result?.message || 'No se pudo cancelar el pedido.');
       }
 
-      setCancelResult({
-        refunded: Boolean(result.data?.refunded),
-        refundAmount: Number(result.data?.refundAmount ?? 0),
+      dispatch({
+        type: 'submit_success',
+        result: {
+          refunded: Boolean(result.data?.refunded),
+          refundAmount: Number(result.data?.refundAmount ?? 0),
+        },
       });
-      setStep('result');
       onSuccess(order.id);
     } catch (error: any) {
       toast({
@@ -185,7 +233,7 @@ export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
         variant: 'destructive',
       });
     } finally {
-      setIsSubmitting(false);
+      dispatch({ type: 'submit_end' });
     }
   }
 
@@ -237,7 +285,7 @@ export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
                     </Label>
                     <RadioGroup
                       value={selectedValue}
-                      onValueChange={setSelectedValue}
+                      onValueChange={(v) => dispatch({ type: 'set_selected_value', value: v })}
                       className="space-y-2"
                     >
                       {options.map((opt) => (
@@ -263,7 +311,7 @@ export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
                           min={1}
                           max={100}
                           value={customPct}
-                          onChange={(e) => setCustomPct(e.target.value)}
+                          onChange={(e) => dispatch({ type: 'set_custom_pct', value: e.target.value })}
                           placeholder="Ej: 15"
                           className="w-28"
                         />
@@ -292,7 +340,7 @@ export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
               </Button>
               <Button
                 variant="destructive"
-                onClick={() => setStep('reason')}
+                onClick={() => dispatch({ type: 'set_step', step: 'reason' })}
                 disabled={hasPayment && !isRefundStepValid}
               >
                 Siguiente
@@ -316,7 +364,7 @@ export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
             <div className="space-y-4 py-2">
               <div className="space-y-2">
                 <Label htmlFor="reason-select">Motivo</Label>
-                <Select value={reason} onValueChange={setReason}>
+                <Select value={reason} onValueChange={(v) => dispatch({ type: 'set_reason', value: v })}>
                   <SelectTrigger id="reason-select">
                     <SelectValue placeholder="Selecciona un motivo" />
                   </SelectTrigger>
@@ -338,7 +386,7 @@ export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
                   <Textarea
                     id="custom-reason"
                     value={customReason}
-                    onChange={(e) => setCustomReason(e.target.value.slice(0, 500))}
+                    onChange={(e) => dispatch({ type: 'set_custom_reason', value: e.target.value.slice(0, 500) })}
                     placeholder="Escribe aquí..."
                     rows={3}
                     maxLength={500}
@@ -351,12 +399,12 @@ export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
             </div>
 
             <DialogFooter>
-              <Button variant="secondary" onClick={() => setStep('refund')}>
+              <Button variant="secondary" onClick={() => dispatch({ type: 'set_step', step: 'refund' })}>
                 Atrás
               </Button>
               <Button
                 variant="destructive"
-                onClick={() => setStep('confirm')}
+                onClick={() => dispatch({ type: 'set_step', step: 'confirm' })}
                 disabled={!isReasonStepValid}
               >
                 Siguiente
@@ -422,7 +470,7 @@ export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
             <DialogFooter>
               <Button
                 variant="secondary"
-                onClick={() => setStep('reason')}
+                onClick={() => dispatch({ type: 'set_step', step: 'reason' })}
                 disabled={isSubmitting}
               >
                 Atrás

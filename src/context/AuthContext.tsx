@@ -30,6 +30,7 @@ interface AuthResult {
   success: boolean;
   message: string;
   errorCode?: string;
+  needsVerification?: boolean;
   data?: any;
 }
 
@@ -270,7 +271,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!res.ok) {
         const fallback = res.status === 401 ? 'Credenciales inválidas.' : 'No pudimos iniciar sesión.';
-        return { success: false, message: getApiErrorMessage(result, fallback) };
+        const errorCode = result?.errorCode as string | undefined;
+        const email = result?.email as string | undefined;
+        return {
+          success: false,
+          message: getApiErrorMessage(result, fallback),
+          errorCode,
+          data: email ? { email } : undefined,
+        };
       }
 
       const userData = result.data || result;
@@ -303,11 +311,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, message: getApiErrorMessage(result, 'No pudimos crear tu cuenta.') };
       }
 
-      const userData = result.data;
-      localStorage.setItem('florarte_user_session', JSON.stringify(userData));
-      setUser(userData);
-
-      return { success: true, message: 'Registro exitoso', data: userData };
+      // No auto-login: usuario debe verificar su correo antes de acceder
+      return {
+        success: true,
+        message: 'Registro exitoso',
+        needsVerification: result.needsVerification === true,
+        data: { email: result.email },
+      };
 
     } catch (error) {
       console.error(error);

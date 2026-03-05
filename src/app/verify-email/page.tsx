@@ -45,15 +45,23 @@ const VerifyEmailContent = () => {
   // Side-effects al verificar exitosamente
   useEffect(() => {
     if (data?.success) {
-      toast({ title: '¡Correo verificado!', description: data.data?.message, variant: 'success' });
-      setTimeout(() => router.push('/'), 3000);
+      toast({ title: '¡Correo verificado!', description: 'Tu cuenta está activa.', variant: 'success' });
+      setTimeout(() => router.push('/login?verified=true'), 3000);
     }
-  }, [data?.success, data?.data?.message, toast, router]);
+  }, [data?.success, toast, router]);
 
   const handleResend = async () => {
+    if (!email) {
+      toast({ title: 'Error', description: 'No se encontró el correo. Regístrate de nuevo.', variant: 'destructive' });
+      return;
+    }
     setIsResending(true);
     try {
-      const res = await fetch('/api/auth/resend-verification', { method: 'POST' });
+      const res = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
       const resData = await res.json();
       if (res.ok) {
         toast({ title: 'Correo enviado', description: 'Revisa tu bandeja de entrada.', variant: 'success' });
@@ -141,9 +149,9 @@ const VerifyEmailContent = () => {
               <Button onClick={handleResend} loading={isResending} variant="outline" className="w-full h-12 rounded-2xl font-bold">
                 Reenviar correo
               </Button>
-              <Button asChild variant="ghost" className="w-full h-12 rounded-2xl">
-                <Link href="/">Continuar sin verificar</Link>
-              </Button>
+              <p className="text-muted-foreground text-xs text-center">
+                Necesitas verificar tu correo para poder iniciar sesión.
+              </p>
             </div>
           </>
         )}

@@ -28,8 +28,9 @@ export async function POST(
       return errorHandler(new Error('Pedido no encontrado.'), 404);
     }
 
-    const ownerUserId = Number((order as any).user_id ?? (order as any).userId ?? 0);
-    if (!ownerUserId || ownerUserId !== session.dbId) {
+    // IDOR check: verify the order belongs to the authenticated user
+    const ownerUserId = (order as any).user_id ?? (order as any).userId;
+    if (ownerUserId == null || ownerUserId !== session.dbId) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 

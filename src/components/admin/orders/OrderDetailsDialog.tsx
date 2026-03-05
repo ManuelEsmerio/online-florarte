@@ -112,13 +112,13 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
   const normalizedStatus = normalizeOrderStatus(order?.status) ?? 'PENDING';
   const nextStatus = nextStatusMap[normalizedStatus];
   const canCancelOrder = normalizedStatus !== 'CANCELLED';
-  const hasPaymentTransaction = Boolean(order?.hasPaymentTransaction ?? order?.has_payment_transaction ?? false);
-  const paymentStatusRaw = String(order?.paymentStatus ?? order?.payment_status ?? '').trim().toUpperCase();
+  const hasPaymentTransaction = Boolean(order?.hasPaymentTransaction ?? false);
+  const paymentStatusRaw = String(order?.paymentStatus ?? '').trim().toUpperCase();
   const paymentStatusLabel = hasPaymentTransaction
     ? paymentStatusLabels[paymentStatusRaw] ?? (paymentStatusRaw || 'Pago registrado')
     : null;
   const paymentBadgeClass = paymentStatusColors[paymentStatusRaw] ?? 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
-  const paymentGatewayRaw = String(order?.paymentGateway ?? order?.payment_gateway ?? '').trim();
+  const paymentGatewayRaw = String(order?.paymentGateway ?? '').trim();
   const paymentGatewayLabel = paymentGatewayRaw
     ? paymentGatewayRaw
         .split(/[_\s]/)
