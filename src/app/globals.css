@@ -239,6 +239,17 @@
   .custom-scrollbar--contrast {
     --scrollbar-thumb-color: #444;
   }
+
+  .custom-scrollbar--panel {
+    --scrollbar-width: 8px;
+    --scrollbar-track-color: hsl(var(--muted) / 0.25);
+    --scrollbar-thumb-color: hsl(var(--primary) / 0.65);
+  }
+
+  .dark .custom-scrollbar--panel {
+    --scrollbar-track-color: hsl(var(--muted-foreground) / 0.35);
+    --scrollbar-thumb-color: hsl(var(--primary) / 0.85);
+  }
 }
 
 @layer utilities {

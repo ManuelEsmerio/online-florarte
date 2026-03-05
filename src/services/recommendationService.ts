@@ -83,7 +83,7 @@ export const recommendationService = {
 
     if (candidateIds.length === 0) return [];
 
-    const candidateProducts = await productService.getProductsByIds(candidateIds);
+    const candidateProducts = await productService.getProductsByIds(candidateIds) as unknown as import('@/lib/definitions').Product[];
     const peakDays = await getCachedPeakDates();
     const filtered = await applyBusinessRules(candidateProducts, peakDays, productId);
     const diversified = diversifyResults(filtered);

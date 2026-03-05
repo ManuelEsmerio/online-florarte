@@ -4,7 +4,7 @@ import { Lock, CreditCard, CheckCircle, Sparkles, MapPin, Calendar, MessageSquar
 import { cn, formatTimeSlotForUI } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useFormContext } from 'react-hook-form';
-import { CheckoutFormValues } from '@/app/checkout/page';
+import { CheckoutFormValues } from '@/app/checkout/CheckoutClientPage';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/context/AuthContext';
 import { useMemo } from 'react';

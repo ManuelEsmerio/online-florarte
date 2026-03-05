@@ -3,7 +3,6 @@
 
 import { useCart } from "@/context/CartContext";
 import { useFormContext } from "react-hook-form";
-import { CheckoutFormValues } from "@/app/checkout/page";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import Link from 'next/link';
@@ -55,7 +54,7 @@ export function OrderSummary({ shippingCost, validationIssues = [], isValidating
                 key={item.cartItemId}
                 item={item}
                 isOutOfStock={validationIssues.some(issue => issue.cartItemId === item.cartItemId)}
-                onRemove={() => removeFromCart(item.cartItemId)}
+                onRemove={() => removeFromCart(item.cartItemId ?? String(item.id))}
                 isValidating={isValidating}
               />
             ))}

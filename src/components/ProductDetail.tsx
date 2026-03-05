@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import type { Product, ProductVariant } from "@/lib/definitions";
 import { Flower2, CalendarIcon, Gift, Loader2, Heart, ShieldCheck, Truck, Clock, FileText, Share2, Star, CheckCircle, RefreshCw, Palette, Info, ChevronRight, MapPin, Zap, Phone, Mail, AlertTriangle } from 'lucide-react';
 import ProductImageCarousel from "@/components/ProductImageCarousel";
@@ -26,17 +26,23 @@ interface ProductDetailProps {
 }
 
 export function ProductDetail({ product }: ProductDetailProps) {
-    const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+    const [selectedVariantId, setSelectedVariantId] = useState<ProductVariant['id'] | null>(null);
     const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
     
     const { addToCart, isAddingToCart, deliveryDate: globalDateString, setDeliveryDate: setGlobalDateString } = useCart();
 
-    useEffect(() => {
-        const defaultVariant = (product.has_variants && product.variants?.length) 
-            ? [...product.variants].sort((a,b) => a.price - b.price).find(v => v.stock > 0) || null 
-            : null;
-        setSelectedVariant(defaultVariant);
+    const defaultVariant = useMemo(() => {
+        if (!product.hasVariants || !product.variants?.length) return null;
+        return [...product.variants]
+            .filter((variant) => variant.stock > 0)
+            .sort((a, b) => a.price - b.price)[0] ?? null;
     }, [product]);
+
+    const selectedVariant = useMemo(() => {
+        if (!product.variants?.length) return defaultVariant;
+        if (selectedVariantId == null) return defaultVariant;
+        return product.variants.find((variant) => variant.id === selectedVariantId) ?? defaultVariant;
+    }, [product, selectedVariantId, defaultVariant]);
 
     const handleDateSave = (selectedDate: Date) => {
         if(setGlobalDateString) {
@@ -80,7 +86,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
             setIsCalendarModalOpen(true);
             return;
         }
-        if (product.has_variants && !selectedVariant) {
+        if (product.hasVariants && !selectedVariant) {
             toast.info('¡Selecciona una opción!', {
                 description: 'Por favor, elige una de las variantes del producto.'
             });
@@ -95,11 +101,11 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
     const imagesToShow = useMemo(() => {
         if (selectedVariant?.images?.length) return selectedVariant.images;
-        return product.images || [{ src: product.image, alt: product.name, is_primary: true }];
+        return product.images || (product.mainImage ? [{ src: product.mainImage, alt: product.name, isPrimary: true }] : []);
     }, [product, selectedVariant]);
     
     const displayPrice = selectedVariant ? selectedVariant.price : product.price;
-    const displaySalePrice = selectedVariant ? selectedVariant.sale_price : product.sale_price;
+    const displaySalePrice = selectedVariant ? selectedVariant.salePrice : product.salePrice;
     const priceToShow = displaySalePrice ?? displayPrice;
 
     const formattedDate = useMemo(() => {
@@ -113,109 +119,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
         }
     }, [globalDateString]);
 
-    const ShippingPolicyContent = () => (
-        <div className="space-y-8 py-4">
-            <div className="space-y-4">
-                <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <MapPin className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-sm">1. Cobertura de Entrega</h4>
-                        <p className="text-xs text-muted-foreground mt-1">Servicio en Tequila, Jalisco y municipios de la Región Valles. Para envíos externos, consultar disponibilidad y costos adicionales.</p>
-                    </div>
-                </div>
-                <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <Clock className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-sm">2. Horarios de Entrega</h4>
-                        <p className="text-xs text-muted-foreground mt-1">Realizados en bloques seleccionables. Sujetos a tráfico y demanda. Se consideran estimados, no garantizados.</p>
-                    </div>
-                </div>
-                <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <Zap className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-sm">3. Entregas el Mismo Día</h4>
-                        <p className="text-xs text-muted-foreground mt-1">Pedidos antes de las 2:30 PM (L-S) califican para entrega el mismo día.</p>
-                    </div>
-                </div>
-                <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <Phone className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-sm">4. Proceso de Entrega</h4>
-                        <p className="text-xs text-muted-foreground mt-1">En ausencia del destinatario, se intentará contactar o el pedido retornará para reprogramación con costo extra.</p>
-                    </div>
-                </div>
-                <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <Mail className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-sm">5. Soporte y Seguimiento</h4>
-                        <p className="text-xs text-muted-foreground mt-1">Contacto directo: soporte@floreriaflorarte.com para cualquier duda sobre tu ruta.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-
-    const SubstitutionPolicyContent = () => (
-        <div className="space-y-8 py-4">
-            <div className="space-y-4">
-                <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <RefreshCw className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-sm">1. Naturaleza del Producto</h4>
-                        <p className="text-xs text-muted-foreground mt-1">Debido a la estacionalidad, la disponibilidad de flores específicas puede variar sin previo aviso.</p>
-                    </div>
-                </div>
-                <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <CheckCircle className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-sm">2. Valor Equivalente</h4>
-                        <p className="text-xs text-muted-foreground mt-1">Sustituiremos flores por otras de igual o mayor valor, manteniendo siempre la integridad del arreglo.</p>
-                    </div>
-                </div>
-                <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <Palette className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-sm">3. Respeto al Diseño</h4>
-                        <p className="text-xs text-muted-foreground mt-1">Procuramos siempre conservar el estilo, color y forma original del diseño seleccionado.</p>
-                    </div>
-                </div>
-                <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <Flower2 className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-sm">4. Flores Principales</h4>
-                        <p className="text-xs text-muted-foreground mt-1">Las flores protagonistas (ej. Orquídeas) no serán sustituidas por especies distintas sin tu autorización.</p>
-                    </div>
-                </div>
-                <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <AlertTriangle className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-sm">5. Temporadas Altas</h4>
-                        <p className="text-xs text-muted-foreground mt-1">En fechas como San Valentín, la necesidad de sustituciones puede ser mayor debido a la alta demanda.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
 
     const FullDetailsSidebar = () => (
         <Sheet>
@@ -286,7 +189,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                         <div className="space-y-6">
                             <h3 className="text-xl font-bold">Descripción</h3>
                             <p className="text-sm md:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
-                                {product.short_description || product.description?.substring(0, 150) + "..."}
+                                {product.shortDescription || product.description?.substring(0, 150) + "..."}
                             </p>
                             <FullDetailsSidebar />
                         </div>
@@ -403,14 +306,14 @@ export function ProductDetail({ product }: ProductDetailProps) {
                     </div>
 
                     <div className="space-y-8">
-                        {product.has_variants && product.variants && (
+                        {product.hasVariants && product.variants && (
                             <div className="space-y-3">
                                 <Label className="text-[10px] font-bold tracking-widest uppercase text-slate-400 dark:text-slate-500 block">Opciones</Label>
                                 <div className="flex flex-wrap gap-3">
                                     {product.variants.map((variant) => (
                                         <button 
                                             key={variant.id} 
-                                            onClick={() => setSelectedVariant(variant)} 
+                                            onClick={() => setSelectedVariantId(variant.id ?? null)} 
                                             disabled={variant.stock <= 0}
                                             className={cn(
                                                 "px-5 py-2.5 rounded-lg border text-sm font-medium transition-all duration-300",
@@ -493,6 +396,114 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 currentDate={globalDateString}
                 onSave={handleDateSave}
             />
+        </div>
+    );
+}
+
+function ShippingPolicyContent() {
+    return (
+        <div className="space-y-8 py-4">
+            <div className="space-y-4">
+                <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <MapPin className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-sm">1. Cobertura de Entrega</h4>
+                        <p className="text-xs text-muted-foreground mt-1">Servicio en Tequila, Jalisco y municipios de la Región Valles. Para envíos externos, consultar disponibilidad y costos adicionales.</p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Clock className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-sm">2. Horarios de Entrega</h4>
+                        <p className="text-xs text-muted-foreground mt-1">Realizados en bloques seleccionables. Sujetos a tráfico y demanda. Se consideran estimados, no garantizados.</p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Zap className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-sm">3. Entregas el Mismo Día</h4>
+                        <p className="text-xs text-muted-foreground mt-1">Pedidos antes de las 2:30 PM (L-S) califican para entrega el mismo día.</p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Phone className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-sm">4. Proceso de Entrega</h4>
+                        <p className="text-xs text-muted-foreground mt-1">En ausencia del destinatario, se intentará contactar o el pedido retornará para reprogramación con costo extra.</p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Mail className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-sm">5. Soporte y Seguimiento</h4>
+                        <p className="text-xs text-muted-foreground mt-1">Contacto directo: soporte@floreriaflorarte.com para cualquier duda sobre tu ruta.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SubstitutionPolicyContent() {
+    return (
+        <div className="space-y-8 py-4">
+            <div className="space-y-4">
+                <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <RefreshCw className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-sm">1. Naturaleza del Producto</h4>
+                        <p className="text-xs text-muted-foreground mt-1">Debido a la estacionalidad, la disponibilidad de flores específicas puede variar sin previo aviso.</p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <CheckCircle className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-sm">2. Valor Equivalente</h4>
+                        <p className="text-xs text-muted-foreground mt-1">Sustituiremos flores por otras de igual o mayor valor, manteniendo siempre la integridad del arreglo.</p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Palette className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-sm">3. Respeto al Diseño</h4>
+                        <p className="text-xs text-muted-foreground mt-1">Procuramos siempre conservar el estilo, color y forma original del diseño seleccionado.</p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Flower2 className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-sm">4. Flores Principales</h4>
+                        <p className="text-xs text-muted-foreground mt-1">Las flores protagonistas (ej. Orquídeas) no serán sustituidas por especies distintas sin tu autorización.</p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <AlertTriangle className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-sm">5. Temporadas Altas</h4>
+                        <p className="text-xs text-muted-foreground mt-1">En fechas como San Valentín, la necesidad de sustituciones puede ser mayor debido a la alta demanda.</p>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

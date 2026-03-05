@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { UserFacingError } from '@/utils/errors';
 import { saveProfilePicture } from "@/services/file.service";
 import bcrypt from "bcryptjs";
 import { assertPasswordStrength } from "@/utils/passwordPolicy";
@@ -26,6 +27,15 @@ export const userService = {
   },
 
   async updateUser(userId: number, data: any) {
+    let profilePicUrl: string | undefined;
+
+    const shouldUploadProfilePic =
+      typeof data.profilePic === "string" &&
+      data.profilePic.startsWith("data:image");
+
+    if (shouldUploadProfilePic) {
+      profilePicUrl = await saveProfilePicture(userId, data.profilePic);
+    }
 
     return prisma.$transaction(async (tx) => {
 
@@ -40,7 +50,7 @@ export const userService = {
       });
 
       if (!user) {
-        throw new Error("Usuario no encontrado");
+        throw new UserFacingError("Usuario no encontrado");
       }
 
       /* =========================
@@ -56,28 +66,12 @@ export const userService = {
         });
 
         if (used) {
-          throw new Error("Este correo ya está en uso");
+          throw new UserFacingError("Este correo ya está en uso");
         }
       }
 
       /* =========================
-         3. Guardar foto
-      ========================== */
-      let profilePicUrl: string | undefined;
-
-      if (
-        data.profilePic &&
-        typeof data.profilePic === "string" &&
-        data.profilePic.startsWith("data:image")
-      ) {
-        profilePicUrl = await saveProfilePicture(
-          userId,
-          data.profilePic
-        );
-      }
-
-      /* =========================
-         4. Update usuario
+         3. Update usuario
       ========================== */
       const userUpdateData: any = {
         name: data.name,
@@ -102,7 +96,7 @@ export const userService = {
       });
 
       /* =========================
-         5. Direcciones
+        4. Direcciones
       ========================== */
       if (Array.isArray(data.addresses)) {
 
@@ -183,7 +177,7 @@ export const userService = {
       }
 
       /* =========================
-         6. Retornar completo
+        5. Retornar completo
       ========================== */
       return tx.user.findFirst({
         where: {
@@ -236,7 +230,19 @@ export const userService = {
     });
   },
 
-  async getAllUsersForAdmin({ status, searchTerm, roles }: { status: 'active' | 'deleted' | 'all'; searchTerm: string; roles: string[] }) {
+  async getAllUsersForAdmin({
+    status,
+    searchTerm,
+    roles,
+    page = 1,
+    limit = 50,
+  }: {
+    status: 'active' | 'deleted' | 'all';
+    searchTerm: string;
+    roles: string[];
+    page?: number;
+    limit?: number;
+  }) {
     const where: any = {};
 
     if (status === 'active') where.isDeleted = false;
@@ -253,17 +259,32 @@ export const userService = {
       where.role = { in: roles.map(r => r.toUpperCase()) };
     }
 
-    const users = await prisma.user.findMany({
-      where,
-      orderBy: { name: 'asc' },
-    });
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(Math.max(1, limit), 100);
+    const skip = (safePage - 1) * safeLimit;
 
-    return users.map(({ passwordHash, ...u }) => u);
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        skip,
+        take: safeLimit,
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    return {
+      users: users.map(({ passwordHash, ...u }) => u),
+      total,
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.ceil(total / safeLimit),
+    };
   },
 
   async createUserByAdmin(data: any, adminId: number) {
     const existing = await prisma.user.findFirst({ where: { email: data.email.toLowerCase(), isDeleted: false } });
-    if (existing) throw new Error('El correo electrónico ya está en uso.');
+    if (existing) throw new UserFacingError('El correo electrónico ya está en uso.');
 
     const rawPassword = data.password || 'Florarte2024!';
     if (data.password) {
@@ -292,7 +313,7 @@ export const userService = {
   async updateUserByAdmin(userId: number, data: any, adminId: number) {
     if (data.email) {
       const existing = await prisma.user.findFirst({ where: { email: data.email.toLowerCase(), isDeleted: false, id: { not: userId } } });
-      if (existing) throw new Error('El correo electrónico ya está en uso por otra cuenta.');
+      if (existing) throw new UserFacingError('El correo electrónico ya está en uso por otra cuenta.');
     }
 
     const updateData: any = {
@@ -335,6 +356,11 @@ export const userService = {
     }
 
     return { deletedCount, errors };
+  },
+
+  async redeemLoyaltyPoints(userId: number, quantity: number): Promise<{ coupons_created: number; new_coupon_ids: number[] }> {
+    // TODO: Implement loyalty points redemption logic
+    throw new UserFacingError('La función de canje de puntos no está disponible aún.');
   },
 
 };

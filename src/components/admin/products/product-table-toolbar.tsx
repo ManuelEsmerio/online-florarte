@@ -20,9 +20,9 @@ interface ProductTableToolbarProps<TData> {
 }
 
 const statusTranslations: Record<ProductStatus, string> = {
-    publicado: "Publicado",
-    oculto: "Oculto",
-    borrador: "Borrador"
+    PUBLISHED: "Publicado",
+    HIDDEN: "Oculto",
+    DRAFT: "Borrador"
 }
 
 export function ProductTableToolbar<TData>({
@@ -35,11 +35,11 @@ export function ProductTableToolbar<TData>({
   const selectedCategorySlugs = (table.getColumn("category")?.getFilterValue() as string[]) ?? [];
   const selectedRowsCount = table.getFilteredSelectedRowModel().rows.length;
 
-  const mainCategories = categories.filter(c => !c.parent_id);
+  const mainCategories = categories.filter(c => !c.parentId);
 
   const handleCategoryFilterChange = (category: ProductCategory) => {
-    const isParent = !category.parent_id;
-    const childrenSlugs = isParent ? categories.filter(c => c.parent_id === category.id).map(c => c.slug) : [];
+    const isParent = !category.parentId;
+    const childrenSlugs = isParent ? categories.filter(c => c.parentId === category.id).map(c => c.slug) : [];
 
     let newFilter = [...selectedCategorySlugs];
     const isSelected = newFilter.includes(category.slug);
@@ -92,7 +92,7 @@ export function ProductTableToolbar<TData>({
             <DropdownMenuLabel>Filtrar por categoría</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {mainCategories.map((category, index) => {
-                const children = categories.filter(c => c.parent_id === category.id);
+                const children = categories.filter(c => c.parentId === category.id);
                 const allChildrenSelected = children.length > 0 && children.every(c => selectedCategorySlugs.includes(c.slug));
                 return (
                     <React.Fragment key={category.id}>

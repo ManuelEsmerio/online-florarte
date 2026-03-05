@@ -43,14 +43,40 @@ import {
 import type { User as UserType } from '@/lib/definitions';
 import { Stepper } from '@/components/ui/stepper';
 import { cn } from '@/lib/utils';
+import { PHONE_CODES, parsePhoneValue, sanitizePhoneDigits } from '@/utils/phone';
+import { PasswordRequirements } from '@/components/password/PasswordRequirements';
+import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from '@/utils/passwordPolicy';
+
+const LOWERCASE = 'abcdefghijklmnopqrstuvwxyz';
+const UPPERCASE = LOWERCASE.toUpperCase();
+const NUMBERS = '0123456789';
+const SPECIAL = '!@#$%^&*()_+-={}[]|:;<>,.?/~';
+const ALL_CHARS = `${LOWERCASE}${UPPERCASE}${NUMBERS}${SPECIAL}`;
+
+const pickRandomChar = (pool: string) => pool[Math.floor(Math.random() * pool.length)];
+
+const shuffleCharacters = (chars: string[]) => {
+    for (let i = chars.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    return chars;
+};
 
 const generatePassword = (length = 12) => {
-    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-    let password = "";
-    for (let i = 0, n = charset.length; i < length; ++i) {
-        password += charset.charAt(Math.floor(Math.random() * n));
+    const minimumLength = Math.max(length, 8);
+    const requiredChars = [
+        pickRandomChar(LOWERCASE),
+        pickRandomChar(UPPERCASE),
+        pickRandomChar(NUMBERS),
+        pickRandomChar(SPECIAL),
+    ];
+
+    for (let i = requiredChars.length; i < minimumLength; i += 1) {
+        requiredChars.push(pickRandomChar(ALL_CHARS));
     }
-    return password;
+
+    return shuffleCharacters(requiredChars).join('');
 };
 
 const customerSchema = z.object({
@@ -61,11 +87,14 @@ const customerSchema = z.object({
     .or(z.literal(''))
     .refine(val => !val || /^\d{10}$/.test(val), {
         message: 'El teléfono debe ser un número de 10 dígitos.',
+        }),
+    phoneCountryCode: z.enum(PHONE_CODES).default('+52'),
+    role: z.enum(['customer', 'admin', 'delivery'], {
+        required_error: 'Debes seleccionar un rol.',
     }),
-  role: z.enum(['customer', 'admin', 'delivery'], {
-    required_error: 'Debes seleccionar un rol.',
-  }),
-  password: z.string().optional(),
+    password: z.string().optional().refine((value) => !value || isPasswordStrong(value), {
+        message: PASSWORD_POLICY_MESSAGE,
+    }),
   generatePassword: z.boolean().optional(),
 });
 
@@ -142,14 +171,37 @@ const Step1_Info = () => {
                 <FormField control={control} name="phone" render={({ field }) => (
                     <FormItem className="space-y-2">
                         <FormLabel className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-5">Teléfono</FormLabel>
-                        <FormControl>
-                            <Input 
-                                type="tel" 
-                                placeholder="+52 000 000 0000" 
-                                {...field} 
-                                className="w-full h-14 md:h-16 bg-muted/30 dark:bg-black/30 border-border/50 dark:border-white/5 rounded-full px-8 focus:ring-2 focus:ring-primary/20 font-medium text-base transition-all outline-none" 
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <FormField
+                                control={control}
+                                name="phoneCountryCode"
+                                render={({ field: codeField }) => (
+                                    <FormItem className="sm:w-[180px]">
+                                        <FormControl>
+                                            <Select onValueChange={codeField.onChange} value={codeField.value}>
+                                                <SelectTrigger className="w-full h-14 md:h-16 bg-muted/30 dark:bg-black/30 border-border/50 dark:border-white/5 rounded-full px-6 focus:ring-2 focus:ring-primary/20 font-medium text-base">
+                                                    <SelectValue placeholder="Prefijo" />
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-[1.5rem] border-none shadow-2xl p-2 bg-background">
+                                                    <SelectItem value="+52">México (+52)</SelectItem>
+                                                    <SelectItem value="+1">Estados Unidos / Canadá (+1)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </FormControl>
+                                    </FormItem>
+                                )}
                             />
-                        </FormControl>
+                            <FormControl>
+                                <Input 
+                                    type="tel" 
+                                    placeholder="33 1234 5678" 
+                                    {...field}
+                                    inputMode="numeric"
+                                    onChange={(e) => field.onChange(sanitizePhoneDigits(e.target.value))}
+                                    className="w-full h-14 md:h-16 bg-muted/30 dark:bg-black/30 border-border/50 dark:border-white/5 rounded-full px-8 focus:ring-2 focus:ring-primary/20 font-medium text-base transition-all outline-none tracking-wide" 
+                                />
+                            </FormControl>
+                        </div>
                         <FormMessage className="ml-5" />
                     </FormItem>
                 )} />
@@ -184,6 +236,7 @@ const Step2_Security = ({ isEditing, setStep }: { isEditing: boolean, setStep: (
     const [showPassword, setShowPassword] = useState(false);
     
     const watchedValues = watch();
+    const passwordValue = watch('password');
 
     const handleGenerate = () => {
         setValue('password', generatePassword(), { shouldValidate: true });
@@ -236,8 +289,8 @@ const Step2_Security = ({ isEditing, setStep }: { isEditing: boolean, setStep: (
                                     </Button>
                                 </div>
                             </div>
-                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter ml-5">Mínimo 8 caracteres, 1 número y 1 símbolo</p>
                             <FormMessage className="ml-5" />
+                            <PasswordRequirements password={passwordValue} className="ml-5 mt-3" />
                         </FormItem>
                     )} />
                 </div>
@@ -301,6 +354,7 @@ export function CustomerForm({
         name: '',
         email: '',
         phone: '',
+                phoneCountryCode: '+52',
         role: 'customer',
         password: '',
         generatePassword: true,
@@ -312,10 +366,12 @@ export function CustomerForm({
   useEffect(() => {
     if (isOpen) {
         if (user) {
+                        const parsedPhone = parsePhoneValue(user.phone);
             reset({
               name: user.name,
               email: user.email,
-              phone: user.phone || '',
+                            phone: parsedPhone.digits,
+                            phoneCountryCode: parsedPhone.code,
                             role: toFormRole(user.role),
               password: '',
               generatePassword: false,
@@ -325,6 +381,7 @@ export function CustomerForm({
                 name: '', 
                 email: '', 
                 phone: '', 
+                                phoneCountryCode: '+52',
                 role: 'customer', 
                 password: generatePassword(), 
                 generatePassword: true 

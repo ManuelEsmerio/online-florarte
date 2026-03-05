@@ -2,6 +2,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorHandler } from '@/utils/api-utils';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 
 /**
  * GET /api/products/search?q=<term>
@@ -11,6 +12,12 @@ import { successResponse, errorHandler } from '@/utils/api-utils';
  */
 export async function GET(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(`product_search:${ip}`, 30, 60 * 1000);
+    if (!rl.allowed) {
+      return errorHandler(new Error('Demasiadas solicitudes. Intenta de nuevo en unos momentos.'), 429);
+    }
+
     const q = (new URL(req.url).searchParams.get('q') ?? '').slice(0, 200);
 
     const products = await prisma.product.findMany({

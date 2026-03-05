@@ -18,7 +18,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
@@ -37,15 +36,18 @@ import {
   Clock, 
   CreditCard, 
   Heart, 
-  Headphones, 
-    CalendarDays,
-    MapPin,
-    UserRound,
-  Edit
+    Headphones, 
+        CalendarDays,
+        MapPin,
+        UserRound,
+    Edit,
+    Lock,
+    X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useCallback } from 'react';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import type { Testimonial } from '@/lib/definitions';
 import { useAuth } from '@/context/AuthContext';
 import { handleApiResponse } from '@/utils/handleApiResponse';
@@ -278,7 +280,11 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
     const [isCancelling, setIsCancelling] = useState(false);
     const [isStartingPayment, setIsStartingPayment] = useState(false);
     const [isFetchingDetails, setIsFetchingDetails] = useState(false);
+    const [isCancelAlertOpen, setIsCancelAlertOpen] = useState(false);
+    const [isPayAlertOpen, setIsPayAlertOpen] = useState(false);
+    const [confirmText, setConfirmText] = useState('');
     const [cancellationInfo, setCancellationInfo] = useState<{canCancel: boolean, message: string}>({canCancel: false, message: ''});
+    const [cancelResult, setCancelResult] = useState<{ refunded: boolean } | null>(null);
     const [view, setView] = useState<'details' | 'review'>('details');
     const [paymentStatus, setPaymentStatus] = useState<string>(String((row as any).payment_status || 'PENDING'));
     const [hasPaymentTransaction, setHasPaymentTransaction] = useState<boolean>(Boolean((row as any).has_payment_transaction));
@@ -336,10 +342,19 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
 
     const handleCancelOrder = async () => {
         setIsCancelling(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        toast({ title: 'Pedido Cancelado', description: 'Tu pedido ha sido cancelado exitosamente (simulación).' });
-        window.location.reload();
-        setIsCancelling(false);
+        try {
+            const response = await apiFetch(`/api/orders/${row.id}/cancel`, { method: 'POST' });
+            const data = await handleApiResponse<{ refunded?: boolean }>(response);
+            setIsCancelAlertOpen(false);
+            setConfirmText('');
+            setCancelResult({ refunded: data?.refunded === true });
+            // Refresh the list in the background so the table is up to date when the modal closes
+            if (onDataChange) onDataChange();
+        } catch (error: any) {
+            toast({ title: 'Error al cancelar', description: error.message, variant: 'destructive' });
+        } finally {
+            setIsCancelling(false);
+        }
     };
     
     const onReviewSubmit = () => {
@@ -379,11 +394,111 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
     const guestPhone = (currentOrder as any).guest_phone ?? (currentOrder as any).guestPhone ?? null;
     
     return (
+        <>
+        <AlertDialog open={isCancelAlertOpen} onOpenChange={(open) => { setIsCancelAlertOpen(open); if (!open) setConfirmText(''); }}>
+            <AlertDialogContent className="rounded-[2rem] border-border/50 shadow-2xl text-center max-w-md">
+                <AlertDialogHeader className="text-center items-center">
+                    <AlertDialogTitle className="font-headline text-3xl text-center">¿Deseas cancelar tu pedido?</AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                        <div className="space-y-3 mt-2">
+                            <p className="text-base text-muted-foreground leading-relaxed">
+                                Tu pago será reembolsado al método de pago original.
+                                El proceso puede tardar entre <span className="font-semibold text-foreground">5 y 12 días hábiles</span> dependiendo de tu banco.
+                            </p>
+                            <p className="text-sm font-medium text-foreground">
+                                Para confirmar, escribe <span className="font-bold select-all">CANCELAR</span> en el campo de abajo.
+                            </p>
+                        </div>
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+
+                <div className="py-4">
+                    <Input
+                        autoComplete="off"
+                        placeholder="Escribe CANCELAR"
+                        value={confirmText}
+                        onChange={(e) => setConfirmText(e.target.value)}
+                        className="h-13 text-center text-base rounded-2xl border-2 border-border bg-muted/30 focus-visible:border-destructive focus-visible:ring-0 transition-colors"
+                        disabled={isCancelling}
+                    />
+                </div>
+
+                <AlertDialogFooter className="flex-col sm:flex-row gap-3 sm:gap-3">
+                    <AlertDialogCancel className="rounded-xl h-11 font-bold flex-1" disabled={isCancelling}>
+                        Volver
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={handleCancelOrder}
+                        disabled={confirmText !== 'CANCELAR' || isCancelling}
+                        className="bg-[#FF4D4D] hover:bg-[#ff3333] rounded-xl h-11 font-bold flex-1 shadow-lg shadow-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                        loading={isCancelling}
+                    >
+                        Confirmar cancelación
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={isPayAlertOpen} onOpenChange={setIsPayAlertOpen}>
+            <AlertDialogContent className="max-w-md rounded-[2.5rem] overflow-hidden border border-white/20 dark:border-white/5 shadow-2xl bg-white dark:bg-slate-900 p-0">
+                <div className="relative p-8 pt-12 text-center">
+                    <AlertDialogCancel asChild>
+                        <button
+                            type="button"
+                            className="absolute top-6 right-6 rounded-full h-10 w-10 bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-white/80 flex items-center justify-center border border-transparent hover:bg-slate-200 hover:text-slate-700 transition-colors"
+                            disabled={isStartingPayment}
+                            aria-label="Cerrar"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </AlertDialogCancel>
+
+                    <AlertDialogHeader className="text-center space-y-2">
+                        <AlertDialogTitle className="font-headline text-3xl text-slate-900 dark:text-white">
+                            Método de Pago
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-slate-500 dark:text-slate-400 text-sm">
+                            Elige cómo deseas pagar este pedido.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+
+                    <div className="space-y-4 my-8">
+                        <AlertDialogAction
+                            onClick={() => handlePayNow('stripe')}
+                            className="w-full py-4 px-6 rounded-full flex items-center justify-center gap-3 text-white font-bold text-lg shadow-lg shadow-primary/30 transition-all hover:scale-[1.02] active:scale-[0.98] bg-gradient-to-r from-[#FF2D78] to-[#FF5A9E]"
+                            loading={isStartingPayment}
+                            disabled={isStartingPayment}
+                        >
+                            <CreditCard className="w-5 h-5" />
+                            Pagar con Stripe
+                        </AlertDialogAction>
+
+                        <AlertDialogAction
+                            onClick={() => handlePayNow('mercadopago')}
+                            className="w-full py-4 px-6 rounded-full flex items-center justify-center gap-3 text-white font-bold text-lg shadow-lg shadow-sky-500/30 transition-all hover:scale-[1.02] active:scale-[0.98] bg-gradient-to-r from-[#009EE3] to-[#34B3EB]"
+                            loading={isStartingPayment}
+                            disabled={isStartingPayment}
+                        >
+                            <CreditCard className="w-5 h-5" />
+                            Pagar con Mercado Pago
+                        </AlertDialogAction>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-2 text-slate-400 dark:text-slate-500 text-[10px] font-semibold uppercase tracking-[0.3em]">
+                        <Lock className="w-3.5 h-3.5" />
+                        Pago Seguro & Encriptado
+                    </div>
+                </div>
+                <div className="h-1 w-full bg-gradient-to-r from-[#FF2D78] via-[#009EE3] to-[#FF2D78] opacity-40" />
+            </AlertDialogContent>
+        </AlertDialog>
+
         <Dialog onOpenChange={(open) => {
             if (open) {
                 void fetchOrderDetails();
+            } else {
+                setTimeout(() => { setView('details'); setCancelResult(null); }, 300);
             }
-            else setTimeout(() => setView('details'), 300);
         }}>
             <DialogTrigger asChild>
                 {trigger}
@@ -404,7 +519,36 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar px-6 md:px-10 py-6 md:py-8">
-                    {view === 'review' ? (
+                    {cancelResult !== null ? (
+                        <div className="flex flex-col items-center justify-center text-center py-10 gap-6 max-w-sm mx-auto">
+                            <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center">
+                                <CheckCircle className="w-10 h-10 text-green-500" />
+                            </div>
+                            <div className="space-y-3">
+                                <h3 className="text-2xl font-bold font-headline">Tu pedido fue cancelado exitosamente.</h3>
+                                {cancelResult.refunded ? (
+                                    <>
+                                        <p className="text-muted-foreground leading-relaxed">
+                                            Tu reembolso ya está en proceso. El dinero será devuelto al método de pago original.
+                                        </p>
+                                        <p className="text-sm font-semibold text-foreground">
+                                            El proceso puede tardar entre 5 y 12 días hábiles dependiendo de tu banco.
+                                        </p>
+                                    </>
+                                ) : (
+                                    <p className="text-muted-foreground leading-relaxed">
+                                        Como el pedido no había sido pagado, no se generará ningún reembolso.
+                                    </p>
+                                )}
+                            </div>
+                            <Link
+                                href="/customer-service"
+                                className="text-sm text-primary underline underline-offset-4 font-medium"
+                            >
+                                ¿El reembolso tarda más de lo esperado? Contactar soporte
+                            </Link>
+                        </div>
+                    ) : view === 'review' ? (
                         <ReviewForm orderId={currentOrder.id} onReviewSubmit={onReviewSubmit} onCancel={() => setView('details')} existingReview={(currentOrder as any).testimonial as any} />
                     ) : isFetchingDetails ? (
                         <OrderDetailsSkeleton />
@@ -523,49 +667,15 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                                             </div>
                                         </div>
                                         {isUnpaidOrder && currentOrder.status !== 'cancelado' ? (
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <Button
-                                                        className="h-10 rounded-xl font-bold bg-red-600 hover:bg-red-700 text-white border-none gap-2"
-                                                        loading={isStartingPayment}
-                                                        disabled={isStartingPayment}
-                                                    >
-                                                        <CreditCard className="w-4 h-4" />
-                                                        Pagar
-                                                    </Button>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent className="z-[80] rounded-[2rem] border-border/50 shadow-2xl">
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle className="font-headline text-2xl">Selecciona método de pago</AlertDialogTitle>
-                                                        <AlertDialogDescription className="text-sm leading-relaxed">
-                                                            Elige cómo deseas pagar este pedido.
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <div className="grid grid-cols-1 gap-3 py-2">
-                                                        <AlertDialogAction
-                                                            onClick={() => handlePayNow('stripe')}
-                                                            className="h-11 rounded-xl font-bold gap-2 bg-primary hover:bg-primary/90"
-                                                            loading={isStartingPayment}
-                                                            disabled={isStartingPayment}
-                                                        >
-                                                            <CreditCard className="w-4 h-4" />
-                                                            Pagar con Stripe
-                                                        </AlertDialogAction>
-                                                        <AlertDialogAction
-                                                            onClick={() => handlePayNow('mercadopago')}
-                                                            className="h-11 rounded-xl font-bold gap-2 bg-sky-600 hover:bg-sky-700"
-                                                            loading={isStartingPayment}
-                                                            disabled={isStartingPayment}
-                                                        >
-                                                            <CreditCard className="w-4 h-4" />
-                                                            Pagar con Mercado Pago
-                                                        </AlertDialogAction>
-                                                    </div>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel className="rounded-xl h-11 font-bold" disabled={isStartingPayment}>Cancelar</AlertDialogCancel>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
+                                            <Button
+                                                className="h-10 rounded-xl font-bold bg-red-600 hover:bg-red-700 text-white border-none gap-2"
+                                                loading={isStartingPayment}
+                                                disabled={isStartingPayment}
+                                                onClick={() => setIsPayAlertOpen(true)}
+                                            >
+                                                <CreditCard className="w-4 h-4" />
+                                                Pagar
+                                            </Button>
                                         ) : null}
                                     </div>
                                 </section>
@@ -613,7 +723,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                     )}
                 </div>
 
-                {view === 'details' && (
+                {view === 'details' && cancelResult === null && (
                     <div className="px-6 md:px-10 py-5 border-t border-border/50 bg-background/80 flex flex-col sm:flex-row gap-3">
                         {isFetchingDetails ? (
                             <>
@@ -633,36 +743,15 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                             </Button>
                         )}
 
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button
-                                    variant="secondary"
-                                    disabled={!cancellationInfo.canCancel}
-                                    className="h-12 rounded-xl font-bold bg-red-50 text-red-500 hover:bg-red-100 border-none gap-2 flex-1"
-                                >
-                                    <Ban className="w-4 h-4" />
-                                    Cancelar Pedido
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent className="z-[80] rounded-[2rem] border-border/50 shadow-2xl">
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle className="font-headline text-2xl">¿Estás seguro?</AlertDialogTitle>
-                                    <AlertDialogDescription className="text-sm leading-relaxed">
-                                        {cancellationInfo.message}
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter className="gap-2">
-                                    <AlertDialogCancel className="rounded-xl h-11 font-bold">Volver</AlertDialogCancel>
-                                    <AlertDialogAction
-                                        onClick={handleCancelOrder}
-                                        className="bg-destructive hover:bg-destructive/90 rounded-xl h-11 font-bold"
-                                        loading={isCancelling}
-                                    >
-                                        Sí, cancelar pedido
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
+                        <Button
+                            variant="secondary"
+                            disabled={!cancellationInfo.canCancel}
+                            className="h-12 rounded-xl font-bold bg-red-50 text-red-500 hover:bg-red-100 border-none gap-2 flex-1"
+                            onClick={() => setIsCancelAlertOpen(true)}
+                        >
+                            <Ban className="w-4 h-4" />
+                            Cancelar Pedido
+                        </Button>
 
                         <Button variant="secondary" asChild className="h-12 rounded-xl font-bold bg-zinc-900 text-white hover:bg-zinc-800 border-none gap-2 flex-[1.3]">
                             <Link href="/customer-service">
@@ -676,5 +765,6 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                 )}
             </DialogContent>
         </Dialog>
+        </>
     )
 };

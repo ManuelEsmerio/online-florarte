@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useMemo } from 'react';
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -12,7 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 const CheckoutPendingContent = () => {
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const orderId = useMemo(() => searchParams.get('order_id'), [searchParams]);
+  const orderId = searchParams.get('order_id');
 
   return (
     <div className="flex min-h-screen flex-col bg-background">

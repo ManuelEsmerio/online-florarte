@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { UserFacingError } from '@/utils/errors';
 import type { Testimonial } from '@/lib/definitions';
 
 export const testimonialService = {
@@ -53,14 +54,14 @@ export const testimonialService = {
       where: { id: data.orderId },
     });
 
-    if (!order) throw new Error('Order not found');
-    if (order.userId !== data.userId) throw new Error('Order does not belong to user');
+    if (!order) throw new UserFacingError('Pedido no encontrado.');
+    if (order.userId !== data.userId) throw new UserFacingError('Este pedido no pertenece a tu cuenta.');
 
     // Check if duplicate
     const existing = await prisma.testimonial.findUnique({
       where: { orderId: data.orderId },
     });
-    if (existing) throw new Error('This order has already been reviewed.');
+    if (existing) throw new UserFacingError('Este pedido ya tiene una reseña.');
 
     // Fetch user details for snapshot
     const user = await prisma.user.findUnique({
@@ -68,7 +69,7 @@ export const testimonialService = {
         select: { name: true, profilePicUrl: true }
     });
 
-    if (!user) throw new Error('User not found');
+    if (!user) throw new UserFacingError('Usuario no encontrado.');
 
     return await prisma.testimonial.create({
       data: {

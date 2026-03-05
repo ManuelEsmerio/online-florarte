@@ -166,7 +166,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                         "h-20 w-20 border-4 border-background shadow-lg transition-all duration-500 group-hover:scale-105 relative",
                         isCollapsed && "h-10 w-10 border-2"
                     )}>
-                      <AvatarImage src={user.profilePic || undefined} />
+                      <AvatarImage src={user.profilePicUrl || undefined} />
                       <AvatarFallback className="bg-primary text-white font-bold text-2xl">
                         {user.name.charAt(0).toUpperCase()}
                       </AvatarFallback>
@@ -308,7 +308,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                   <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full relative group">
                     <div className="absolute inset-0 bg-primary/10 rounded-full scale-0 group-hover:scale-100 transition-transform" />
                     <Avatar className="h-8 w-8 relative border border-border/50">
-                      <AvatarImage src={user.profilePic || undefined} />
+                      <AvatarImage src={user.profilePicUrl || undefined} />
                       <AvatarFallback className="bg-primary/5 text-primary text-[10px] font-bold">
                         {user.name.charAt(0).toUpperCase()}
                       </AvatarFallback>

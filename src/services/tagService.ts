@@ -1,5 +1,6 @@
 // src/services/tagService.ts
 import { prisma } from '@/lib/prisma';
+import { UserFacingError } from '@/utils/errors';
 import type { Tag } from '@/lib/definitions';
 import { z } from 'zod';
 

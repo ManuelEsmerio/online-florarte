@@ -108,7 +108,7 @@ const CartSummary = ({ shippingCost = 0 }: CartSummaryProps) => {
           </div>
           {appliedCoupon && (
              <div className="flex justify-between text-green-600">
-                <span>Descuento ({appliedCoupon.discount_value}%):</span>
+                <span>Descuento ({(appliedCoupon as any).discount_value ?? appliedCoupon.discountValue}%):</span>
                 <span>-{new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(discountAmount)}</span>
             </div>
           )}

@@ -77,7 +77,7 @@ export function CustomerActionsCell({
             <span>Ver Detalle</span>
           </DropdownMenuItem>
           
-          <DropdownMenuItem onSelect={() => onEdit(user)} disabled={user.is_deleted} className={itemClass}>
+          <DropdownMenuItem onSelect={() => onEdit(user)} disabled={user.isDeleted} className={itemClass}>
             <Pencil className={iconClass} />
             <span>Editar</span>
           </DropdownMenuItem>
@@ -90,7 +90,7 @@ export function CustomerActionsCell({
             <span>Copiar Email</span>
           </DropdownMenuItem>
 
-          <DropdownMenuItem onSelect={() => onSendCredentials(user)} disabled={user.is_deleted || isSending} className={itemClass}>
+          <DropdownMenuItem onSelect={() => onSendCredentials(user)} disabled={user.isDeleted || isSending} className={itemClass}>
             {isSending ? (
               <Loader2 className={cn(iconClass, "animate-spin")} />
             ) : (

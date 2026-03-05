@@ -8,7 +8,7 @@ export interface UserSession {
 }
 
 export function isAdminRole(role: unknown): boolean {
-  return String(role ?? '').trim().toUpperCase() === 'ADMIN';
+  return typeof role === 'string' && role.trim().toUpperCase() === 'ADMIN';
 }
 
 /**

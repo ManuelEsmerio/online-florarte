@@ -1,5 +1,6 @@
 // src/services/peakDateService.ts
 import { prisma } from '@/lib/prisma';
+import { UserFacingError } from '@/utils/errors';
 import type { PeakDate } from '@/lib/definitions';
 import { z } from 'zod';
 import { addYears, format, isValid, parseISO } from 'date-fns';
@@ -50,7 +51,7 @@ export const peakDateService = {
 
     if (validatedData.repeat_annually) {
       const baseDate = parseToUTCDate(validatedData.peak_date);
-      if (!baseDate) throw new Error("Fecha base inválida para repetición.");
+      if (!baseDate) throw new UserFacingError("Fecha base inválida para repetición.");
 
       for (let i = 0; i < 5; i++) {
         const nextDate = addYears(baseDate, i);
@@ -80,7 +81,7 @@ export const peakDateService = {
     const newPeakDate = allDates.find(
       p => p.name === validatedData.name && p.peakDate.toISOString().slice(0, 10) === validatedData.peak_date
     );
-    if (!newPeakDate) throw new Error('No se pudo crear el registro.');
+    if (!newPeakDate) throw new UserFacingError('No se pudo crear el registro.');
     return newPeakDate;
   },
 
@@ -88,7 +89,7 @@ export const peakDateService = {
     const validatedData = peakDateSchema.partial().parse(data);
 
     const exists = await prisma.peakDate.findUnique({ where: { id } });
-    if (!exists) throw new Error('Fecha pico no encontrada');
+    if (!exists) throw new UserFacingError('Fecha pico no encontrada');
 
     const updated = await dbWithAudit(editorId, () =>
       prisma.peakDate.update({

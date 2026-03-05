@@ -14,12 +14,12 @@ const calculateChange = (current: number, previous: number): number => {
   return ((current - previous) / previous) * 100;
 };
 
-const ORDER_STATUS_MAP: Record<string, string> = {
-  PENDING: 'pendiente',
-  PROCESSING: 'procesando',
-  SHIPPED: 'en_reparto',
-  DELIVERED: 'completado',
-  CANCELLED: 'cancelado',
+const ORDER_STATUS_MAP: Record<string, OrderStatus> = {
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  SHIPPED: 'SHIPPED',
+  DELIVERED: 'DELIVERED',
+  CANCELLED: 'CANCELLED',
 };
 
 export const dashboardService = {
@@ -69,14 +69,14 @@ export const dashboardService = {
       const key = monthNames[order.createdAt.getMonth()];
       if (key in salesByMonth) salesByMonth[key] += Number(order.total);
     }
-    const salesData = Object.entries(salesByMonth).map(([name, total]) => ({ name, total }));
+    const salesData = Object.entries(salesByMonth).map(([name, total]) => ({ month: name, sales: total }));
 
     // Recent orders
     const recentOrders: RecentOrder[] = recentOrdersRaw.map(o => ({
       id: o.id,
       customer_name: o.user?.name ?? o.guestName ?? 'Cliente invitado',
       total: Number(o.total),
-      status: ORDER_STATUS_MAP[o.status] as OrderStatus,
+      status: ORDER_STATUS_MAP[o.status] ?? 'PENDING',
     }));
 
     // Recent activities (orders + new users merged and sorted)

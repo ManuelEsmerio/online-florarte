@@ -6,7 +6,34 @@ import { getDecodedToken, UserSession } from '@/utils/auth';
 import { getSessionId } from '@/utils/session';
 import { orderService } from '@/services/orderService';
 import Stripe from 'stripe';
-import { ZodError } from 'zod';
+import { z, ZodError } from 'zod';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
+
+const CheckoutBodySchema = z.object({
+  // Guest fields
+  guestName: z.string().max(200).optional(),
+  guestEmail: z.string().email().max(200).optional(),
+  guestPhone: z.string().max(20).optional(),
+  recipientPhone: z.string().max(20).optional(),
+  // Guest address fields
+  guestAddressAlias: z.string().max(100).optional(),
+  guestStreetName: z.string().max(200).optional(),
+  guestStreetNumber: z.string().max(50).optional(),
+  guestInteriorNumber: z.string().max(50).optional(),
+  guestNeighborhood: z.string().max(150).optional(),
+  guestCity: z.string().max(150).optional(),
+  guestState: z.string().max(100).optional(),
+  guestPostalCode: z.string().max(10).optional(),
+  guestReferenceNotes: z.string().max(500).optional(),
+  // Shared order fields
+  deliveryDate: z.string().max(30).optional(),
+  deliveryTime: z.string().max(50).optional(),
+  recipientName: z.string().max(200).optional(),
+  dedicationMessage: z.string().max(500).optional(),
+  addressId: z.number().int().positive().optional(),
+  couponCode: z.string().max(50).optional(),
+  shippingCost: z.number().min(0).optional(),
+});
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-02-25.clover',
@@ -22,13 +49,20 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
  */
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(`checkout_init:${ip}`, 10, 15 * 60 * 1000);
+    if (!rl.allowed) {
+      return errorHandler(new Error('Demasiadas solicitudes. Intenta de nuevo en unos minutos.'), 429);
+    }
+
     const session: UserSession | null = await getDecodedToken(req);
     const sessionId = getSessionId(req);
     if (!session?.dbId && !sessionId) {
       return errorHandler(new Error('No se pudo identificar la sesión para checkout.'), 401);
     }
 
-    const body = await req.json();
+    const rawBody = await req.json();
+    const body = CheckoutBodySchema.parse(rawBody);
 
     const orderInput = {
         userId: session?.dbId ?? null,

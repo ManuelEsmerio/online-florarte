@@ -1,9 +1,12 @@
 // src/services/orderService.ts
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { cartService } from './cartService';
 import { orderAddressService } from './orderAddressService';
 import { orderEmailService } from './orderEmailService';
+import { stripeService } from './stripeService';
 import type { DbCartItem, Order, OrderStatus } from '@/lib/definitions';
+import { UserFacingError } from '@/utils/errors';
 
 const paymentTransactionModel = (prisma as unknown as {
   paymentTransaction: {
@@ -76,10 +79,53 @@ const getPaymentTransactionModel = (dbClient: any) => {
   return (dbClient as {
     paymentTransaction: {
       findFirst: (args: any) => Promise<any | null>;
+      update: (args: any) => Promise<any>;
       upsert: (args: any) => Promise<any>;
     };
   }).paymentTransaction;
 };
+
+type PaymentUpsertParams = {
+  orderId: number;
+  externalPaymentId: string;
+  gateway: 'stripe' | 'mercadopago';
+  amount: number;
+  status: 'SUCCEEDED' | 'FAILED';
+};
+
+async function safeUpsertPaymentTransaction(model: any, params: PaymentUpsertParams) {
+  try {
+    await model.upsert({
+      where: { externalPaymentId: params.externalPaymentId },
+      create: {
+        orderId: params.orderId,
+        externalPaymentId: params.externalPaymentId,
+        gateway: params.gateway,
+        amount: params.amount,
+        status: params.status,
+      },
+      update: {
+        orderId: params.orderId,
+        amount: params.amount,
+        status: params.status,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      await model.update({
+        where: { externalPaymentId: params.externalPaymentId },
+        data: {
+          orderId: params.orderId,
+          amount: params.amount,
+          status: params.status,
+        },
+      });
+      return;
+    }
+
+    throw error;
+  }
+}
 
 export const orderService = {
   async getAllOrdersForAdmin(filters: any) {
@@ -133,10 +179,16 @@ export const orderService = {
       : [];
 
     const latestPaymentGatewayByOrderId = new Map<number, string>();
+    const latestPaymentStatusByOrderId = new Map<number, string>();
+    const hasPaymentTransactionByOrderId = new Map<number, boolean>();
     for (const transaction of transactions) {
       if (!latestPaymentGatewayByOrderId.has(transaction.orderId)) {
         latestPaymentGatewayByOrderId.set(transaction.orderId, String(transaction.gateway ?? '').toLowerCase());
       }
+      if (!latestPaymentStatusByOrderId.has(transaction.orderId)) {
+        latestPaymentStatusByOrderId.set(transaction.orderId, String(transaction.status ?? '').toUpperCase());
+      }
+      hasPaymentTransactionByOrderId.set(transaction.orderId, true);
     }
 
     return {
@@ -155,10 +207,13 @@ export const orderService = {
         shippingAddress: o.orderAddress?.formattedAddress ?? 'Dirección por confirmar',
         delivery_date: o.deliveryDate?.toISOString().slice(0, 10) ?? '',
         delivery_time_slot: o.deliveryTimeSlot,
-        delivery_notes: o.deliveryNotes,
+        deliveryNotes: o.deliveryNotes ?? o.orderAddress?.referenceNotes ?? null,
+        delivery_notes: o.deliveryNotes ?? o.orderAddress?.referenceNotes ?? null,
         created_at: o.createdAt.toISOString(),
         updated_at: o.updatedAt.toISOString(),
         payment_gateway: latestPaymentGatewayByOrderId.get(o.id) ?? null,
+        payment_status: latestPaymentStatusByOrderId.get(o.id) ?? null,
+        has_payment_transaction: hasPaymentTransactionByOrderId.get(o.id) ?? false,
       })),
       total,
       page,
@@ -194,41 +249,74 @@ export const orderService = {
       }
     }
 
-    return orders.map((o: any) => ({
-      id: o.id,
-      user_id: o.userId,
-      customerName: o.user.name,
-      customerEmail: o.user.email,
-      status: mapStatus(o.status) as OrderStatus,
-      subtotal: Number(o.subtotal),
-      total: Number(o.total),
-      shipping_cost: Number(o.shippingCost),
-      recipientName: o.orderAddress?.recipientName ?? null,
-      recipientPhone: o.orderAddress?.recipientPhone ?? null,
-      payment_status: latestPaymentStatusByOrderId.get(o.id) ?? 'PENDING',
-      has_payment_transaction: hasPaymentTransactionByOrderId.get(o.id) ?? false,
-      shippingAddress: o.orderAddress?.formattedAddress ?? '',
-      delivery_date: o.deliveryDate?.toISOString().slice(0, 10) ?? '',
-      delivery_time_slot: o.deliveryTimeSlot,
-      dedication: o.dedication,
-      is_anonymous: o.isAnonymous,
-      signature: o.signature,
-      created_at: o.createdAt.toISOString(),
-      items: o.items.map((it: any) => ({
-        product_id: it.productId,
+    return orders.map((o: any) => {
+      const deliveryDateIso = o.deliveryDate ? o.deliveryDate.toISOString() : null;
+      const createdAtIso = o.createdAt.toISOString();
+      const updatedAtIso = o.updatedAt.toISOString();
+      const paymentStatus = latestPaymentStatusByOrderId.get(o.id) ?? 'PENDING';
+      const hasPaymentTx = hasPaymentTransactionByOrderId.get(o.id) ?? false;
+      const shippingAddress = o.orderAddress?.formattedAddress ?? '';
+      const recipientName = o.orderAddress?.recipientName ?? null;
+      const recipientPhone = o.orderAddress?.recipientPhone ?? null;
+
+      const items = o.items.map((it: any) => ({
+        id: it.id,
+        orderId: it.orderId,
+        productId: it.productId,
+        variantId: it.variantId,
+        productNameSnap: it.productNameSnap,
+        variantNameSnap: it.variantNameSnap,
+        imageSnap: it.imageSnap ?? it.product?.images?.[0]?.src ?? null,
         quantity: it.quantity,
-        price: Number(it.unitPrice),
-        product_name: it.productNameSnap,
-        image: it.imageSnap ?? it.product.images[0]?.src ?? '',
-      })),
-    } as unknown as Order));
+        unitPrice: Number(it.unitPrice),
+        customPhotoUrl: it.customPhotoUrl ?? null,
+        createdAt: it.createdAt?.toISOString?.() ?? null,
+      }));
+
+      return {
+        id: o.id,
+        userId: o.userId,
+        user_id: o.userId,
+        customerName: o.user?.name ?? o.guestName ?? 'Cliente invitado',
+        customerEmail: o.user?.email ?? o.guestEmail ?? '',
+        status: o.status as OrderStatus,
+        subtotal: Number(o.subtotal),
+        couponDiscount: Number(o.couponDiscount ?? 0),
+        coupon_discount: Number(o.couponDiscount ?? 0),
+        shippingCost: Number(o.shippingCost ?? 0),
+        shipping_cost: Number(o.shippingCost ?? 0),
+        total: Number(o.total),
+        deliveryDate: deliveryDateIso,
+        delivery_date: deliveryDateIso,
+        deliveryTimeSlot: o.deliveryTimeSlot ?? '',
+        delivery_time_slot: o.deliveryTimeSlot ?? '',
+        dedication: o.dedication ?? null,
+        deliveryNotes: o.deliveryNotes ?? o.orderAddress?.referenceNotes ?? null,
+        isAnonymous: Boolean(o.isAnonymous),
+        is_anonymous: Boolean(o.isAnonymous),
+        signature: o.signature ?? null,
+        createdAt: createdAtIso,
+        created_at: createdAtIso,
+        updatedAt: updatedAtIso,
+        updated_at: updatedAtIso,
+        payment_status: paymentStatus,
+        has_payment_transaction: hasPaymentTx,
+        shippingAddress,
+        shipping_address_snapshot: shippingAddress,
+        recipientName,
+        recipient_name: recipientName,
+        recipientPhone,
+        recipient_phone: recipientPhone,
+        items,
+      } as unknown as Order;
+    });
   },
 
   async getOrderDetails(orderId: number): Promise<Order | null> {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
-        user: { select: { name: true, email: true } },
+        user: { select: { name: true, email: true, phone: true } },
         coupon: { select: { code: true, discountType: true, discountValue: true } },
         orderAddress: true,
         items: { include: { product: true, variant: true } },
@@ -250,6 +338,7 @@ export const orderService = {
       guest_phone: order.guestPhone,
       customerName: order.user?.name ?? order.guestName ?? 'Cliente invitado',
       customerEmail: order.user?.email ?? order.guestEmail ?? '',
+      customerPhone: order.user?.phone ?? order.guestPhone ?? null,
       status: mapStatus(order.status) as OrderStatus,
       subtotal: Number(order.subtotal),
       coupon_id: order.couponId ?? null,
@@ -265,6 +354,8 @@ export const orderService = {
       payment_gateway: latestPaymentTransaction?.gateway ?? null,
       has_payment_transaction: Boolean(latestPaymentTransaction),
       shippingAddress: order.orderAddress?.formattedAddress ?? '',
+      deliveryNotes: order.deliveryNotes ?? order.orderAddress?.referenceNotes ?? null,
+      delivery_notes: order.deliveryNotes ?? order.orderAddress?.referenceNotes ?? null,
       delivery_date: order.deliveryDate?.toISOString().slice(0, 10) ?? '',
       delivery_time_slot: order.deliveryTimeSlot,
       dedication: order.dedication,
@@ -283,7 +374,24 @@ export const orderService = {
 
   async updateOrderStatus(orderId: number, newStatus: OrderStatus, payload: any): Promise<boolean> {
     const prismaStatus = Object.entries(ORDER_STATUS_MAP).find(([, v]) => v === newStatus)?.[0] ?? (newStatus as string).toUpperCase();
-    await prisma.order.update({ where: { id: orderId }, data: { status: prismaStatus as any, ...payload } });
+    const statusChanged = await prisma.$transaction(async (tx: any) => {
+      const current = await tx.order.findUnique({ where: { id: orderId }, select: { status: true } });
+      if (!current) {
+        throw new UserFacingError('Pedido no encontrado.');
+      }
+
+      await tx.order.update({ where: { id: orderId }, data: { status: prismaStatus as any, ...payload } });
+      return current.status !== prismaStatus;
+    });
+
+    if (statusChanged) {
+      try {
+        await orderEmailService.sendOrderStatusChangeNotification(orderId, newStatus);
+      } catch (error) {
+        console.error('[ORDER_STATUS_NOTIFICATION_ERROR]', error);
+      }
+    }
+
     return true;
   },
 
@@ -299,7 +407,7 @@ export const orderService = {
     const isGuest = !normalizedUserId;
 
     if (!normalizedUserId && !normalizedSessionId) {
-      throw new Error('No se pudo identificar la sesión del carrito.');
+      throw new UserFacingError('No se pudo identificar la sesión del carrito.');
     }
 
     const guestName = normalizeGuestName(params.guestName);
@@ -317,23 +425,23 @@ export const orderService = {
 
     if (isGuest) {
       if (!guestName) {
-        throw new Error('El nombre completo es obligatorio para compras como invitado.');
+        throw new UserFacingError('El nombre completo es obligatorio para compras como invitado.');
       }
       if (!guestEmail || !isValidGuestEmail(guestEmail)) {
-        throw new Error('El email es obligatorio y debe tener un formato válido para compras como invitado.');
+        throw new UserFacingError('El email es obligatorio y debe tener un formato válido para compras como invitado.');
       }
       if (!guestPhone || guestPhone.length !== 10) {
-        throw new Error('El teléfono debe contener 10 dígitos para compras como invitado.');
+        throw new UserFacingError('El teléfono debe contener 10 dígitos para compras como invitado.');
       }
       if (!guestStreetName || !guestStreetNumber || !guestNeighborhood || !guestCity || !guestPostalCode) {
-        throw new Error('La dirección de envío es obligatoria para compras como invitado.');
+        throw new UserFacingError('La dirección de envío es obligatoria para compras como invitado.');
       }
     }
 
     let cartData = await cartService.getCartContents({ userId: normalizedUserId, sessionId: normalizedSessionId });
 
     if (!cartData.items || cartData.items.length === 0) {
-      throw new Error('El carrito está vacío.');
+      throw new UserFacingError('El carrito está vacío.');
     }
 
     const couponCodeFromPayload = String(params.couponCode ?? '').trim().toUpperCase();
@@ -377,7 +485,7 @@ export const orderService = {
     const total = Math.max(0, subtotal - couponDiscount + shippingCost);
 
     if (normalizedUserId && !params.addressId) {
-      throw new Error('Debes seleccionar una dirección guardada para completar tu compra.');
+      throw new UserFacingError('Debes seleccionar una dirección guardada para completar tu compra.');
     }
 
     const selectedAddress = normalizedUserId && params.addressId
@@ -391,7 +499,7 @@ export const orderService = {
       : null;
 
     if (normalizedUserId && params.addressId && !selectedAddress) {
-      throw new Error('La dirección seleccionada no existe o no pertenece al usuario.');
+      throw new UserFacingError('La dirección seleccionada no existe o no pertenece al usuario.');
     }
 
     const snapshotData = selectedAddress
@@ -434,7 +542,7 @@ export const orderService = {
 
     const orderItemsToCreate = cartData.items.map((item: DbCartItem, index: number) => {
       if (!Number.isFinite(item.product_id) || !Number.isFinite(item.unit_price) || !Number.isFinite(item.quantity) || item.quantity < 1) {
-        throw new Error(`Ítem inválido en carrito (posición ${index + 1}).`);
+        throw new UserFacingError(`Ítem inválido en carrito (posición ${index + 1}).`);
       }
 
       return {
@@ -460,7 +568,7 @@ export const orderService = {
         });
 
         if (alreadyUsedByUser) {
-          throw new Error('Este cupón ya fue utilizado por tu cuenta.');
+          throw new UserFacingError('Este cupón ya fue utilizado por tu cuenta.');
         }
       }
 
@@ -505,7 +613,7 @@ export const orderService = {
             data: { stock: { decrement: item.quantity } },
           });
           if (result.count !== 1) {
-            throw new Error(`Stock insuficiente para "${item.productNameSnap}" (${item.variantNameSnap ?? 'variante'}).`);
+            throw new UserFacingError(`Stock insuficiente para "${item.productNameSnap}" (${item.variantNameSnap ?? 'variante'}).`);
           }
         } else {
           const result = await tx.product.updateMany({
@@ -513,7 +621,7 @@ export const orderService = {
             data: { stock: { decrement: item.quantity } },
           });
           if (result.count !== 1) {
-            throw new Error(`Stock insuficiente para "${item.productNameSnap}".`);
+            throw new UserFacingError(`Stock insuficiente para "${item.productNameSnap}".`);
           }
         }
       }
@@ -537,7 +645,7 @@ export const orderService = {
         });
 
         if (couponUpdateResult.count !== 1) {
-          throw new Error('No se pudo reservar el cupón para este pedido. Intenta nuevamente.');
+          throw new UserFacingError('No se pudo reservar el cupón para este pedido. Intenta nuevamente.');
         }
       }
 
@@ -578,36 +686,31 @@ export const orderService = {
     gateway: 'stripe' | 'mercadopago';
     amount: number;
   }) {
-    const shouldSendEmails = await prisma.$transaction(async (tx: any) => {
-      const paymentTxModel = getPaymentTransactionModel(tx);
-      const existingTransaction = await paymentTxModel.findFirst({
-        where: { externalPaymentId: params.externalPaymentId },
-        select: { status: true },
-      });
+    const shouldSendEmails = await prisma.$transaction(
+      async (tx: any) => {
+        const paymentTxModel = getPaymentTransactionModel(tx);
+        const existingTransaction = await paymentTxModel.findFirst({
+          where: { externalPaymentId: params.externalPaymentId },
+          select: { status: true },
+        });
 
-      await tx.order.update({
-        where: { id: params.orderId },
-        data: { status: 'PENDING' },
-      });
+        await tx.order.update({
+          where: { id: params.orderId },
+          data: { status: 'PENDING' },
+        });
 
-      await paymentTxModel.upsert({
-        where: { externalPaymentId: params.externalPaymentId },
-        create: {
+        await safeUpsertPaymentTransaction(paymentTxModel, {
           orderId: params.orderId,
           externalPaymentId: params.externalPaymentId,
           gateway: params.gateway,
           amount: params.amount,
           status: 'SUCCEEDED',
-        },
-        update: {
-          orderId: params.orderId,
-          amount: params.amount,
-          status: 'SUCCEEDED',
-        },
-      });
+        });
 
-      return existingTransaction?.status !== 'SUCCEEDED';
-    });
+        return existingTransaction?.status !== 'SUCCEEDED';
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }
+    );
 
     if (shouldSendEmails) {
       try {
@@ -626,31 +729,26 @@ export const orderService = {
     gateway: 'stripe' | 'mercadopago';
     amount: number;
   }) {
-    const shouldSendFailureEmail = await prisma.$transaction(async (tx: any) => {
-      const paymentTxModel = getPaymentTransactionModel(tx);
-      const existingTransaction = await paymentTxModel.findFirst({
-        where: { externalPaymentId: params.externalPaymentId },
-        select: { status: true },
-      });
+    const shouldSendFailureEmail = await prisma.$transaction(
+      async (tx: any) => {
+        const paymentTxModel = getPaymentTransactionModel(tx);
+        const existingTransaction = await paymentTxModel.findFirst({
+          where: { externalPaymentId: params.externalPaymentId },
+          select: { status: true },
+        });
 
-      await paymentTxModel.upsert({
-        where: { externalPaymentId: params.externalPaymentId },
-        create: {
+        await safeUpsertPaymentTransaction(paymentTxModel, {
           orderId: params.orderId,
           externalPaymentId: params.externalPaymentId,
           gateway: params.gateway,
           amount: params.amount,
           status: 'FAILED',
-        },
-        update: {
-          orderId: params.orderId,
-          amount: params.amount,
-          status: 'FAILED',
-        },
-      });
+        });
 
-      return existingTransaction?.status !== 'FAILED';
-    });
+        return existingTransaction?.status !== 'FAILED';
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }
+    );
 
     if (shouldSendFailureEmail) {
       try {
@@ -705,5 +803,341 @@ export const orderService = {
         data: { status: 'CANCELLED' },
       });
     });
+  },
+
+  /**
+   * User-initiated cancellation with automatic Stripe refund.
+   *
+   * Flow:
+   * 1. Verify order is still PENDING (guard against race conditions).
+   * 2. Find the SUCCEEDED PaymentTransaction for the order.
+   * 3. If no payment → simple cancellation without refund (abandoned order).
+   * 4. Idempotency: if a Refund record already exists, skip Stripe and sync DB state.
+   * 5. Call Stripe to issue a full refund (outside the DB transaction).
+   * 6. Commit Prisma transaction: create Refund record, mark Order CANCELLED,
+   *    mark PaymentTransaction CANCELED, restore inventory, revert coupon.
+   */
+  async cancelOrderWithRefund(orderId: number): Promise<{ refunded: boolean; stripeRefundId?: string }> {
+    // --- 1. Fetch order with items ---
+    const rawOrder = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        status: true,
+        couponId: true,
+        items: { select: { productId: true, variantId: true, quantity: true } },
+      },
+    });
+
+    if (!rawOrder) throw new UserFacingError('Pedido no encontrado.');
+
+    // Double-check status (may have changed since getCancellationInfo ran in the route)
+    if (rawOrder.status !== 'PENDING') {
+      throw new UserFacingError('El pedido ya no puede cancelarse porque su estado cambió.');
+    }
+
+    // --- 2. Find SUCCEEDED payment transaction ---
+    const paymentTx = await (prisma as any).paymentTransaction.findFirst({
+      where: { orderId, status: 'SUCCEEDED' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, externalPaymentId: true, gateway: true, amount: true },
+    });
+
+    // --- 3. No payment found: simple cancellation, no refund ---
+    if (!paymentTx) {
+      await prisma.$transaction(async (tx: any) => {
+        for (const item of rawOrder.items) {
+          if (item.variantId) {
+            await tx.productVariant.update({ where: { id: item.variantId }, data: { stock: { increment: item.quantity } } });
+          } else {
+            await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
+          }
+        }
+        if (rawOrder.couponId) {
+          await tx.coupon.updateMany({ where: { id: rawOrder.couponId, usesCount: { gt: 0 } }, data: { usesCount: { decrement: 1 } } });
+        }
+        await tx.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
+        await (tx as any).orderCancellationLog.create({
+          data: {
+            orderId,
+            cancelledBy: 'USER',
+            cancellationReason: 'customer_request',
+          },
+        });
+      });
+      console.info('[AUDIT] order_cancelled_no_payment', { orderId });
+      return { refunded: false };
+    }
+
+    // --- 4. Idempotency: check if refund already exists ---
+    const existingRefund = await (prisma as any).refund.findUnique({
+      where: { paymentTransactionId: paymentTx.id },
+      select: { externalRefundId: true, status: true },
+    });
+
+    if (existingRefund) {
+      // Refund already issued. Ensure DB state is consistent.
+      const currentOrder = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
+      if (currentOrder?.status !== 'CANCELLED') {
+        await prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
+        await (prisma as any).paymentTransaction.update({ where: { id: paymentTx.id }, data: { status: 'CANCELED' } });
+      }
+      console.info('[AUDIT] order_cancel_idempotent_hit', { orderId, externalRefundId: existingRefund.externalRefundId });
+      return { refunded: true, stripeRefundId: existingRefund.externalRefundId };
+    }
+
+    // --- 5. Call Stripe to issue the refund (outside the DB transaction) ---
+    let stripeRefund: { id: string; status: string };
+    try {
+      stripeRefund = await stripeService.createRefund({
+        paymentIntentId: paymentTx.externalPaymentId,
+        reason: 'requested_by_customer',
+      });
+    } catch (stripeError: any) {
+      const code: string = stripeError?.code ?? '';
+      // If Stripe says it's already refunded, handle gracefully
+      if (code === 'charge_already_refunded') {
+        console.warn('[STRIPE_REFUND] charge_already_refunded — syncing DB state', { orderId });
+        await prisma.$transaction(async (tx: any) => {
+          await tx.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
+          await (tx as any).paymentTransaction.update({ where: { id: paymentTx.id }, data: { status: 'CANCELED' } });
+          for (const item of rawOrder.items) {
+            if (item.variantId) {
+              await tx.productVariant.update({ where: { id: item.variantId }, data: { stock: { increment: item.quantity } } });
+            } else {
+              await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
+            }
+          }
+          if (rawOrder.couponId) {
+            await tx.coupon.updateMany({ where: { id: rawOrder.couponId, usesCount: { gt: 0 } }, data: { usesCount: { decrement: 1 } } });
+          }
+        });
+        console.info('[AUDIT] order_cancelled_stripe_already_refunded', { orderId });
+        return { refunded: true };
+      }
+      console.error('[STRIPE_REFUND_ERROR]', { orderId, code, message: stripeError?.message });
+      throw new UserFacingError(`No se pudo procesar el reembolso con Stripe: ${stripeError?.message ?? 'error desconocido'}`);
+    }
+
+    // --- 6. Commit everything in a single Prisma transaction ---
+    await prisma.$transaction(async (tx: any) => {
+      // Refund audit record — @unique on paymentTransactionId prevents double-writes
+      const refundRecord = await (tx as any).refund.create({
+        data: {
+          paymentTransactionId: paymentTx.id,
+          externalRefundId: stripeRefund.id,
+          amount: Number(paymentTx.amount),
+          status: stripeRefund.status, // 'pending' or 'succeeded'
+          reason: 'requested_by_customer',
+        },
+        select: { id: true },
+      });
+
+      await (tx as any).paymentTransaction.update({
+        where: { id: paymentTx.id },
+        data: { status: 'CANCELED' },
+      });
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'CANCELLED' },
+      });
+
+      // Restore inventory
+      for (const item of rawOrder.items) {
+        if (item.variantId) {
+          await tx.productVariant.update({ where: { id: item.variantId }, data: { stock: { increment: item.quantity } } });
+        } else {
+          await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
+        }
+      }
+
+      // Revert coupon usage
+      if (rawOrder.couponId) {
+        await tx.coupon.updateMany({
+          where: { id: rawOrder.couponId, usesCount: { gt: 0 } },
+          data: { usesCount: { decrement: 1 } },
+        });
+      }
+
+      // Cancellation audit log
+      await (tx as any).orderCancellationLog.create({
+        data: {
+          orderId,
+          refundId: refundRecord.id,
+          cancelledBy: 'USER',
+          refundPercentage: 100,
+          refundAmount: Number(paymentTx.amount),
+          cancellationReason: 'customer_request',
+        },
+      });
+    });
+
+    console.info('[AUDIT] order_cancelled_with_refund', {
+      orderId,
+      paymentTransactionId: paymentTx.id,
+      externalRefundId: stripeRefund.id,
+      amount: Number(paymentTx.amount),
+    });
+
+    return { refunded: true, stripeRefundId: stripeRefund.id };
+  },
+
+  /**
+   * Admin-initiated cancellation with percentage-based multi-gateway refund.
+   *
+   * Supported statuses: all except CANCELLED.
+   * Refund is proportional to the percentage the admin selects (0–100).
+   * Creates an OrderCancellationLog audit record for every cancellation.
+   */
+  async adminCancelOrderWithRefund(params: {
+    orderId: number;
+    adminId: number;
+    /** Refund percentage 0–100. Pass 0 to cancel without issuing a refund. */
+    refundPercentage: number;
+    cancellationReason: string;
+    customReason?: string;
+  }): Promise<{ refunded: boolean; refundAmount: number; externalRefundId?: string }> {
+    const { orderId, adminId, refundPercentage, cancellationReason, customReason } = params;
+
+    // --- 1. Fetch order ---
+    const rawOrder = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        status: true,
+        total: true,
+        couponId: true,
+        items: { select: { productId: true, variantId: true, quantity: true } },
+      },
+    });
+
+    if (!rawOrder) throw new UserFacingError('Pedido no encontrado.');
+    if (rawOrder.status === 'CANCELLED') throw new UserFacingError('El pedido ya está cancelado.');
+
+    // --- 2. Find SUCCEEDED payment transaction ---
+    const paymentTx = await (prisma as any).paymentTransaction.findFirst({
+      where: { orderId, status: 'SUCCEEDED' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, externalPaymentId: true, gateway: true, amount: true },
+    });
+
+    const shouldRefund = refundPercentage > 0 && paymentTx !== null;
+    const paidAmount = paymentTx ? Number(paymentTx.amount) : 0;
+    const refundAmount = shouldRefund
+      ? Math.round(paidAmount * (refundPercentage / 100) * 100) / 100
+      : 0;
+
+    let refundResult: { externalRefundId: string; status: string; amount: number } | null = null;
+
+    if (shouldRefund) {
+      // --- 3. Idempotency check ---
+      const existingRefund = await (prisma as any).refund.findUnique({
+        where: { paymentTransactionId: paymentTx.id },
+        select: { externalRefundId: true, amount: true },
+      });
+
+      if (existingRefund) {
+        console.info('[AUDIT] admin_cancel_idempotent_hit', { orderId, externalRefundId: existingRefund.externalRefundId });
+        refundResult = { externalRefundId: existingRefund.externalRefundId, status: 'already_refunded', amount: Number(existingRefund.amount) };
+      } else {
+        // --- 4. Call payment provider (OUTSIDE DB transaction) ---
+        const { getRefundProvider } = await import('@/lib/payment/refundProviderRouter');
+        const provider = getRefundProvider(paymentTx.gateway ?? 'stripe');
+
+        try {
+          const result = await provider.createRefund({
+            externalPaymentId: paymentTx.externalPaymentId,
+            amount: refundPercentage === 100 ? undefined : refundAmount,
+            reason: 'requested_by_customer',
+          });
+          refundResult = result;
+        } catch (providerError: any) {
+          const code: string = providerError?.code ?? '';
+          if (code === 'charge_already_refunded') {
+            console.warn('[ADMIN_CANCEL] charge_already_refunded — continuing with DB update', { orderId });
+            refundResult = null; // Will mark cancelled without new refund record
+          } else {
+            console.error('[ADMIN_CANCEL_REFUND_ERROR]', { orderId, gateway: paymentTx.gateway, error: providerError?.message });
+            throw new UserFacingError(`No se pudo procesar el reembolso: ${providerError?.message ?? 'error desconocido'}`);
+          }
+        }
+      }
+    }
+
+    // --- 5. Commit all DB changes atomically ---
+    await prisma.$transaction(async (tx: any) => {
+      let refundDbId: number | null = null;
+
+      if (refundResult && !refundResult.status.includes('already_refunded')) {
+        const refundRecord = await (tx as any).refund.create({
+          data: {
+            paymentTransactionId: paymentTx!.id,
+            externalRefundId: refundResult.externalRefundId,
+            amount: refundResult.amount,
+            status: refundResult.status,
+            reason: 'requested_by_customer',
+          },
+          select: { id: true },
+        });
+        refundDbId = refundRecord.id;
+
+        await (tx as any).paymentTransaction.update({
+          where: { id: paymentTx!.id },
+          data: { status: 'CANCELED' },
+        });
+      }
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'CANCELLED' },
+      });
+
+      // Restore inventory
+      for (const item of rawOrder.items) {
+        if (item.variantId) {
+          await tx.productVariant.update({ where: { id: item.variantId }, data: { stock: { increment: item.quantity } } });
+        } else {
+          await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
+        }
+      }
+
+      // Revert coupon usage
+      if (rawOrder.couponId) {
+        await tx.coupon.updateMany({
+          where: { id: rawOrder.couponId, usesCount: { gt: 0 } },
+          data: { usesCount: { decrement: 1 } },
+        });
+      }
+
+      // Audit log
+      await (tx as any).orderCancellationLog.create({
+        data: {
+          orderId,
+          refundId: refundDbId ?? null,
+          cancelledBy: 'ADMIN',
+          adminId,
+          refundPercentage: shouldRefund ? refundPercentage : null,
+          refundAmount: refundAmount > 0 ? refundAmount : null,
+          cancellationReason,
+          customReason: customReason ?? null,
+        },
+      });
+    });
+
+    console.info('[AUDIT] admin_order_cancelled', {
+      orderId,
+      adminId,
+      refundPercentage,
+      refundAmount,
+      externalRefundId: refundResult?.externalRefundId ?? null,
+      gateway: paymentTx?.gateway ?? null,
+    });
+
+    return {
+      refunded: Boolean(refundResult),
+      refundAmount,
+      externalRefundId: refundResult?.externalRefundId,
+    };
   },
 };

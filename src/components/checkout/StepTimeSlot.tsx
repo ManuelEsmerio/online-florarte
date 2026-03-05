@@ -5,7 +5,7 @@ import { useState, useMemo } from 'react';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useFormContext } from 'react-hook-form';
-import { CheckoutFormValues } from '@/app/checkout/page';
+import { CheckoutFormValues } from '@/app/checkout/CheckoutClientPage';
 import { cn, formatTimeSlotForUI } from '@/lib/utils';
 import { CalendarIcon, Clock as ClockIcon, CheckCircle, ArrowRight } from 'lucide-react';
 import { DeliveryDateTimeModal } from './DeliveryDateTimeModal';

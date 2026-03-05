@@ -1,6 +1,6 @@
 
 
-import type { Coupon } from '../coupon-data';
+import type { Coupon } from '@/lib/definitions';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -9,19 +9,38 @@ interface TemplateProps {
   coupon: Coupon;
 }
 
-const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount);
-};
+const formatCurrency = (amount: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount);
+
+const normalizeDiscountType = (coupon: Coupon) =>
+  String((coupon as any).discount_type ?? coupon.discountType ?? 'PERCENTAGE').toUpperCase();
+
+const normalizeDiscountValue = (coupon: Coupon) =>
+  Number((coupon as any).discount_value ?? coupon.discountValue ?? 0);
+
+const normalizeMaxUses = (coupon: Coupon) =>
+  (coupon as any).max_uses ?? coupon.maxUses ?? null;
+
+const normalizeUsesCount = (coupon: Coupon) =>
+  Number((coupon as any).uses_count ?? coupon.usesCount ?? 0);
+
+const normalizeValidUntil = (coupon: Coupon) =>
+  (coupon as any).valid_until ?? coupon.validUntil ?? null;
 
 export const renderCouponAssignmentTemplate = ({ userName, coupon }: TemplateProps): string => {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://floreriaflorarte.com';
 
-  const discountText = coupon.discount_type === 'percentage'
-    ? `${coupon.discount_value}% de descuento`
-    : `${formatCurrency(coupon.discount_value)} de descuento`;
+  const discountType = normalizeDiscountType(coupon);
+  const discountValue = normalizeDiscountValue(coupon);
+  const maxUses = normalizeMaxUses(coupon);
+  const usesCount = normalizeUsesCount(coupon);
+  const validUntil = normalizeValidUntil(coupon);
+
+  const discountText = discountType === 'PERCENTAGE'
+    ? `${discountValue}% de descuento`
+    : `${formatCurrency(discountValue)} de descuento`;
   
-  const usageText = coupon.max_uses
-    ? `Uso: ${coupon.uses_count + 1} de ${coupon.max_uses}`
+  const usageText = typeof maxUses === 'number'
+    ? `Uso: ${Math.min(usesCount + 1, maxUses)} de ${maxUses}`
     : 'Usos ilimitados';
 
   return `
@@ -63,7 +82,7 @@ export const renderCouponAssignmentTemplate = ({ userName, coupon }: TemplatePro
         <p>Tu código de cupón es:</p>
         <p class="coupon-code">${coupon.code}</p>
         <div class="coupon-details">
-            <span>Válido hasta el: <strong>${format(new Date(coupon.valid_until), 'PPP', { locale: es })}</strong></span>
+          <span>Válido hasta el: <strong>${validUntil ? format(new Date(validUntil), 'PPP', { locale: es }) : 'Sin fecha de expiración'}</strong></span>
             <br>
             <span>${usageText}</span>
         </div>

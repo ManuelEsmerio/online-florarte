@@ -1,3 +1,4 @@
+import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 
 export const stripeService = {
@@ -40,6 +41,24 @@ export const stripeService = {
       payment_intent_data: {
         metadata: baseMetadata,
       },
+    });
+  },
+
+  /**
+   * Creates a full refund for a payment intent.
+   * Stripe idempotency: passing the same payment_intent returns the same refund if already refunded.
+   * @throws Will throw if Stripe returns an error other than "charge_already_refunded".
+   */
+  async createRefund(params: {
+    paymentIntentId: string;
+    /** Amount to refund in cents. Omit for full refund. */
+    amount?: number;
+    reason?: Stripe.RefundCreateParams.Reason;
+  }): Promise<Stripe.Refund> {
+    return stripe.refunds.create({
+      payment_intent: params.paymentIntentId,
+      ...(params.amount !== undefined && { amount: params.amount }),
+      reason: params.reason ?? 'requested_by_customer',
     });
   },
 

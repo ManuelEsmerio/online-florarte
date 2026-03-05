@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { AlertTriangle, Trash2 } from 'lucide-react';
-import type { CartItem } from '@/lib/definitions';
+import { type CartItemCompat as CartItem } from '@/context/CartContext';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -33,7 +33,7 @@ const CheckoutItemSkeleton = () => (
 );
 
 const CheckoutItem = ({ item, isOutOfStock, onRemove, isValidating }: CheckoutItemProps) => {
-    const itemTotal = item.price * item.quantity;
+    const itemTotal = (item.price ?? item.unitPrice) * item.quantity;
     const hasPhoto = !!item.customPhotoUrl;
 
     if (isValidating) {
@@ -48,8 +48,8 @@ const CheckoutItem = ({ item, isOutOfStock, onRemove, isValidating }: CheckoutIt
       <div className="flex items-center gap-4 flex-1 min-w-0">
         <div className="relative h-16 w-16 shrink-0 rounded-xl overflow-hidden border border-border/50 bg-background shadow-sm">
             <Image
-                src={item.image}
-                alt={item.name}
+                src={item.image || '/placehold.webp'}
+                alt={item.name ?? ''}
                 fill
                 className="object-cover"
                 sizes="64px"

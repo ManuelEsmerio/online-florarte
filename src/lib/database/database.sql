@@ -611,13 +611,19 @@ CREATE TABLE `users` (
 
 DROP TABLE IF EXISTS `wishlist`;
 CREATE TABLE `wishlist` (
-  `user_id` int unsigned NOT NULL,
-  `product_id` int unsigned NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`user_id`,`product_id`),
-  KEY `product_id` (`product_id`),
-  CONSTRAINT `wishlist_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `wishlist_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
+    `id` int unsigned NOT NULL AUTO_INCREMENT,
+    `user_id` int unsigned NOT NULL,
+    `product_id` int unsigned NOT NULL,
+    `variant_id` int unsigned DEFAULT NULL,
+    `selection_key` varchar(80) NOT NULL,
+    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uniq_wishlist_user_selection` (`user_id`,`selection_key`),
+    KEY `idx_wishlist_product` (`product_id`),
+    KEY `idx_wishlist_variant` (`variant_id`),
+    CONSTRAINT `wishlist_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `wishlist_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `wishlist_ibfk_3` FOREIGN KEY (`variant_id`) REFERENCES `product_variants` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --

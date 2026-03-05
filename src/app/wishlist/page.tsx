@@ -13,14 +13,14 @@ import { ProductCardSkeleton } from '@/components/ProductCardSkeleton';
 import Link from 'next/link';
 import { ProductCard } from '@/components/ProductCard';
 import QuickView from '@/components/QuickView';
-import type { ProductRow } from '@/lib/definitions';
+import type { Product } from '@/lib/definitions';
 
 export default function WishlistPage() {
   const { user, wishlist, loading: authLoading } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -32,7 +32,7 @@ export default function WishlistPage() {
     setIsLoading(authLoading);
   }, [authLoading]);
 
-  const handleQuickViewOpen = (product: ProductRow) => {
+  const handleQuickViewOpen = (product: Product) => {
     setSelectedProduct(product);
     setIsQuickViewOpen(true);
   };
@@ -58,15 +58,34 @@ export default function WishlistPage() {
               </div>
             ) : wishlist.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-                 {wishlist.map((product, index) => (
-                   <ProductCard 
-                        product={product as any} 
-                        index={index} 
-                        key={product.id}
-                        onQuickViewOpen={handleQuickViewOpen}
-                        variant="compact"
-                    />
-                 ))}
+                 {wishlist.map((entry, index) => {
+                   const displayProduct = entry.variant
+                     ? {
+                         ...entry.product,
+                         variantId: entry.variant.id,
+                         variantName: entry.variant.name,
+                         variantProductName: entry.variant.productName ?? (entry.product as any)?.variantProductName ?? entry.product.name,
+                         price: entry.variant.price,
+                         salePrice: entry.variant.salePrice ?? null,
+                         sale_price: (entry.variant as any)?.sale_price ?? entry.variant.salePrice ?? null,
+                         image: (entry.variant as any)?.images?.[0]?.src ?? entry.product.image,
+                         mainImage: (entry.variant as any)?.images?.[0]?.src ?? entry.product.mainImage,
+                         variants: [entry.variant],
+                       }
+                     : entry.product;
+
+                   const cardKey = entry.selectionKey ?? `${entry.productId}-${entry.variantId ?? 'base'}`;
+
+                   return (
+                     <ProductCard 
+                       product={displayProduct as any}
+                       index={index}
+                       key={cardKey}
+                       onQuickViewOpen={handleQuickViewOpen}
+                       variant="compact"
+                     />
+                   );
+                 })}
               </div>
             ) : (
               <div className="text-center py-16 md:py-24 animate-fade-in">

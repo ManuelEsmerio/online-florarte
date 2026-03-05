@@ -30,7 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { SlidersHorizontal, Package, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { SlidersHorizontal, Package, Search, ChevronLeft, ChevronRight, Headphones } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -148,9 +148,9 @@ const OrdersSkeleton = ({ isMobile }: { isMobile: boolean }) => {
 };
 
 const getOrderProgressStep = (status: OrderStatus, isUnpaidOrder: boolean) => {
-  if (isUnpaidOrder || status === 'cancelado') return 0;
-  if (status === 'completado') return 3;
-  if (status === 'en_reparto') return 2;
+  if (isUnpaidOrder || status === 'CANCELLED') return 0;
+  if (status === 'DELIVERED') return 3;
+  if (status === 'SHIPPED') return 2;
   return 1;
 };
 
@@ -162,9 +162,9 @@ const getOrderProgressWidth = (step: number) => {
 };
 
 const getOrderProgressColor = (status: OrderStatus, isUnpaidOrder: boolean) => {
-  if (isUnpaidOrder || status === 'cancelado') return 'bg-muted-foreground/30';
-  if (status === 'completado') return 'bg-emerald-500';
-  if (status === 'en_reparto') return 'bg-amber-500';
+  if (isUnpaidOrder || status === 'CANCELLED') return 'bg-muted-foreground/30';
+  if (status === 'DELIVERED') return 'bg-emerald-500';
+  if (status === 'SHIPPED') return 'bg-amber-500';
   return 'bg-primary';
 };
 
@@ -226,25 +226,29 @@ export default function OrdersPage() {
     },
   });
 
-  const statusOptions: OrderStatus[] = ['pendiente', 'procesando', 'en_reparto', 'completado', 'cancelado'];
+  const statusOptions: OrderStatus[] = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
   const statusTranslations: { [key in OrderStatus]: string } = {
-    'pendiente': 'Pendiente',
-    'procesando': 'En Proceso',
-    'en_reparto': 'En Camino',
-    'completado': 'Completado',
-    'cancelado': 'Cancelado',
+    'PENDING': 'Pendiente',
+    'PROCESSING': 'En Proceso',
+    'SHIPPED': 'En Camino',
+    'DELIVERED': 'Completado',
+    'CANCELLED': 'Cancelado',
   };
 
   const getStatusBadgeClass = (status: OrderStatus, isUnpaidOrder: boolean) => {
     if (isUnpaidOrder) {
-      return 'bg-red-100 text-red-700 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
+      return 'bg-red-100 text-red-700 border-none px-3 py-1 text-[10px] font-bold tracking-wider pointer-events-none hover:bg-red-100 hover:text-red-700';
     }
 
     switch (status) {
-      case 'completado': return 'bg-green-100 text-green-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
-      case 'en_reparto': return 'bg-blue-100 text-blue-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
-      case 'cancelado': return 'bg-slate-100 text-slate-500 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
-      default: return 'bg-amber-100 text-amber-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider';
+      case 'DELIVERED':
+        return 'bg-green-100 text-green-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider pointer-events-none hover:bg-green-100 hover:text-green-600';
+      case 'SHIPPED':
+        return 'bg-blue-100 text-blue-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider pointer-events-none hover:bg-blue-100 hover:text-blue-600';
+      case 'CANCELLED':
+        return 'bg-slate-100 text-slate-500 border-none px-3 py-1 text-[10px] font-bold tracking-wider pointer-events-none hover:bg-slate-100 hover:text-slate-500';
+      default:
+        return 'bg-amber-100 text-amber-600 border-none px-3 py-1 text-[10px] font-bold tracking-wider pointer-events-none hover:bg-amber-100 hover:text-amber-600';
     }
   };
 
@@ -252,8 +256,8 @@ export default function OrdersPage() {
     return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+  const formatDate = (dateValue: Date | string) => {
+    const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
     return date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
@@ -332,18 +336,20 @@ export default function OrdersPage() {
                 {pageRows.map((row) => {
                   const order = row.original;
                   const isUnpaidOrder = !(order as any).has_payment_transaction;
+                  const isCancelled = order.status === 'CANCELLED';
                   const progressStep = getOrderProgressStep(order.status, isUnpaidOrder);
                   const progressColor = getOrderProgressColor(order.status, isUnpaidOrder);
                   return (
                     <Card key={order.id} className={cn(
                       'rounded-2xl border border-border/60 shadow-sm bg-background overflow-hidden',
-                      isUnpaidOrder && 'ring-1 ring-red-200/40'
+                      isUnpaidOrder && !isCancelled && 'ring-1 ring-red-200/40',
+                      isCancelled && 'opacity-50 grayscale-[40%]'
                     )}>
                       <CardContent className="p-5 space-y-5">
                         <div className="flex justify-between items-center">
                           <div>
                             <h3 className="text-primary font-bold text-lg">#{String(order.id).padStart(4, '0')}</h3>
-                            <p className="text-xs text-muted-foreground">{formatDate(order.delivery_date)}</p>
+                            <p className="text-xs text-muted-foreground">{formatDate(order.deliveryDate)}</p>
                           </div>
                           <Badge className={cn('uppercase', getStatusBadgeClass(order.status, isUnpaidOrder))}>
                             {isUnpaidOrder ? 'Sin pago' : statusTranslations[order.status]}
@@ -353,7 +359,7 @@ export default function OrdersPage() {
                         <div className="flex items-center -space-x-2">
                           {(order.items || []).slice(0, 3).map((item, idx) => (
                             <div key={`${order.id}-${idx}`} className="relative h-11 w-11 rounded-lg overflow-hidden ring-2 ring-background bg-muted">
-                              <Image src={item.image || '/placehold.webp'} alt={item.product_name || 'Producto'} fill className="object-cover" />
+                              <Image src={item.imageSnap || '/placehold.webp'} alt={item.productNameSnap || 'Producto'} fill className="object-cover" />
                             </div>
                           ))}
                           {(order.items?.length || 0) > 3 && (
@@ -391,16 +397,32 @@ export default function OrdersPage() {
                         </div>
 
                         <div className="flex justify-end">
-                          <DialogCell 
-                            row={order} 
-                            onDataChange={fetchUserOrders}
-                            trigger={
-                              <Button variant="ghost" className="h-9 px-3 text-primary font-semibold text-sm hover:bg-primary/5 gap-1">
-                                Ver más
-                                <ChevronRight className="w-4 h-4" />
+                          {isCancelled ? (
+                            <Link href="/customer-service">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-9 px-3 text-muted-foreground font-semibold text-xs rounded-xl border border-transparent gap-1.5 hover:border-muted-foreground/30 hover:bg-muted/50 transition-all"
+                              >
+                                <Headphones className="w-3.5 h-3.5" />
+                                Soporte
                               </Button>
-                            }
-                          />
+                            </Link>
+                          ) : (
+                            <DialogCell
+                              row={order}
+                              onDataChange={fetchUserOrders}
+                              trigger={
+                                <Button
+                                  variant="ghost"
+                                  className="group/button h-9 px-3 text-primary font-semibold text-sm rounded-xl border border-transparent gap-1 transition-all duration-200 hover:border-primary/40 hover:bg-primary/5 hover:shadow-[0_8px_25px_rgba(244,37,106,0.18)] dark:hover:shadow-[0_8px_25px_rgba(244,37,106,0.35)] focus-visible:ring-2 focus-visible:ring-primary/40"
+                                >
+                                  Ver más
+                                  <ChevronRight className="w-4 h-4" />
+                                </Button>
+                              }
+                            />
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -421,21 +443,30 @@ export default function OrdersPage() {
                   {pageRows.map((row) => {
                     const order = row.original;
                     const isUnpaidOrder = !(order as any).has_payment_transaction;
+                    const isCancelled = order.status === 'CANCELLED';
                     const progressStep = getOrderProgressStep(order.status, isUnpaidOrder);
                     const progressColor = getOrderProgressColor(order.status, isUnpaidOrder);
 
                     return (
-                      <div key={order.id} className={cn('px-6 lg:px-8 py-6 transition-colors hover:bg-primary/5', isUnpaidOrder && 'opacity-85')}>
+                      <div
+                        key={order.id}
+                        className={cn(
+                          'group relative px-6 lg:px-8 py-6 transition-all duration-300 bg-background border-l-4 border-transparent',
+                          !isCancelled && 'hover:border-primary/50 dark:hover:border-white/40 hover:bg-gradient-to-r hover:from-primary/10 hover:to-transparent dark:hover:from-white/10 dark:hover:to-transparent hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)] dark:hover:shadow-[0_18px_40px_rgba(0,0,0,0.6)]',
+                          isCancelled && 'opacity-50 grayscale-[40%]',
+                          isUnpaidOrder && !isCancelled && 'opacity-85'
+                        )}
+                      >
                         <div className="grid grid-cols-12 gap-4 items-center">
                           <div className="col-span-2">
                             <span className="block text-primary font-bold text-2xl mb-0.5">#{String(order.id).padStart(4, '0')}</span>
-                            <span className="text-xs text-muted-foreground">{formatDate(order.delivery_date)}</span>
+                            <span className="text-xs text-muted-foreground">{formatDate(order.deliveryDate)}</span>
                           </div>
 
                           <div className="col-span-4 flex -space-x-2">
                             {(order.items || []).slice(0, 3).map((item, idx) => (
                               <div key={`${order.id}-desktop-${idx}`} className="relative inline-block h-12 w-12 rounded-lg ring-4 ring-background overflow-hidden bg-muted">
-                                <Image src={item.image || '/placehold.webp'} alt={item.product_name || 'Producto'} fill className="object-cover" />
+                                <Image src={item.imageSnap || '/placehold.webp'} alt={item.productNameSnap || 'Producto'} fill className="object-cover" />
                               </div>
                             ))}
                             {(order.items?.length || 0) > 3 && (
@@ -456,16 +487,31 @@ export default function OrdersPage() {
                           </div>
 
                           <div className="col-span-2 flex justify-end">
-                            <DialogCell
-                              row={order}
-                              onDataChange={fetchUserOrders}
-                              trigger={
-                                <Button variant="ghost" className="text-primary font-semibold text-sm hover:bg-primary/5 gap-1">
-                                  Ver más
-                                  <ChevronRight className="w-4 h-4" />
+                            {isCancelled ? (
+                              <Link href="/customer-service">
+                                <Button
+                                  variant="ghost"
+                                  className="h-9 px-3 text-muted-foreground font-semibold text-sm rounded-xl border border-transparent gap-1.5 hover:border-muted-foreground/30 hover:bg-muted/50 transition-all"
+                                >
+                                  <Headphones className="w-4 h-4" />
+                                  Contactar soporte
                                 </Button>
-                              }
-                            />
+                              </Link>
+                            ) : (
+                              <DialogCell
+                                row={order}
+                                onDataChange={fetchUserOrders}
+                                trigger={
+                                  <Button
+                                    variant="ghost"
+                                    className="group/button text-primary font-semibold text-sm rounded-xl px-3 py-2 border border-transparent gap-1 transition-all duration-200 hover:border-primary/40 hover:bg-primary/5 hover:shadow-[0_12px_30px_rgba(244,37,106,0.15)] dark:hover:shadow-[0_12px_30px_rgba(244,37,106,0.35)] focus-visible:ring-2 focus-visible:ring-primary/40"
+                                  >
+                                    Ver más
+                                    <ChevronRight className="w-4 h-4" />
+                                  </Button>
+                                }
+                              />
+                            )}
                           </div>
                         </div>
 

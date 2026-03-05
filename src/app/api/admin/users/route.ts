@@ -27,14 +27,18 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status') || 'active';
     const searchTerm = searchParams.get('search') || '';
     const roles = searchParams.get('roles')?.split(',').filter(Boolean) || [];
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
 
-    const users = await userService.getAllUsersForAdmin({
+    const result = await userService.getAllUsersForAdmin({
       status: status as 'active' | 'deleted' | 'all',
       searchTerm,
       roles,
+      page,
+      limit,
     });
-    
-    return successResponse(users);
+
+    return successResponse(result);
 
   } catch (error) {
     console.error('[API_ADMIN_USERS_GET_ERROR]', error);

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -15,15 +15,46 @@ const CheckoutSuccessContent = () => {
   const { clearCart } = useCart();
   const { user } = useAuth();
   const hasClearedRef = useRef(false);
+  const hasReconciledRef = useRef(false);
 
-  const orderId = useMemo(() => searchParams.get('order_id'), [searchParams]);
-  const sessionId = useMemo(() => searchParams.get('session_id'), [searchParams]);
+  const orderId = searchParams.get('order_id');
+  const sessionId = searchParams.get('session_id');
+  const mercadoPagoPaymentId = searchParams.get('payment_id') ?? searchParams.get('collection_id');
 
   useEffect(() => {
     if (hasClearedRef.current) return;
     hasClearedRef.current = true;
     clearCart();
   }, [clearCart]);
+
+  useEffect(() => {
+    if (hasReconciledRef.current) return;
+    if (!orderId) return;
+
+    const numericOrderId = Number(orderId);
+    if (!Number.isFinite(numericOrderId) || numericOrderId <= 0) return;
+
+    const payload: Record<string, unknown> = { orderId: numericOrderId };
+    if (sessionId) {
+      payload.gateway = 'stripe';
+      payload.sessionId = sessionId;
+    } else if (mercadoPagoPaymentId) {
+      payload.gateway = 'mercadopago';
+      payload.paymentId = mercadoPagoPaymentId;
+    } else {
+      return;
+    }
+
+    hasReconciledRef.current = true;
+
+    fetch('/api/orders/reconcile-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(error => {
+      console.error('No se pudo reconciliar el pago', error);
+    });
+  }, [orderId, sessionId, mercadoPagoPaymentId]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background">

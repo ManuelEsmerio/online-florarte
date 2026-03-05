@@ -28,6 +28,13 @@ const LoginContent = () => {
     }
   }, [user, authLoading, router, searchParams]);
 
+  useEffect(() => {
+    if (searchParams.get('verified') === 'true') {
+      toast({ title: '¡Correo verificado!', description: 'Ya puedes iniciar sesión.', variant: 'success' });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const result = await login({ email, password });
@@ -36,6 +43,9 @@ const LoginContent = () => {
       toast({ title: '¡Bienvenido de vuelta!', variant: 'success' });
       const redirectUrl = searchParams.get('redirect') || '/';
       router.push(redirectUrl);
+    } else if (result.errorCode === 'EMAIL_NOT_VERIFIED') {
+      const verifyEmail = result.data?.email ?? email;
+      router.push(`/verify-email?email=${encodeURIComponent(verifyEmail)}`);
     } else {
       toast({
         title: 'Error de autenticación',

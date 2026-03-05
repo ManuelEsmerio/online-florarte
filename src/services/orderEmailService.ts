@@ -1,28 +1,39 @@
 import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/email';
+import type { OrderStatus } from '@/lib/definitions';
+import { renderOrderConfirmationTemplate } from '@/lib/email-templates/order-confirmation.template';
+import { renderNewOrderNotificationTemplate } from '@/lib/email-templates/new-order-notification.template';
+import { renderOrderStatusUpdateTemplate } from '@/lib/email-templates/order-status-update.template';
+import { renderRefundNotificationTemplate } from '@/lib/email-templates/refund-notification.template';
+import type { OrderEmailPayload, PaymentSummary } from '@/lib/email-templates/types';
 
 type OrderWithRelations = {
   id: number;
   status: string;
   subtotal: any;
+  couponDiscount: any;
   shippingCost: any;
   total: any;
-  deliveryDate: Date;
-  deliveryTimeSlot: string;
+  deliveryDate: Date | null;
+  deliveryTimeSlot: string | null;
+  deliveryNotes: string | null;
   dedication: string | null;
   isAnonymous: boolean;
   signature: string | null;
   createdAt: Date;
+  updatedAt: Date;
   guestName: string | null;
   guestEmail: string | null;
-  user: { name: string; email: string } | null;
+  guestPhone: string | null;
+  user: { id: number; name: string; email: string } | null;
   orderAddress: {
-    recipientName: string;
+    recipientName: string | null;
     recipientPhone: string | null;
-    formattedAddress: string;
+    formattedAddress: string | null;
     referenceNotes: string | null;
   } | null;
   items: Array<{
+    id: number;
     productNameSnap: string;
     quantity: number;
     unitPrice: any;
@@ -36,11 +47,33 @@ type OrderWithRelations = {
   }>;
 };
 
+const PAYMENT_GATEWAY_LABELS: Record<string, string> = {
+  stripe: 'Tarjeta (Stripe)',
+  mercadopago: 'Mercado Pago',
+  manual: 'Pago manual',
+};
+
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  SUCCEEDED: 'Pagado',
+  PENDING: 'Pendiente',
+  FAILED: 'Pago fallido',
+  CANCELED: 'Pago cancelado',
+  REQUIRES_ACTION: 'Acción requerida',
+};
+
+const STATUS_SUBJECT_LABELS: Record<OrderStatus, string> = {
+  PENDING: 'Pedido recibido',
+  PROCESSING: 'En preparación',
+  SHIPPED: 'En ruta',
+  DELIVERED: 'Entregado',
+  CANCELLED: 'Cancelado',
+};
+
 async function getOrderWithRelations(orderId: number): Promise<OrderWithRelations | null> {
   return (await (prisma as any).order.findUnique({
     where: { id: orderId },
     include: {
-      user: { select: { name: true, email: true } },
+      user: { select: { id: true, name: true, email: true } },
       orderAddress: {
         select: {
           recipientName: true,
@@ -51,6 +84,7 @@ async function getOrderWithRelations(orderId: number): Promise<OrderWithRelation
       },
       items: {
         select: {
+          id: true,
           productNameSnap: true,
           quantity: true,
           unitPrice: true,
@@ -71,213 +105,106 @@ async function getOrderWithRelations(orderId: number): Promise<OrderWithRelation
   })) as OrderWithRelations | null;
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'MXN',
-  }).format(amount);
+const orderCode = (orderId: number) => `ORD${String(orderId).padStart(6, '0')}`;
+
+const getGatewayLabel = (gateway?: string | null) => {
+  if (!gateway) return 'Pago en línea';
+  const key = gateway.toLowerCase();
+  return PAYMENT_GATEWAY_LABELS[key] ?? gateway;
+};
+
+const mapPaymentStatus = (status?: string | null) => {
+  if (!status) return 'Pendiente';
+  return PAYMENT_STATUS_LABELS[status.toUpperCase()] ?? status;
+};
+
+function normalizeOrderForEmail(order: OrderWithRelations): OrderEmailPayload {
+  const subtotal = Number(order.subtotal ?? 0);
+  const couponDiscount = Number(order.couponDiscount ?? 0);
+  const shippingCost = Number(order.shippingCost ?? 0);
+  const total = Number(order.total ?? subtotal - couponDiscount + shippingCost);
+  const customerName = order.user?.name ?? order.guestName ?? 'Cliente invitado';
+  const customerEmail = order.user?.email ?? order.guestEmail ?? '';
+  const addressPhone = order.orderAddress?.recipientPhone ?? order.guestPhone ?? null;
+
+  return {
+    id: order.id,
+    code: orderCode(order.id),
+    status: String(order.status ?? 'PENDING').toUpperCase(),
+    subtotal,
+    couponDiscount,
+    shippingCost,
+    total,
+    deliveryDate: order.deliveryDate ?? null,
+    deliveryTimeSlot: order.deliveryTimeSlot ?? null,
+    dedication: order.dedication,
+    deliveryNotes: order.deliveryNotes,
+    isAnonymous: Boolean(order.isAnonymous),
+    signature: order.signature,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+    customerName,
+    customerEmail,
+    customerPhone: addressPhone,
+    paymentGateway: order.paymentTransactions[0]?.gateway ?? null,
+    address: {
+      recipientName: order.orderAddress?.recipientName ?? customerName,
+      recipientPhone: addressPhone,
+      line1: order.orderAddress?.formattedAddress ?? null,
+      referenceNotes: order.orderAddress?.referenceNotes ?? null,
+    },
+    items: order.items.map((item) => {
+      const quantity = Number(item.quantity ?? 0);
+      const unitPrice = Number(item.unitPrice ?? 0);
+      return {
+        name: item.productNameSnap,
+        quantity,
+        unitPrice,
+        subtotal: quantity * unitPrice,
+      };
+    }),
+  };
 }
 
-function orderCode(orderId: number): string {
-  return `ORD${String(orderId).padStart(6, '0')}`;
-}
-
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('es-MX', {
-    dateStyle: 'long',
-  }).format(date);
-}
-
-function formatDateTime(date: Date): string {
-  return new Intl.DateTimeFormat('es-MX', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
-}
-
-function renderItemsTable(items: OrderWithRelations['items']): string {
-  const rows = items
-    .map((item) => {
-      const quantity = Number(item.quantity || 0);
-      const unitPrice = Number(item.unitPrice || 0);
-      const lineTotal = quantity * unitPrice;
-      return `
-        <tr>
-          <td style="padding:10px;border-bottom:1px solid #eee;">${item.productNameSnap}</td>
-          <td style="padding:10px;border-bottom:1px solid #eee;text-align:center;">${quantity}</td>
-          <td style="padding:10px;border-bottom:1px solid #eee;text-align:right;">${formatCurrency(unitPrice)}</td>
-          <td style="padding:10px;border-bottom:1px solid #eee;text-align:right;">${formatCurrency(lineTotal)}</td>
-        </tr>
-      `;
-    })
-    .join('');
-
-  return `
-    <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-top:16px;">
-      <thead>
-        <tr>
-          <th style="text-align:left;padding:10px;background:#f7f7f7;border-bottom:2px solid #eee;">Producto</th>
-          <th style="text-align:center;padding:10px;background:#f7f7f7;border-bottom:2px solid #eee;">Cant.</th>
-          <th style="text-align:right;padding:10px;background:#f7f7f7;border-bottom:2px solid #eee;">Precio</th>
-          <th style="text-align:right;padding:10px;background:#f7f7f7;border-bottom:2px solid #eee;">Subtotal</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-}
-
-function renderCustomerEmailHtml(order: OrderWithRelations, paymentStatus: string): string {
-  const customerName = order.user?.name ?? order.guestName ?? 'Cliente';
-  const orderNumber = orderCode(order.id);
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:9002';
-
-  return `
-    <!DOCTYPE html>
-    <html lang="es">
-    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-    <body style="margin:0;padding:0;background:#f8f8f8;font-family:Arial,sans-serif;color:#222;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0;">
-        <tr>
-          <td align="center">
-            <table width="640" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;overflow:hidden;">
-              <tr>
-                <td style="background:#c084ab;padding:20px 24px;color:#fff;">
-                  <h1 style="margin:0;font-size:22px;">¡Gracias por tu compra en Florarte!</h1>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding:24px;">
-                  <p style="margin:0 0 12px;">Hola ${customerName},</p>
-                  <p style="margin:0 0 12px;">Confirmamos tu pedido <strong>${orderNumber}</strong>. Te compartimos el resumen:</p>
-                  <p style="margin:0 0 4px;"><strong>Estado de pago:</strong> ${paymentStatus}</p>
-                  <p style="margin:0 0 4px;"><strong>Fecha de pedido:</strong> ${formatDateTime(order.createdAt)}</p>
-                  <p style="margin:0 0 4px;"><strong>Entrega:</strong> ${formatDate(order.deliveryDate)} · ${order.deliveryTimeSlot}</p>
-                  <p style="margin:0 0 4px;"><strong>Recibe:</strong> ${order.orderAddress?.recipientName ?? customerName}</p>
-                  <p style="margin:0 0 16px;"><strong>Dirección:</strong> ${order.orderAddress?.formattedAddress ?? 'Por confirmar'}</p>
-
-                  ${renderItemsTable(order.items)}
-
-                  <div style="margin-top:16px;text-align:right;">
-                    <p style="margin:6px 0;">Subtotal: <strong>${formatCurrency(Number(order.subtotal || 0))}</strong></p>
-                    <p style="margin:6px 0;">Envío: <strong>${formatCurrency(Number(order.shippingCost || 0))}</strong></p>
-                    <p style="margin:6px 0;font-size:18px;">Total: <strong>${formatCurrency(Number(order.total || 0))}</strong></p>
-                  </div>
-
-                  <div style="margin-top:22px;text-align:center;">
-                    <a href="${appUrl}/orders" style="display:inline-block;background:#c084ab;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:700;">Ver mis pedidos</a>
-                  </div>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-    </body>
-    </html>
-  `;
-}
-
-function renderAdminEmailHtml(order: OrderWithRelations, paymentStatus: string): string {
-  const orderNumber = orderCode(order.id);
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:9002';
+function buildPaymentSummary(order: OrderWithRelations): PaymentSummary {
   const latestPayment = order.paymentTransactions[0];
-
-  return `
-    <!DOCTYPE html>
-    <html lang="es">
-    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-    <body style="margin:0;padding:0;background:#f8f8f8;font-family:Arial,sans-serif;color:#222;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0;">
-        <tr>
-          <td align="center">
-            <table width="700" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;overflow:hidden;">
-              <tr>
-                <td style="background:#1f2937;padding:20px 24px;color:#fff;">
-                  <h1 style="margin:0;font-size:22px;">Nuevo pedido confirmado: ${orderNumber}</h1>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding:24px;">
-                  <p style="margin:0 0 8px;"><strong>Cliente:</strong> ${order.user?.name ?? order.guestName ?? 'Cliente invitado'}</p>
-                  <p style="margin:0 0 8px;"><strong>Email:</strong> ${order.user?.email ?? order.guestEmail ?? 'N/A'}</p>
-                  <p style="margin:0 0 8px;"><strong>Teléfono:</strong> ${order.orderAddress?.recipientPhone ?? 'N/A'}</p>
-                  <p style="margin:0 0 8px;"><strong>Estado de pedido:</strong> ${order.status}</p>
-                  <p style="margin:0 0 8px;"><strong>Estado de pago:</strong> ${paymentStatus}</p>
-                  <p style="margin:0 0 8px;"><strong>Pasarela:</strong> ${latestPayment?.gateway ?? 'N/A'}</p>
-                  <p style="margin:0 0 8px;"><strong>ID Pago:</strong> ${latestPayment?.externalPaymentId ?? 'N/A'}</p>
-                  <p style="margin:0 0 8px;"><strong>Monto pagado:</strong> ${formatCurrency(Number(latestPayment?.amount ?? 0))}</p>
-                  <p style="margin:0 0 8px;"><strong>Fecha de pago:</strong> ${latestPayment?.createdAt ? formatDateTime(latestPayment.createdAt) : 'N/A'}</p>
-                  <p style="margin:0 0 8px;"><strong>Entrega:</strong> ${formatDate(order.deliveryDate)} · ${order.deliveryTimeSlot}</p>
-                  <p style="margin:0 0 8px;"><strong>Destinatario:</strong> ${order.orderAddress?.recipientName ?? 'N/A'}</p>
-                  <p style="margin:0 0 8px;"><strong>Dirección:</strong> ${order.orderAddress?.formattedAddress ?? 'N/A'}</p>
-                  <p style="margin:0 0 12px;"><strong>Referencia:</strong> ${order.orderAddress?.referenceNotes ?? 'N/A'}</p>
-                  <p style="margin:0 0 12px;"><strong>Dedicatoria:</strong> ${order.dedication ?? 'N/A'}</p>
-                  <p style="margin:0 0 12px;"><strong>Firma:</strong> ${order.isAnonymous ? 'Anónimo' : (order.signature ?? 'N/A')}</p>
-
-                  ${renderItemsTable(order.items)}
-
-                  <div style="margin-top:16px;text-align:right;">
-                    <p style="margin:6px 0;">Subtotal: <strong>${formatCurrency(Number(order.subtotal || 0))}</strong></p>
-                    <p style="margin:6px 0;">Envío: <strong>${formatCurrency(Number(order.shippingCost || 0))}</strong></p>
-                    <p style="margin:6px 0;font-size:18px;">Total: <strong>${formatCurrency(Number(order.total || 0))}</strong></p>
-                  </div>
-
-                  <div style="margin-top:22px;text-align:center;">
-                    <a href="${appUrl}/admin/orders" style="display:inline-block;background:#1f2937;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:700;">Ir a pedidos admin</a>
-                  </div>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-    </body>
-    </html>
-  `;
+  return {
+    method: getGatewayLabel(latestPayment?.gateway ?? order.paymentTransactions[0]?.gateway),
+    status: mapPaymentStatus(latestPayment?.status),
+    reference: latestPayment?.externalPaymentId ?? null,
+    processedAt: latestPayment?.createdAt ?? null,
+    amount: latestPayment ? Number(latestPayment.amount ?? 0) : Number(order.total ?? 0),
+  };
 }
 
-function renderAdminFailedPaymentEmailHtml(order: OrderWithRelations, paymentStatus: string): string {
-  const orderNumber = orderCode(order.id);
+function renderAdminFailedPaymentEmailHtml(order: OrderEmailPayload, payment: PaymentSummary): string {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:9002';
-  const latestPayment = order.paymentTransactions[0];
-
   return `
     <!DOCTYPE html>
     <html lang="es">
     <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-    <body style="margin:0;padding:0;background:#fff4f4;font-family:Arial,sans-serif;color:#222;">
+    <body style="margin:0;padding:0;background:#fff4f4;font-family:Arial,sans-serif;color:#1f2937;">
       <table width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0;">
         <tr>
           <td align="center">
-            <table width="700" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;overflow:hidden;">
+            <table width="680" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 12px 30px rgba(185,28,28,0.2);">
               <tr>
-                <td style="background:#b91c1c;padding:20px 24px;color:#fff;">
-                  <h1 style="margin:0;font-size:22px;">Pago fallido detectado: ${orderNumber}</h1>
+                <td style="background:#b91c1c;padding:24px;color:#fff;">
+                  <h1 style="margin:0;font-size:22px;">Pago fallido · ${order.code}</h1>
+                  <p style="margin:6px 0 0;color:rgba(255,255,255,0.8);">${payment.status}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:24px;">
-                  <p style="margin:0 0 8px;"><strong>Cliente:</strong> ${order.user?.name ?? order.guestName ?? 'Cliente invitado'}</p>
-                  <p style="margin:0 0 8px;"><strong>Email:</strong> ${order.user?.email ?? order.guestEmail ?? 'N/A'}</p>
-                  <p style="margin:0 0 8px;"><strong>Estado de pago:</strong> ${paymentStatus}</p>
-                  <p style="margin:0 0 8px;"><strong>Pasarela:</strong> ${latestPayment?.gateway ?? 'N/A'}</p>
-                  <p style="margin:0 0 8px;"><strong>ID Pago:</strong> ${latestPayment?.externalPaymentId ?? 'N/A'}</p>
-                  <p style="margin:0 0 8px;"><strong>Monto:</strong> ${formatCurrency(Number(latestPayment?.amount ?? 0))}</p>
-                  <p style="margin:0 0 8px;"><strong>Fecha evento:</strong> ${latestPayment?.createdAt ? formatDateTime(latestPayment.createdAt) : 'N/A'}</p>
-                  <p style="margin:0 0 8px;"><strong>Entrega:</strong> ${formatDate(order.deliveryDate)} · ${order.deliveryTimeSlot}</p>
-                  <p style="margin:0 0 12px;"><strong>Dirección:</strong> ${order.orderAddress?.formattedAddress ?? 'N/A'}</p>
-
-                  ${renderItemsTable(order.items)}
-
-                  <div style="margin-top:16px;text-align:right;">
-                    <p style="margin:6px 0;">Subtotal: <strong>${formatCurrency(Number(order.subtotal || 0))}</strong></p>
-                    <p style="margin:6px 0;">Envío: <strong>${formatCurrency(Number(order.shippingCost || 0))}</strong></p>
-                    <p style="margin:6px 0;font-size:18px;">Total del pedido: <strong>${formatCurrency(Number(order.total || 0))}</strong></p>
-                  </div>
-
-                  <div style="margin-top:22px;text-align:center;">
-                    <a href="${appUrl}/admin/orders" style="display:inline-block;background:#b91c1c;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:700;">Revisar pedido en admin</a>
+                  <p><strong>Cliente:</strong> ${order.customerName} · ${order.customerEmail || 'Sin correo'}</p>
+                  <p><strong>Pasarela:</strong> ${order.paymentGateway ?? 'N/A'}</p>
+                  <p><strong>Referencia:</strong> ${payment.reference ?? 'N/A'}</p>
+                  <p><strong>Monto:</strong> ${payment.amount ? new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(payment.amount) : 'N/A'}</p>
+                  <p><strong>Entrega:</strong> ${order.deliveryDate ? new Intl.DateTimeFormat('es-MX', { dateStyle: 'long' }).format(order.deliveryDate) : 'Por confirmar'} · ${order.deliveryTimeSlot || 'Horario por confirmar'}</p>
+                  <p><strong>Dirección:</strong> ${order.address.line1 || 'Por confirmar'}</p>
+                  <p style="margin-top:18px;">Se recomienda revisar el pedido y volver a contactar al cliente.</p>
+                  <div style="margin-top:20px;text-align:center;">
+                    <a href="${appUrl}/admin/orders/${order.id}" style="display:inline-block;background:#b91c1c;color:#fff;padding:12px 24px;border-radius:999px;text-decoration:none;font-weight:600;">Abrir pedido</a>
                   </div>
                 </td>
               </tr>
@@ -292,58 +219,106 @@ function renderAdminFailedPaymentEmailHtml(order: OrderWithRelations, paymentSta
 
 export const orderEmailService = {
   async sendOrderConfirmationAndAdminNotification(orderId: number) {
-    const order = await getOrderWithRelations(orderId);
+    const orderRecord = await getOrderWithRelations(orderId);
+    if (!orderRecord) return;
 
-    if (!order) {
-      return;
-    }
-
-    const customerEmail = (order.user?.email ?? order.guestEmail ?? '').trim();
+    const order = normalizeOrderForEmail(orderRecord);
+    const payment = buildPaymentSummary(orderRecord);
+    const customerEmail = order.customerEmail?.trim();
     const adminEmail = String(process.env.ADMIN_EMAIL ?? '').trim();
-    const latestPayment = order.paymentTransactions[0];
-    const paymentStatus = latestPayment?.status === 'SUCCEEDED' ? 'Pagado' : latestPayment?.status ?? 'PENDIENTE';
 
-    const emailJobs: Array<Promise<unknown>> = [];
+    const jobs: Promise<unknown>[] = [];
 
     if (customerEmail) {
-      emailJobs.push(
+      jobs.push(
         sendEmail({
           to: customerEmail,
-          subject: `Confirmación de pedido ${orderCode(order.id)} — Florarte`,
-          html: renderCustomerEmailHtml(order, paymentStatus),
+          subject: `Confirmación de pedido ${order.code} — Florarte`,
+          html: renderOrderConfirmationTemplate({
+            userName: order.customerName,
+            order,
+            payment,
+          }),
         }),
       );
     }
 
     if (adminEmail) {
-      emailJobs.push(
+      jobs.push(
         sendEmail({
           to: adminEmail,
-          subject: `Nuevo pedido ${orderCode(order.id)} · ${paymentStatus}`,
-          html: renderAdminEmailHtml(order, paymentStatus),
+          subject: `Nuevo pedido ${order.code} · ${payment.status}`,
+          html: renderNewOrderNotificationTemplate({ order, payment }),
         }),
       );
     }
 
-    if (emailJobs.length > 0) {
-      await Promise.allSettled(emailJobs);
+    if (jobs.length) {
+      await Promise.allSettled(jobs);
     }
   },
 
+  async sendOrderStatusChangeNotification(orderId: number, newStatus: OrderStatus) {
+    const orderRecord = await getOrderWithRelations(orderId);
+    if (!orderRecord) return;
+
+    const order = normalizeOrderForEmail(orderRecord);
+    const customerEmail = order.customerEmail?.trim();
+    if (!customerEmail) return;
+
+    try {
+      await sendEmail({
+        to: customerEmail,
+        subject: `Actualización ${order.code} · ${STATUS_SUBJECT_LABELS[newStatus]}`,
+        html: renderOrderStatusUpdateTemplate({
+          userName: order.customerName,
+          order,
+          newStatus,
+          updatedAt: new Date(),
+        }),
+      });
+    } catch (error) {
+      console.error('[ORDER_STATUS_EMAIL_ERROR]', error);
+    }
+  },
+
+  async sendRefundNotificationEmail(orderId: number, refunded: boolean) {
+    const orderRecord = await getOrderWithRelations(orderId);
+    if (!orderRecord) return;
+
+    const order = normalizeOrderForEmail(orderRecord);
+    const customerEmail = order.customerEmail?.trim();
+    if (!customerEmail) return;
+
+    const subject = refunded
+      ? `Tu reembolso está en proceso · ${order.code}`
+      : `Tu pedido fue cancelado · ${order.code}`;
+
+    await sendEmail({
+      to: customerEmail,
+      subject,
+      html: renderRefundNotificationTemplate({
+        userName: order.customerName,
+        order,
+        refunded,
+      }),
+    });
+  },
+
   async sendFailedPaymentAdminNotification(orderId: number) {
-    const order = await getOrderWithRelations(orderId);
-    if (!order) return;
+    const orderRecord = await getOrderWithRelations(orderId);
+    if (!orderRecord) return;
 
     const adminEmail = String(process.env.ADMIN_EMAIL ?? '').trim();
     if (!adminEmail) return;
 
-    const latestPayment = order.paymentTransactions[0];
-    const paymentStatus = latestPayment?.status ?? 'FAILED';
+    const order = normalizeOrderForEmail(orderRecord);
+    const payment = buildPaymentSummary(orderRecord);
 
     await sendEmail({
       to: adminEmail,
-      subject: `Pago fallido ${orderCode(order.id)} · ${paymentStatus}`,
-      html: renderAdminFailedPaymentEmailHtml(order, paymentStatus),
+      subject: `Pago fallido ${order.code} · ${payment.status}`,
+      html: renderAdminFailedPaymentEmailHtml(order, payment),
     });
   },
 };

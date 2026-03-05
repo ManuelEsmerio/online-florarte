@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { errorHandler } from '@/utils/api-utils';
-import { signToken, COOKIE_NAME, COOKIE_MAX_AGE } from '@/lib/jwt';
 import { sendVerificationEmail } from '@/lib/email';
 import crypto from 'crypto';
 import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
@@ -55,29 +54,16 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const { passwordHash: _, ...userSafe } = newUser;
-
-    const jwtToken = await signToken({
-      sub: String(newUser.id),
-      role: newUser.role,
-    });
-
-    const res = NextResponse.json({ success: true, data: userSafe }, { status: 201 });
-
-    res.cookies.set(COOKIE_NAME, jwtToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: COOKIE_MAX_AGE,
-      path: '/',
-    });
-
     // Enviar email en background — no bloquear la respuesta si falla
     sendVerificationEmail(emailLower, verificationToken).catch((err) => {
       console.error('[REGISTER] Error enviando email de verificación:', err);
     });
 
-    return res;
+    // No auto-login: el usuario debe verificar su correo primero
+    return NextResponse.json(
+      { success: true, needsVerification: true, email: emailLower },
+      { status: 201 }
+    );
 
   } catch (error) {
     return errorHandler(error, 500);

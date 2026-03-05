@@ -49,6 +49,19 @@ export async function POST(req: NextRequest) {
       return errorHandler(new Error('Credenciales inválidas.'), 401);
     }
 
+    // Bloquear login si el correo no ha sido verificado
+    if (!user.emailVerifiedAt) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Debes verificar tu correo electrónico antes de iniciar sesión.',
+          errorCode: 'EMAIL_NOT_VERIFIED',
+          email: emailLower,
+        },
+        { status: 403 }
+      );
+    }
+
     const { passwordHash: _, ...userSafe } = user;
 
     const token = await signToken({

@@ -13,7 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, Loader2, ArrowRight, Flower2, Leaf, X } from 'lucide-react';
-import { ProductRow } from '@/lib/definitions';
+import type { Product } from '@/lib/definitions';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Badge } from './ui/badge';
@@ -83,7 +83,7 @@ export function SearchDialog() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -114,11 +114,11 @@ export function SearchDialog() {
       const res = await apiFetch(
         `/api/products/search?q=${encodeURIComponent(debouncedSearchTerm)}`
       );
-      const data = await handleApiResponse(res);
+      const data = await handleApiResponse<{ products?: SearchProduct[] }>(res);
       const rawProducts: SearchProduct[] = data.products ?? [];
 
       // Expandir variantes como filas individuales en resultados
-      return rawProducts.flatMap(p => {
+      return (rawProducts.flatMap((p): any[] => {
         if (p.hasVariants && p.variants.length > 0) {
           return p.variants.map(v => ({
             ...p,
@@ -140,7 +140,7 @@ export function SearchDialog() {
           displaySalePrice: p.salePrice != null ? Number(p.salePrice) : null,
           displayImage: p.mainImage ?? '/placehold.webp',
         }];
-      });
+      }) as SearchProduct[]);
     },
     enabled: isOpen && debouncedSearchTerm.length >= 2,
     staleTime: 1000 * 30,

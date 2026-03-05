@@ -1,5 +1,6 @@
 // src/services/shippingZoneService.ts
 import { prisma } from '@/lib/prisma';
+import { UserFacingError } from '@/utils/errors';
 import type { ShippingZone } from '@/lib/definitions';
 import { z } from 'zod';
 
@@ -67,7 +68,7 @@ async function ensureUniqueCombination(postalCode?: string, locality?: string, e
     where: { postalCode, locality },
   });
   if (existing && existing.id !== excludeId) {
-    throw new Error('Ya existe una zona con este código postal y localidad.');
+    throw new UserFacingError('Ya existe una zona con este código postal y localidad.');
   }
 }
 

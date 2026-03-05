@@ -1,5 +1,6 @@
 // src/services/productService.ts
 import { prisma } from '@/lib/prisma';
+import { UserFacingError } from '@/utils/errors';
 import { Prisma, ProductStatus } from '@prisma/client';
 import type { ProductStatus as ProductStatusType } from '@/lib/definitions';
 import { getPublicUrlForPath } from '@/utils/file-utils';
@@ -177,7 +178,7 @@ function toInteger(value: unknown, fallback = 0): number {
 
 function normalizeBaseProductData(productData: any) {
   const name = String(productData?.name ?? '').trim();
-  if (!name) throw new Error('El nombre del producto es obligatorio.');
+  if (!name) throw new UserFacingError('El nombre del producto es obligatorio.');
 
   const generatedSlug = slugify(name, { lower: true, strict: true });
 
@@ -536,7 +537,7 @@ export const productService = {
 
   async softDeleteProduct(slug: string, _deleterId: number) {
     const product = await prisma.product.findUnique({ where: { slug } });
-    if (!product) throw new Error('Producto no encontrado.');
+    if (!product) throw new UserFacingError('Producto no encontrado.');
     await prisma.product.update({ where: { slug }, data: { isDeleted: true, deletedAt: new Date() } });
     return true;
   },
@@ -561,13 +562,13 @@ export const productService = {
   async createProduct(productData: any, imageFiles: { main: File[]; variants: { index: number; files: File[] }[] }, _creatorId: number): Promise<any> {
     const normalized = normalizeBaseProductData(productData);
     if (!normalized.slug) {
-      throw new Error('No se pudo generar un slug válido para el producto.');
+      throw new UserFacingError('No se pudo generar un slug válido para el producto.');
     }
     if (!normalized.code) {
       normalized.code = `PROD-${Date.now()}`;
     }
     if (!normalized.categoryId) {
-      throw new Error('La categoría del producto es obligatoria.');
+      throw new UserFacingError('La categoría del producto es obligatoria.');
     }
 
     const categoryForCode = await prisma.productCategory.findFirst({
@@ -575,7 +576,7 @@ export const productService = {
       select: { name: true, prefix: true },
     });
     if (!categoryForCode) {
-      throw new Error('La categoría seleccionada no existe o está inactiva.');
+      throw new UserFacingError('La categoría seleccionada no existe o está inactiva.');
     }
 
     const uploadProductKey = normalized.slug || `tmp-${Date.now()}`;
@@ -655,20 +656,20 @@ export const productService = {
                 value: String(spec?.value ?? '').trim(),
                 sortOrder: toInteger(spec?.sortOrder ?? spec?.sort_order, index),
               }))
-              .filter((spec) => spec.key && spec.value),
+              .filter((spec: any) => spec.key && spec.value),
           });
         }
 
         if (normalized.tagIds.length > 0) {
           await tx.productTag.createMany({
-            data: Array.from(new Set(normalized.tagIds)).map((tagId) => ({ productId: product.id, tagId })),
+            data: Array.from<number>(new Set(normalized.tagIds)).map((tagId) => ({ productId: product.id, tagId })),
             skipDuplicates: true,
           });
         }
 
         if (normalized.occasionIds.length > 0) {
           await tx.productOccasion.createMany({
-            data: Array.from(new Set(normalized.occasionIds)).map((occasionId) => ({ productId: product.id, occasionId })),
+            data: Array.from<number>(new Set(normalized.occasionIds)).map((occasionId) => ({ productId: product.id, occasionId })),
             skipDuplicates: true,
           });
         }
@@ -681,7 +682,7 @@ export const productService = {
 
             const normalizedVariantProductName = String(variantInput?.productName ?? variantInput?.product_name ?? '').trim();
             if (!normalizedVariantProductName) {
-              throw new Error(`El nombre de producto de la variante #${idx + 1} es obligatorio.`);
+              throw new UserFacingError(`El nombre de producto de la variante #${idx + 1} es obligatorio.`);
             }
 
             const variantCode = generateVariantCode(productCode, {
@@ -728,7 +729,7 @@ export const productService = {
                     value: String(spec?.value ?? '').trim(),
                     sortOrder: toInteger(spec?.sortOrder ?? spec?.sort_order, specIdx),
                   }))
-                  .filter((spec) => spec.key && spec.value),
+                  .filter((spec: any) => spec.key && spec.value),
               });
             }
           }
@@ -771,7 +772,7 @@ export const productService = {
       },
     });
     if (!existing || existing.isDeleted) {
-      throw new Error('Producto no encontrado.');
+      throw new UserFacingError('Producto no encontrado.');
     }
 
     const normalized = normalizeBaseProductData(productData);
@@ -783,7 +784,7 @@ export const productService = {
       select: { name: true, prefix: true },
     });
     if (!categoryForCode) {
-      throw new Error('La categoría seleccionada no existe o está inactiva.');
+      throw new UserFacingError('La categoría seleccionada no existe o está inactiva.');
     }
 
     const productCode = generateProductCode(categoryForCode.prefix || categoryForCode.name, existing.id);
@@ -868,14 +869,14 @@ export const productService = {
               value: String(spec?.value ?? '').trim(),
               sortOrder: toInteger(spec?.sortOrder ?? spec?.sort_order, index),
             }))
-            .filter((spec) => spec.key && spec.value),
+            .filter((spec: any) => spec.key && spec.value),
         });
       }
 
       await tx.productTag.deleteMany({ where: { productId: updated.id } });
       if (normalized.tagIds.length > 0) {
         await tx.productTag.createMany({
-          data: Array.from(new Set(normalized.tagIds)).map((tagId) => ({ productId: updated.id, tagId })),
+          data: Array.from<number>(new Set(normalized.tagIds)).map((tagId) => ({ productId: updated.id, tagId })),
           skipDuplicates: true,
         });
       }
@@ -883,7 +884,7 @@ export const productService = {
       await tx.productOccasion.deleteMany({ where: { productId: updated.id } });
       if (normalized.occasionIds.length > 0) {
         await tx.productOccasion.createMany({
-          data: Array.from(new Set(normalized.occasionIds)).map((occasionId) => ({ productId: updated.id, occasionId })),
+          data: Array.from<number>(new Set(normalized.occasionIds)).map((occasionId) => ({ productId: updated.id, occasionId })),
           skipDuplicates: true,
         });
       }
@@ -907,7 +908,7 @@ export const productService = {
         const incomingId = toInteger(variantInput?.id, 0);
         const normalizedVariantProductName = String(variantInput?.productName ?? variantInput?.product_name ?? '').trim();
         if (!normalizedVariantProductName) {
-          throw new Error(`El nombre de producto de la variante #${idx + 1} es obligatorio.`);
+          throw new UserFacingError(`El nombre de producto de la variante #${idx + 1} es obligatorio.`);
         }
         const sameProductVariant = incomingId
           ? await tx.productVariant.findFirst({ where: { id: incomingId, productId: updated.id } })
@@ -988,7 +989,7 @@ export const productService = {
                 value: String(spec?.value ?? '').trim(),
                 sortOrder: toInteger(spec?.sortOrder ?? spec?.sort_order, specIdx),
               }))
-              .filter((spec) => spec.key && spec.value),
+              .filter((spec: any) => spec.key && spec.value),
           });
         }
       }

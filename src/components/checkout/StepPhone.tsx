@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useState } from 'react';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +9,12 @@ import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/comp
 import { useFormContext } from 'react-hook-form';
 import { CheckoutFormValues } from '@/app/checkout/CheckoutClientPage';
 import { cn } from '@/lib/utils';
-import { CheckCircle, ArrowRight, BookOpenText } from 'lucide-react';
+import { CheckCircle, ArrowRight, BookOpenText, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useToast } from '@/hooks/use-toast';
+import { formatPhoneDisplay, sanitizePhoneDigits } from '@/utils/phone';
 
 interface StepPhoneProps {
   isActive: boolean;
@@ -20,24 +25,51 @@ interface StepPhoneProps {
 
 export function StepPhone({ isActive, setActiveStep, disabled = false, currentStep }: StepPhoneProps) {
   const { control, trigger, watch } = useFormContext<CheckoutFormValues>();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
+  const { toast } = useToast();
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
   const isGuestCheckout = !user?.id;
 
   const guestName = watch('guestName');
   const guestEmail = watch('guestEmail');
   const phone = watch('phone');
+  const phoneCountryCode = watch('phoneCountryCode');
+  const savePhoneToProfile = watch('savePhoneToProfile');
+
+  const phoneDigits = sanitizePhoneDigits(phone);
+  const phonePreview = formatPhoneDisplay(phoneCountryCode, phoneDigits);
 
   const isStepValid = isGuestCheckout
-    ? (!!guestName && guestName.trim().length >= 3 && !!guestEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail.trim().toLowerCase()) && !!phone && /^\d{10}$/.test(phone))
-    : (!!phone && /^\d{10}$/.test(phone));
+    ? (!!guestName && guestName.trim().length >= 3 && !!guestEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail.trim().toLowerCase()) && /^\d{10}$/.test(phoneDigits))
+    : /^\d{10}$/.test(phoneDigits);
 
   const isCompleted = isStepValid || currentStep > 1;
 
   const handleNext = async () => {
     const isValid = await trigger(isGuestCheckout ? ['guestName', 'guestEmail', 'phone'] : 'phone');
-    if (isValid) {
-      setActiveStep(2);
+    if (!isValid) return;
+
+    if (!isGuestCheckout && savePhoneToProfile && phoneDigits.length === 10) {
+      const formattedPhone = formatPhoneDisplay(phoneCountryCode, phoneDigits);
+      if (formattedPhone && formattedPhone !== (user?.phone ?? '')) {
+        try {
+          setIsSavingPhone(true);
+          const result = await updateUser?.({ phone: formattedPhone });
+          if (result?.success) {
+            toast({ title: 'Teléfono actualizado', description: 'Guardamos este número en tu perfil.' });
+          } else if (result && !result.success) {
+            toast({ title: 'No pudimos guardar tu teléfono', description: result.message ?? 'Inténtalo más tarde.', variant: 'destructive' });
+          }
+        } catch (error) {
+          console.error('[Checkout] phone update error', error);
+          toast({ title: 'No pudimos guardar tu teléfono', description: 'Inténtalo más tarde.', variant: 'destructive' });
+        } finally {
+          setIsSavingPhone(false);
+        }
+      }
     }
+
+    setActiveStep(2);
   };
 
   return (
@@ -62,7 +94,9 @@ export function StepPhone({ isActive, setActiveStep, disabled = false, currentSt
             <div className="min-w-0">
               <h3 className="text-base md:text-xl font-bold font-headline truncate">Confirma tus datos</h3>
               {!isActive && isCompleted && (
-                  <p className="text-xs md:text-sm font-medium text-muted-foreground mt-0.5 tracking-tight truncate">+52 {phone}</p>
+                  <p className="text-xs md:text-sm font-medium text-muted-foreground mt-0.5 tracking-tight truncate">
+                    {phonePreview || 'Completa tus datos de contacto'}
+                  </p>
               )}
             </div>
           </div>
@@ -126,13 +160,34 @@ export function StepPhone({ isActive, setActiveStep, disabled = false, currentSt
             </div>
           )}
 
-          <div className="flex gap-3">
-            <div className="flex items-center justify-center bg-muted/30 rounded-2xl border border-border/50 px-5 font-bold text-sm text-foreground shrink-0">+52</div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <FormField
+              control={control}
+              name="phoneCountryCode"
+              render={({ field }) => (
+                <FormItem className="sm:w-[170px]">
+                  <FormLabel>País</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="h-14 rounded-2xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-bold">
+                        <SelectValue placeholder="Selecciona un prefijo" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="rounded-2xl">
+                      <SelectItem value="+52">México (+52)</SelectItem>
+                      <SelectItem value="+1">Estados Unidos / Canadá (+1)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={control}
               name="phone"
               render={({ field }) => (
                 <FormItem className="flex-1">
+                  <FormLabel>Teléfono</FormLabel>
                   <FormControl>
                     <Input 
                         placeholder="33 1234 5678" 
@@ -140,7 +195,7 @@ export function StepPhone({ isActive, setActiveStep, disabled = false, currentSt
                         type="tel"
                         inputMode="numeric"
                         onChange={(e) => {
-                            const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                            const val = sanitizePhoneDigits(e.target.value);
                             field.onChange(val);
                         }}
                         className="h-14 rounded-2xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-bold text-lg tracking-wider"
@@ -151,15 +206,47 @@ export function StepPhone({ isActive, setActiveStep, disabled = false, currentSt
               )}
             />
           </div>
+
+          {!isGuestCheckout && (
+            <FormField
+              control={control}
+              name="savePhoneToProfile"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start gap-3 rounded-2xl border border-border/40 bg-muted/20 p-4">
+                  <FormControl>
+                    <Checkbox
+                      checked={Boolean(field.value)}
+                      onCheckedChange={(checked) => field.onChange(Boolean(checked))}
+                      className="mt-1"
+                    />
+                  </FormControl>
+                  <div className="space-y-1">
+                    <FormLabel className="font-semibold text-sm">Guardar este teléfono en mi perfil</FormLabel>
+                    <p className="text-xs text-muted-foreground">Lo usaremos para siguientes compras y notificaciones importantes.</p>
+                  </div>
+                </FormItem>
+              )}
+            />
+          )}
+
           <div className="flex justify-center sm:justify-end pt-2">
             <Button 
                 type="button" 
                 onClick={handleNext} 
-              disabled={!isStepValid}
+                disabled={!isStepValid || isSavingPhone}
                 className="w-full sm:w-auto h-14 px-10 rounded-2xl font-bold shadow-lg shadow-primary/20 gap-2 transition-all active:scale-95 bg-primary hover:bg-[#E6286B]"
             >
-                Continuar
-                <ArrowRight className="w-5 h-5" />
+                {isSavingPhone ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Guardando
+                  </>
+                ) : (
+                  <>
+                    Continuar
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
             </Button>
           </div>
         </CardContent>

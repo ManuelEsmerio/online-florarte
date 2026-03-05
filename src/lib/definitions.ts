@@ -93,11 +93,14 @@ export interface WishlistItem {
   id: number;
   userId: number;
   productId: number;
+  variantId?: number | null;
+  selectionKey: string;
   createdAt: Date;
 
   // Relaciones
   user?: User;
-  product?: Product; // Asumiendo que quisieras incluir el producto
+  product?: Product;
+  variant?: ProductVariant | null;
 }
 
 export interface Address {
@@ -626,6 +629,8 @@ export interface AdminOrderListDTO {
   shippingAddress: string;
   deliveryDriverName?: string | null;
   paymentGateway?: string | null;
+  paymentStatus?: string | null;
+  hasPaymentTransaction?: boolean;
   items?: AdminOrderItemDTO[];
 }
 
@@ -637,9 +642,6 @@ export interface AdminOrderDetailsDTO extends AdminOrderListDTO {
   dedication?: string | null;
   isAnonymous: boolean;
   signature?: string | null;
-  paymentStatus?: string;
-  paymentGateway?: string | null;
-  hasPaymentTransaction?: boolean;
 }
 
 // ============================================================
@@ -671,4 +673,33 @@ export interface ApiResponse<T> {
   data: T | null;
   message: string | null;
   errorCode: string | null;
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+
+export interface RecentOrder {
+  id: number;
+  customer_name: string;
+  total: number;
+  status: OrderStatus;
+}
+
+export interface Activity {
+  type: 'new_order' | 'new_user' | 'low_stock';
+  entity_id: number;
+  timestamp: string;
+  details: { customer_name?: string; user_name?: string; product_name?: string };
+}
+
+export interface DashboardStats {
+  totalSales: { current: number; change: number };
+  newCustomers: { current: number; change: number };
+  orders: { current: number; change: number };
+  usedCoupons: { current: number; change: number };
+  salesData: Array<{ month: string; sales: number }>;
+  categoryProductCounts: Array<{ name: string; productCount: number; isSubcategory: boolean }>;
+  recentOrders: RecentOrder[];
+  recentActivity: Activity[];
 }

@@ -7,13 +7,33 @@ import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
 import { useAuth } from './AuthContext';
 
-// Importación directa de datos mock para el prototipo
-import { allProducts } from '@/lib/data/product-data';
-import { productCategories } from '@/lib/data/categories-data';
-import { allOccasions } from '@/lib/data/occasion-data';
-import { allTags } from '@/lib/data/tag-data';
-import { allOrders } from '@/lib/data/order-data';
-import { testimonials as allTestimonials } from '@/lib/data/testimonials-data';
+type AdminProductPayload = {
+  products?: Product[];
+  categories?: ProductCategory[];
+  occasions?: Occasion[];
+  tags?: Tag[];
+};
+
+type AdminOrderPayload = {
+  orders?: Order[];
+};
+
+async function parseApiResponse<T>(responsePromise: Promise<Response>, fallbackMessage: string): Promise<T> {
+  const res = await responsePromise;
+  let payload: any = null;
+
+  try {
+    payload = await res.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!res.ok) {
+    throw new Error(payload?.message ?? fallbackMessage);
+  }
+
+  return (payload?.data ?? payload ?? null) as T;
+}
 
 interface ProductContextType {
   products: Product[];
@@ -31,6 +51,7 @@ const ProductContext = createContext<ProductContextType | undefined>(undefined);
 export const ProductProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const pathname = usePathname();
+  const { apiFetch } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [occasions, setOccasions] = useState<Occasion[]>([]);
@@ -50,29 +71,49 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
 
     setIsLoading(true);
     try {
-        // En modo prototipo, cargamos directamente de los archivos de datos
-        setProducts([...allProducts]);
-        setCategories([...productCategories]);
-        setOccasions([...allOccasions]);
-        setTags([...allTags]);
-        setOrders([...allOrders]);
-        setTestimonials([...allTestimonials]);
+      const [productPayload, ordersPayload, testimonialsPayload] = await Promise.all([
+        parseApiResponse<AdminProductPayload>(
+          apiFetch('/api/admin/products?includeMeta=1', { cache: 'no-store' }),
+          'No se pudieron cargar los productos.'
+        ),
+        parseApiResponse<AdminOrderPayload>(
+          apiFetch('/api/admin/orders?limit=50', { cache: 'no-store' }),
+          'No se pudieron cargar los pedidos.'
+        ),
+        parseApiResponse<Testimonial[]>(
+          apiFetch('/api/admin/testimonials', { cache: 'no-store' }),
+          'No se pudieron cargar los testimonios.'
+        ),
+      ]);
 
+      setProducts(Array.isArray(productPayload?.products) ? productPayload.products : []);
+      setCategories(Array.isArray(productPayload?.categories) ? productPayload.categories : []);
+      setOccasions(Array.isArray(productPayload?.occasions) ? productPayload.occasions : []);
+      setTags(Array.isArray(productPayload?.tags) ? productPayload.tags : []);
+      setOrders(Array.isArray(ordersPayload?.orders) ? ordersPayload.orders : []);
+      setTestimonials(Array.isArray(testimonialsPayload) ? testimonialsPayload : []);
     } catch (error: any) {
+      console.error('[PRODUCT_CONTEXT_FETCH_ERROR]', error);
+      setProducts([]);
+      setCategories([]);
+      setOccasions([]);
+      setTags([]);
+      setOrders([]);
+      setTestimonials([]);
       toast({
-        title: "Error al cargar datos locales",
-        description: "No se pudieron obtener los datos de prueba.",
-        variant: "destructive",
+        title: 'Error al sincronizar datos',
+        description: error?.message ?? 'No se pudieron obtener los datos del administrador.',
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
     }
-  }, [toast, pathname]);
+  }, [toast, pathname, apiFetch]);
   
   useEffect(() => {
     if (pathname.startsWith('/admin') && !fetchInitiated.current) {
         fetchInitiated.current = true;
-        fetchAppData();
+        void fetchAppData();
     }
   }, [pathname, fetchAppData]);
 

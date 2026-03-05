@@ -81,7 +81,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     if (!userToDelete) return errorHandler(new Error("Usuario no encontrado."), 404);
 
     // En modo demo el borrado es solo lógico en nuestro array local
-    await userService.deleteUser(userIdToDelete, session.dbId);
+    await userService.deleteUser(userIdToDelete);
 
     console.info('[AUDIT] user_deleted', {
       action: 'user_deleted',

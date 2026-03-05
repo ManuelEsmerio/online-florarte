@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { UserFacingError } from './errors';
 
 /**
  * Genera una respuesta de éxito estandarizada.
@@ -39,6 +40,9 @@ export function successResponse(data: any, status: number = 200, res: NextRespon
  * @returns Un objeto NextResponse.
  */
 export function errorHandler(error: any, status: number = 500) {
+  // UserFacingError carries a safe, user-readable message and its own status code
+  const resolvedStatus = (error instanceof UserFacingError) ? error.statusCode : status;
+
   const defaultMessage = "Ocurrió un error inesperado.";
   const errorCode = error?.code || null;
   const internalMessage =
@@ -51,15 +55,15 @@ export function errorHandler(error: any, status: number = 500) {
       ? error.publicMessage
       : null;
 
-  const isClientError = status >= 400 && status < 500;
+  const isClientError = resolvedStatus >= 400 && resolvedStatus < 500;
   const clientMessage = explicitPublicMessage || (isClientError ? internalMessage : defaultMessage);
 
-  console.error(`[API Error]: ${internalMessage}`, { status, code: errorCode, errorObj: error });
+  console.error(`[API Error]: ${internalMessage}`, { status: resolvedStatus, code: errorCode, errorObj: error });
 
   return NextResponse.json({
     success: false,
     data: null,
     message: clientMessage,
     errorCode,
-  }, { status });
+  }, { status: resolvedStatus });
 }

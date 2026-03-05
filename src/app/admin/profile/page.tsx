@@ -1,7 +1,7 @@
 // src/app/admin/profile/page.tsx
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +21,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import type { User } from '@/lib/definitions';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { PHONE_CODES, parsePhoneValue, sanitizePhoneDigits, formatPhoneDisplay } from '@/utils/phone';
 
 const profileSchema = z.object({
   name: z.string().min(3, 'El nombre es requerido.'),
@@ -31,6 +32,7 @@ const profileSchema = z.object({
     .refine((val) => !val || /^\d{10}$/.test(val), {
         message: 'El teléfono debe ser un número de 10 dígitos.',
     }),
+  phoneCountryCode: z.enum(PHONE_CODES).default('+52'),
   profilePic: z.string().optional(),
 });
 
@@ -96,10 +98,11 @@ export default function ProfilePageContent() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const parsedUserPhone = useMemo(() => parsePhoneValue(user?.phone), [user?.phone]);
   
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
-    defaultValues: { name: '', email: '', phone: '', profilePic: '' },
+    defaultValues: { name: '', email: '', phone: '', phoneCountryCode: parsedUserPhone.code, profilePic: '' },
   });
   
   const passwordForm = usePasswordForm<PasswordFormValues>({
@@ -109,11 +112,13 @@ export default function ProfilePageContent() {
 
   const fetchUserDataCallback = useCallback(() => {
     if (user) {
+      const parsed = parsePhoneValue(user.phone);
         form.reset({
             name: user.name,
             email: user.email,
-            phone: user.phone || '',
-            profilePic: user.profilePic || '',
+        phone: parsed.digits,
+        phoneCountryCode: parsed.code,
+            profilePic: user.profilePicUrl || '',
         });
     }
   }, [user, form]);
@@ -138,8 +143,12 @@ export default function ProfilePageContent() {
   const handleUpdateProfile = async (data: ProfileFormValues) => {
     if (!updateUser || !user) return;
     setIsSavingProfile(true);
-    
-    const result = await updateUser(data);
+    const { phoneCountryCode, phone, ...rest } = data;
+    const phoneDigits = sanitizePhoneDigits(phone);
+    const result = await updateUser({
+      ...rest,
+      phone: phoneDigits ? formatPhoneDisplay(phoneCountryCode, phoneDigits) : '',
+    });
 
     if (result.success) {
         toast({ title: '¡Perfil Actualizado!', description: 'Tu información se ha guardado correctamente.' });
@@ -152,7 +161,7 @@ export default function ProfilePageContent() {
   const handleChangePassword = async (data: PasswordFormValues) => {
     if (changePassword) {
       setIsChangingPassword(true);
-      const { success, message } = await changePassword(data.newPassword);
+      const { success, message } = await changePassword('', data.newPassword);
       if (success) {
         toast({ title: '¡Contraseña Cambiada!', description: 'Tu contraseña ha sido actualizada.' });
         passwordForm.reset();
@@ -232,7 +241,46 @@ export default function ProfilePageContent() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Nombre Completo</FormLabel><FormControl><Input {...field} disabled={isSavingProfile} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Correo Electrónico</FormLabel><FormControl><Input type="email" {...field} disabled={isSavingProfile} /></FormControl><FormMessage /></FormItem>)}/>
-                        <FormField control={form.control} name="phone" render={({ field }) => (<FormItem><FormLabel>Teléfono</FormLabel><FormControl><Input {...field} placeholder="Tu número de teléfono" disabled={isSavingProfile} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField
+                          control={form.control}
+                          name="phone"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Teléfono</FormLabel>
+                              <div className="flex flex-col sm:flex-row gap-3">
+                                <FormField
+                                  control={form.control}
+                                  name="phoneCountryCode"
+                                  render={({ field: codeField }) => (
+                                    <FormItem className="sm:w-[150px]">
+                                      <FormControl>
+                                        <Select onValueChange={codeField.onChange} value={codeField.value}>
+                                          <SelectTrigger disabled={isSavingProfile}>
+                                            <SelectValue placeholder="Prefijo" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="+52">México (+52)</SelectItem>
+                                            <SelectItem value="+1">Estados Unidos / Canadá (+1)</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    placeholder="33 1234 5678"
+                                    inputMode="numeric"
+                                    disabled={isSavingProfile}
+                                    onChange={(e) => field.onChange(sanitizePhoneDigits(e.target.value))}
+                                  />
+                                </FormControl>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                     </div>
                     <div className="flex justify-end">
                         <Button type="submit" loading={isSavingProfile}>Guardar Cambios</Button>
@@ -263,7 +311,7 @@ export default function ProfilePageContent() {
           </div>
           
           <div className="lg:col-span-1 space-y-8">
-            {user.role === 'customer' && (
+            {user.role === 'CUSTOMER' && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Gem className="w-6 h-6 text-blue-500" /> Lealtad Florarte</CardTitle>
@@ -272,7 +320,7 @@ export default function ProfilePageContent() {
                   <CardContent>
                       <div className='flex flex-col items-center justify-center text-center p-6 bg-muted/50 rounded-lg'>
                         <p className='text-muted-foreground'>Tu Saldo</p>
-                        <p className="text-5xl font-bold text-blue-500 my-2">{user.loyalty_points || 0}</p>
+                        <p className="text-5xl font-bold text-blue-500 my-2">{user.loyaltyPoints || 0}</p>
                         <p className='font-semibold'>Puntos</p>
                         <p className="text-xs text-muted-foreground mt-4 max-w-sm">Gana 1 punto por cada $1 gastado. Al juntar 3,000 puntos, obtienes un cupón de $200 MXN.</p>
                       </div>

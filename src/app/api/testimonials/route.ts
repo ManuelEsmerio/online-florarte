@@ -33,9 +33,15 @@ export async function POST(req: NextRequest) {
       return errorHandler(new Error('No puedes dejar una reseña para este pedido.'), 403);
     }
 
-    const result = await testimonialService.upsertTestimonial(session.dbId, orderId, rating, comment);
-
-    const isUpdate = result.action === 'updated';
+    const existing = await testimonialService.getTestimonialByOrder(orderId);
+    let isUpdate = false;
+    let result: { id: number };
+    if (existing) {
+      result = await prisma.testimonial.update({ where: { orderId }, data: { rating, comment, status: 'PENDING' } });
+      isUpdate = true;
+    } else {
+      result = await testimonialService.createTestimonial({ userId: session.dbId, orderId, rating, comment });
+    }
 
     return successResponse({
       testimonialId: result.id,

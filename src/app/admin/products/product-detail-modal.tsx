@@ -105,7 +105,7 @@ export function ProductDetailModal({
 }: ProductDetailModalProps) {
 
   const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>(() => {
-    if (product?.has_variants && product?.variants && product.variants.length > 0) {
+    if (product?.hasVariants && product?.variants && product.variants.length > 0) {
       return String(product.variants[0].id);
     }
     return undefined;
@@ -121,10 +121,10 @@ export function ProductDetailModal({
     return resolveProductGalleryImages(product, selectedVariant);
   }, [product, selectedVariant]);
 
-  const showVariantSelect = Boolean(product?.has_variants && product?.variants && product.variants.length > 0);
+  const showVariantSelect = Boolean(product?.hasVariants && product?.variants && product.variants.length > 0);
 
   const activePrice = selectedVariant ? selectedVariant.price : product?.price;
-  const activeSalePrice = selectedVariant ? selectedVariant.sale_price : product?.sale_price;
+  const activeSalePrice = selectedVariant ? selectedVariant.salePrice : product?.salePrice;
   const activeStock = selectedVariant ? selectedVariant.stock : product?.stock;
   const activeSku = selectedVariant ? selectedVariant.code : product?.code;
   const activeVariantProductName = selectedVariant
@@ -162,7 +162,7 @@ export function ProductDetailModal({
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-9 md:gap-12">
                     {/* Left Column - Image */}
                     <div className="lg:col-span-5 space-y-4">
-                        <ProductImageCarousel images={imagesToShow} />
+                        <ProductImageCarousel images={imagesToShow.map(img => ({ id: typeof img.id === 'number' ? img.id : undefined, src: img.src, alt: img.alt }))} />
                     </div>
 
                     {/* Right Column - Details */}
@@ -175,7 +175,7 @@ export function ProductDetailModal({
                                     <SelectValue placeholder="Selecciona una variante" />
                                 </SelectTrigger>
                                 <SelectContent className="z-[120]">
-                                    {product.variants.map(v => (
+                                    {product.variants?.map(v => (
                                         <SelectItem key={v.id} value={String(v.id)}>{v.name}</SelectItem>
                                     ))}
                                 </SelectContent>
@@ -203,8 +203,8 @@ export function ProductDetailModal({
                                 label="Permite Foto"
                                 value={
                                     <span className="flex items-center gap-2 justify-end sm:justify-start">
-                                        <Badge variant={product.allow_photo ? "success" : "secondary"}>{product.allow_photo ? 'Sí' : 'No'}</Badge>
-                                        {product.allow_photo && <span className="text-xs text-muted-foreground">{formatCurrency(product.photo_price)}</span>}
+                                        <Badge variant={product.allowPhoto ? "success" : "secondary"}>{product.allowPhoto ? 'Sí' : 'No'}</Badge>
+                                        {product.allowPhoto && <span className="text-xs text-muted-foreground">{formatCurrency(product.photoPrice)}</span>}
                                     </span>
                                 }
                             />
@@ -212,7 +212,7 @@ export function ProductDetailModal({
                                 label="Etiquetas"
                                 value={product.tags && product.tags.length > 0 ? (
                                   <div className="flex flex-wrap gap-1.5 justify-end sm:justify-start">
-                                    {product.tags.map(tag => <Badge key={tag.id} variant="secondary">{tag.name}</Badge>)}
+                                    {product.tags.map(tag => <Badge key={tag.tagId} variant="secondary">{tag.tag?.name}</Badge>)}
                                   </div>
                                 ) : <span className="text-muted-foreground italic">Sin etiquetas</span>}
                             />
@@ -220,7 +220,7 @@ export function ProductDetailModal({
                                 label="Ocasiones"
                                 value={product.occasions && product.occasions.length > 0 ? (
                                   <div className="flex flex-wrap gap-1.5 justify-end sm:justify-start">
-                                    {product.occasions.map(occ => <Badge key={occ.id} variant="outline">{occ.name}</Badge>)}
+                                    {product.occasions.map(occ => <Badge key={occ.occasionId} variant="outline">{occ.occasion?.name}</Badge>)}
                                   </div>
                                 ) : <span className="text-muted-foreground italic">Sin ocasiones</span>}
                             />
@@ -229,7 +229,7 @@ export function ProductDetailModal({
                     </div>
                     {/* Full-width sections */}
                     <div className="space-y-7">
-                        {product.short_description && (<div><h4 className="font-semibold text-foreground mb-1">Descripción Corta</h4><p className="text-sm text-muted-foreground">{product.short_description}</p></div>)}
+                        {product.shortDescription && (<div><h4 className="font-semibold text-foreground mb-1">Descripción Corta</h4><p className="text-sm text-muted-foreground">{product.shortDescription}</p></div>)}
                         
                         {(product.specifications && product.specifications.length > 0) && (
                             <div>
@@ -240,7 +240,7 @@ export function ProductDetailModal({
                         
                         {product.care && (<div><h4 className="font-semibold text-foreground mb-1">Cuidados</h4><p className="text-sm text-muted-foreground">{product.care}</p></div>)}
 
-                        {product.has_variants && product.variants && product.variants.length > 0 && selectedVariant && (
+                        {product.hasVariants && product.variants && product.variants.length > 0 && selectedVariant && (
                             <div>
                                 <h4 className="font-semibold text-foreground mb-2">Detalles de la Variante: {selectedVariant.name}</h4>
                                 <div className="space-y-2">

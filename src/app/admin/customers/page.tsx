@@ -4,7 +4,8 @@
 import { columns } from './columns';
 import type { User } from '@/lib/definitions';
 import { DataTable } from '@/components/ui/data-table/data-table';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useReducer } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { CustomerForm } from './customer-form';
@@ -19,92 +20,141 @@ import {
   SortingState,
   VisibilityState,
   RowSelectionState,
+  Updater,
 } from '@tanstack/react-table';
 import { DataTableToolbar } from './customer-table-toolbar';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { CustomerDetailModal } from './customer-detail-modal';
 
+type State = {
+  isFormOpen: boolean;
+  selectedUser: User | null;
+  isSaving: boolean;
+  isDeleting: boolean;
+  isDeletingId: number | null;
+  isSendingCredentialsFor: number | null;
+  isDetailModalOpen: boolean;
+  sorting: SortingState;
+  rowSelection: RowSelectionState;
+  columnVisibility: VisibilityState;
+  columnFilters: ColumnFiltersState;
+  searchTerm: string;
+};
+
+const initialState: State = {
+  isFormOpen: false,
+  selectedUser: null,
+  isSaving: false,
+  isDeleting: false,
+  isDeletingId: null,
+  isSendingCredentialsFor: null,
+  isDetailModalOpen: false,
+  sorting: [{ id: 'name', desc: false }],
+  rowSelection: {},
+  columnVisibility: {},
+  columnFilters: [{ id: 'isDeleted', value: 'active' }],
+  searchTerm: '',
+};
+
+type Action = { type: 'SET_STATE'; payload: Partial<State> };
+
+const reducer = (state: State, action: Action): State => {
+  switch (action.type) {
+    case 'SET_STATE':
+      return { ...state, ...action.payload };
+    default:
+      return state;
+  }
+};
+
+const applyUpdater = <T,>(updater: Updater<T>, previous: T): T =>
+  typeof updater === 'function' ? (updater as (prev: T) => T)(previous) : updater;
+
 export default function CustomersPage() {
   const { toast } = useToast();
 
-  const [users, setUsers] = useState<User[]>([]);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
-  const [isSendingCredentialsFor, setIsSendingCredentialsFor] = useState<number | null>(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const {
+    isFormOpen,
+    selectedUser,
+    isSaving,
+    isDeleting,
+    isDeletingId,
+    isSendingCredentialsFor,
+    isDetailModalOpen,
+    sorting,
+    rowSelection,
+    columnVisibility,
+    columnFilters,
+    searchTerm,
+  } = state;
 
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
-    { id: 'isDeleted', value: 'active' }
-  ]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const setState = useCallback((partial: Partial<State>) => {
+    dispatch({ type: 'SET_STATE', payload: partial });
+  }, []);
 
-  const loadUsers = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/admin/users?status=all');
+  const {
+    data: users = [],
+    isPending,
+    isFetching,
+    isError,
+    error: queryError,
+    refetch,
+  } = useQuery<User[], Error>({
+    queryKey: ['admin-users'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/users?status=all&limit=9999');
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Error al cargar usuarios');
-      setUsers(json.data ?? []);
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      return (json.data?.users ?? json.data ?? []) as User[];
+    },
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
 
-  useEffect(() => {
-    loadUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Handle query error (onError was removed in TanStack Query v5)
+  if (isError && queryError) {
+    toast({ title: 'Error', description: queryError.message, variant: 'destructive' });
+  }
 
-  const handleAddUser = () => {
-    setSelectedUser(null);
-    setTimeout(() => setIsFormOpen(true), 100);
-  };
+  const handleAddUser = useCallback(() => {
+    setState({ selectedUser: null, isFormOpen: true });
+  }, [setState]);
 
-  const handleEditUser = (user: User) => {
-    setSelectedUser(user);
-    setIsFormOpen(true);
-  };
+  const handleEditUser = useCallback((user: User) => {
+    setState({ selectedUser: user, isFormOpen: true });
+  }, [setState]);
 
-  const handleViewDetails = (user: User) => {
-    setSelectedUser(user);
-    setIsDetailModalOpen(true);
-  };
+  const handleViewDetails = useCallback((user: User) => {
+    setState({ selectedUser: user, isDetailModalOpen: true });
+  }, [setState]);
 
-  const handleDeleteUser = async (id: number) => {
-    setIsDeletingId(id);
+  const handleDeleteUser = useCallback(async (id: number) => {
+    setState({ isDeletingId: id });
     try {
       const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Error al eliminar usuario');
       toast({ title: '¡Usuario Eliminado!', description: 'El usuario ha sido desactivado del sistema.', variant: 'success' });
-      await loadUsers();
+      await refetch();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
-      setIsDeletingId(null);
+      setState({ isDeletingId: null });
     }
-  };
+  }, [refetch, setState, toast]);
 
-  const handleSendCredentials = async (user: User) => {
-    setIsSendingCredentialsFor(user.id);
+  const handleSendCredentials = useCallback(async (user: User) => {
+    setState({ isSendingCredentialsFor: user.id });
     await new Promise(resolve => setTimeout(resolve, 1000));
     toast({
       title: '¡Enlace Enviado!',
       description: `Se ha enviado un correo para restablecer la contraseña a ${user.email}.`,
       variant: 'success'
     });
-    setIsSendingCredentialsFor(null);
-  };
+    setState({ isSendingCredentialsFor: null });
+  }, [setState, toast]);
 
   const tableColumns = useMemo(() => columns({
     onEdit: handleEditUser,
@@ -113,7 +163,7 @@ export default function CustomersPage() {
     onSendCredentials: handleSendCredentials,
     isSendingCredentialsFor,
     isDeletingId,
-  }), [isSendingCredentialsFor, isDeletingId]);
+  }), [handleDeleteUser, handleEditUser, handleSendCredentials, handleViewDetails, isDeletingId, isSendingCredentialsFor]);
 
   const table = useReactTable({
     data: users,
@@ -122,10 +172,10 @@ export default function CustomersPage() {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onRowSelectionChange: setRowSelection,
-    onColumnVisibilityChange: setColumnVisibility,
+    onSortingChange: (updater) => setState({ sorting: applyUpdater(updater, sorting) }),
+    onColumnFiltersChange: (updater) => setState({ columnFilters: applyUpdater(updater, columnFilters) }),
+    onRowSelectionChange: (updater) => setState({ rowSelection: applyUpdater(updater, rowSelection) }),
+    onColumnVisibilityChange: (updater) => setState({ columnVisibility: applyUpdater(updater, columnVisibility) }),
     enableRowSelection: (row) => !row.original.isDeleted,
     state: {
       sorting,
@@ -134,11 +184,11 @@ export default function CustomersPage() {
       columnVisibility,
       globalFilter: searchTerm,
     },
-    onGlobalFilterChange: setSearchTerm,
+    onGlobalFilterChange: (value) => setState({ searchTerm: applyUpdater(value, searchTerm) }),
   });
 
   const handleBulkDelete = async () => {
-    setIsDeleting(true);
+    setState({ isDeleting: true });
     const selectedIds = table.getFilteredSelectedRowModel().rows.map(row => row.original.id);
     try {
       const res = await fetch('/api/admin/users', {
@@ -150,22 +200,22 @@ export default function CustomersPage() {
       if (!res.ok) throw new Error(json.message || 'Error al eliminar usuarios');
       toast({ title: '¡Usuarios Eliminados!', description: 'Los usuarios seleccionados han sido desactivados.', variant: 'success' });
       table.resetRowSelection();
-      await loadUsers();
+      await refetch();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
-      setIsDeleting(false);
+      setState({ isDeleting: false });
     }
   };
 
-  const handleSaveUser = async (formData: any) => {
-    setIsSaving(true);
+  const handleSaveUser = useCallback(async (formData: any) => {
+    setState({ isSaving: true });
     try {
       const isEditing = !!selectedUser;
       const payload: any = {
         name: formData.name,
         email: formData.email,
-        phone: formData.phone || null,
+        phone: formData.phone ? `${formData.phoneCountryCode}${formData.phone}` : null,
         role: (formData.role as string).toUpperCase(),
       };
       if (formData.password) payload.password = formData.password;
@@ -187,17 +237,16 @@ export default function CustomersPage() {
         variant: 'success'
       });
 
-      setIsFormOpen(false);
-      setSelectedUser(null);
-      await loadUsers();
+      setState({ isFormOpen: false, selectedUser: null });
+      await refetch();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
-      setIsSaving(false);
+      setState({ isSaving: false });
     }
-  };
+  }, [refetch, selectedUser, setState, toast]);
 
-  if (isLoading && users.length === 0) {
+  if (isPending && users.length === 0) {
     return (
       <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
         <div className="flex items-center justify-between space-y-2">
@@ -224,7 +273,7 @@ export default function CustomersPage() {
       </div>
       <CustomerForm
         isOpen={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        onOpenChange={(open) => setState({ isFormOpen: open })}
         onSave={handleSaveUser}
         user={selectedUser}
         isSaving={isSaving}
@@ -232,7 +281,7 @@ export default function CustomersPage() {
       {selectedUser && (
         <CustomerDetailModal
             isOpen={isDetailModalOpen}
-            onOpenChange={setIsDetailModalOpen}
+            onOpenChange={(open) => setState({ isDetailModalOpen: open })}
             user={selectedUser}
         />
       )}
@@ -241,13 +290,13 @@ export default function CustomersPage() {
         table={table}
         columns={tableColumns}
         data={users}
-        isLoading={isLoading}
+        isLoading={isPending || isFetching}
         toolbar={
           <div className="flex items-center justify-between">
             <DataTableToolbar
                 table={table}
                 searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
+              setSearchTerm={(value) => setState({ searchTerm: value })}
             />
             {table.getFilteredSelectedRowModel().rows.length > 0 && (
               <AlertDialog>

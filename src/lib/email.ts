@@ -3,7 +3,7 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = process.env.EMAIL_FROM ?? 'Florarte <no-reply@florarte.mx>';
+const FROM_EMAIL = process.env.EMAIL_FROM ?? 'Florarte <no-reply@floreriaflorarte.com>';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:9002';
 
 export async function sendEmail(params: {

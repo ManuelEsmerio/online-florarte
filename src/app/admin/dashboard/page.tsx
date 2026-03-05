@@ -4,7 +4,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, DollarSign, ShoppingCart, ArrowRight, Package, TrendingUp, TrendingDown, Minus, UserPlus, PackageSearch, Ticket, Sparkles, PlusCircle } from 'lucide-react';
+import { Users, DollarSign, ShoppingCart, ArrowRight, RefreshCw, TrendingUp, TrendingDown, Minus, UserPlus, PackageSearch, Ticket, Sparkles, PlusCircle } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -24,7 +24,8 @@ import { es } from 'date-fns/locale';
 import type { Activity, DashboardStats } from '@/lib/definitions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ResponsiveContainer, AreaChart, BarChart, XAxis, YAxis, CartesianGrid, Area, Tooltip, Bar, Legend } from 'recharts';
-import { mockDashboardStats } from '@/lib/data/dashboard-data';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/context/AuthContext';
 
 const statusStyles: { [key in OrderStatus]: string } = {
   PENDING: 'bg-slate-100 text-slate-600 border-slate-200',
@@ -106,14 +107,40 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [categoryChartFilter, setCategoryChartFilter] = useState<'main' | 'sub'>('main');
 
-  const loadStats = useCallback(() => {
-    setIsLoading(true);
-    setStats(mockDashboardStats);
-    setIsLoading(false);
-  }, []);
+    const { apiFetch } = useAuth();
+    const { toast } = useToast();
+
+    const loadStats = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const res = await apiFetch('/api/admin/dashboard', { cache: 'no-store' });
+            let payload: any = null;
+            try {
+                payload = await res.json();
+            } catch {
+                payload = null;
+            }
+
+            if (!res.ok) {
+                throw new Error(payload?.message ?? 'No se pudieron cargar las estadísticas.');
+            }
+
+            setStats((payload?.data ?? null) as DashboardStats | null);
+        } catch (error: any) {
+            console.error('[ADMIN_DASHBOARD_FETCH_ERROR]', error);
+            setStats(null);
+            toast({
+                title: 'No se pudo actualizar el panel',
+                description: error?.message ?? 'Intenta nuevamente en unos segundos.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [apiFetch, toast]);
 
   useEffect(() => {
-    loadStats();
+        void loadStats();
   }, [loadStats]);
 
   const formatPercentage = (change: number | null | undefined) => {
@@ -330,7 +357,7 @@ export default function DashboardPage() {
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} fontWeight={700} tickLine={false} axisLine={false} interval={0} angle={-25} textAnchor="end" height={80} />
                                 <YAxis stroke="#94a3b8" fontSize={11} fontWeight={600} tickLine={false} axisLine={false} allowDecimals={false} />
-                                <Tooltip cursor={{ fill: 'hsl(var(--primary) / 0.05)', radius: [8, 8, 0, 0] }} content={<CustomTooltip />} />
+                                <Tooltip cursor={{ fill: 'hsl(var(--primary) / 0.05)' }} content={<CustomTooltip />} />
                                 <Bar dataKey="productCount" name="Productos" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} barSize={35} />
                             </BarChart>
                         )}
@@ -398,7 +425,3 @@ export default function DashboardPage() {
   );
 }
 
-// Necesario para el ícono de Refresh
-const RefreshCw = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
-);

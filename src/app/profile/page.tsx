@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AddressModal } from '@/components/AddressModal';
+import { PasswordRequirements } from '@/components/password/PasswordRequirements';
 import { 
   Table, 
   TableBody, 
@@ -47,6 +49,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { PHONE_CODES, parsePhoneValue, sanitizePhoneDigits, formatPhoneDisplay } from '@/utils/phone';
+import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from '@/utils/passwordPolicy';
 
 const profileSchema = z.object({
   name: z.string().min(3, 'El nombre es requerido.'),
@@ -57,15 +61,18 @@ const profileSchema = z.object({
     .refine((val) => !val || /^\d{10}$/.test(val), {
         message: 'El teléfono debe ser un número de 10 dígitos.',
     }),
+    phoneCountryCode: z.enum(PHONE_CODES).default('+52'),
   profilePic: z.string().optional(),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 const passwordSchema = z.object({
-  currentPassword: z.string().min(1, 'Ingresa tu contraseña actual'),
-  newPassword: z.string().min(6, 'La nueva contraseña debe tener al menos 6 caracteres'),
-  confirmPassword: z.string(),
+    currentPassword: z.string().min(1, 'Ingresa tu contraseña actual'),
+    newPassword: z.string()
+        .min(8, 'La nueva contraseña debe tener al menos 8 caracteres')
+        .refine(isPasswordStrong, { message: PASSWORD_POLICY_MESSAGE }),
+    confirmPassword: z.string(),
 }).refine((data) => data.newPassword === data.confirmPassword, {
   message: "Las contraseñas no coinciden",
   path: ["confirmPassword"],
@@ -146,11 +153,18 @@ function ProfilePageContent() {
   const [addressToDelete, setAddressToDelete] = useState<number | null>(null);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [isDeletingAddress, setIsDeletingAddress] = useState(false);
+    const parsedUserPhone = useMemo(() => parsePhoneValue(user?.phone), [user?.phone]);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
-    defaultValues: { name: '', email: '', phone: '', profilePic: '' },
-    values: user ? { name: user.name, email: user.email, phone: user.phone || '', profilePic: user.profilePicUrl || '' } : undefined,
+        defaultValues: { name: '', email: '', phone: '', phoneCountryCode: parsedUserPhone.code, profilePic: '' },
+        values: user ? {
+                name: user.name,
+                email: user.email,
+                phone: parsedUserPhone.digits,
+                phoneCountryCode: parsedUserPhone.code,
+                profilePic: user.profilePicUrl || '',
+        } : undefined,
   });
 
   const passwordForm = useForm<PasswordFormValues>({
@@ -171,7 +185,12 @@ function ProfilePageContent() {
   const handleUpdateProfile = async (data: ProfileFormValues) => {
     if (!updateUser || !user) return;
     setIsSavingProfile(true);
-    const result = await updateUser(data);
+        const { phoneCountryCode, phone, ...rest } = data;
+        const phoneDigits = sanitizePhoneDigits(phone);
+        const result = await updateUser({
+                ...rest,
+                phone: phoneDigits ? formatPhoneDisplay(phoneCountryCode, phoneDigits) : '',
+        });
     if (result.success) {
         toast({ title: '¡Perfil Actualizado!', description: 'Tu información se ha guardado correctamente.', variant: 'success' });
     } else {
@@ -245,6 +264,7 @@ function ProfilePageContent() {
     });
 
     const profilePic = watchedProfilePic || user?.profilePicUrl || '';
+    const watchedNewPassword = passwordForm.watch('newPassword');
 
   const handleDeleteAccount = async () => {
     if(deleteAccount) {
@@ -279,13 +299,13 @@ function ProfilePageContent() {
     setIsAddressModalOpen(true);
   };
 
-  const handleSaveAddress = async (addressData: Address) => {
+  const handleSaveAddress = async (addressData: Omit<Address, 'id'> | Address) => {
     setIsSavingAddress(true);
     let result;
-    if (addressData.id && addressData.id > 0) {
-        result = await updateAddress(addressData);
+    if ('id' in addressData && (addressData as Address).id > 0) {
+        result = await updateAddress(addressData as Address);
     } else {
-        result = await addAddress(addressData);
+        result = await addAddress(addressData as Omit<Address, 'id'>);
     }
 
     if (result.success) {
@@ -403,9 +423,37 @@ function ProfilePageContent() {
                                 <FormField control={form.control} name="phone" render={({ field }) => (
                                     <FormItem className="space-y-2">
                                         <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Teléfono</FormLabel>
-                                        <FormControl>
-                                            <Input {...field} placeholder="3312345678" disabled={isSavingProfile} className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium" />
-                                        </FormControl>
+                                        <div className="flex flex-col sm:flex-row gap-3">
+                                            <FormField
+                                                control={form.control}
+                                                name="phoneCountryCode"
+                                                render={({ field: codeField }) => (
+                                                    <FormItem className="sm:w-[160px]">
+                                                        <FormControl>
+                                                            <Select onValueChange={codeField.onChange} value={codeField.value}>
+                                                                <SelectTrigger className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium" disabled={isSavingProfile}>
+                                                                    <SelectValue placeholder="Prefijo" />
+                                                                </SelectTrigger>
+                                                                <SelectContent className="rounded-2xl">
+                                                                    <SelectItem value="+52">México (+52)</SelectItem>
+                                                                    <SelectItem value="+1">Estados Unidos / Canadá (+1)</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormControl>
+                                                <Input
+                                                    {...field}
+                                                    placeholder="33 1234 5678"
+                                                    inputMode="numeric"
+                                                    disabled={isSavingProfile}
+                                                    onChange={(e) => field.onChange(sanitizePhoneDigits(e.target.value))}
+                                                    className="h-14 rounded-xl bg-muted/30 border-none focus:ring-2 focus:ring-primary/20 font-medium tracking-wide"
+                                                />
+                                            </FormControl>
+                                        </div>
                                         <FormMessage />
                                     </FormItem>
                                 )} />
@@ -462,6 +510,7 @@ function ProfilePageContent() {
                                                 </div>
                                             </FormControl>
                                             <FormMessage />
+                                            <PasswordRequirements password={watchedNewPassword} className="mt-3" />
                                         </FormItem>
                                     )} />
                                     <FormField control={passwordForm.control} name="confirmPassword" render={({ field }) => (
@@ -625,7 +674,7 @@ function ProfilePageContent() {
                     </div>
                     <div className='flex flex-col items-center justify-center text-center space-y-2 bg-muted/30 p-8 rounded-2xl border border-border/50 mb-6'>
                         <p className='text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1'>Tu Saldo</p>
-                        <p className="text-5xl font-bold text-primary font-sans">{user.loyalty_points || 0}</p>
+                        <p className="text-5xl font-bold text-primary font-sans">{user.loyaltyPoints || 0}</p>
                         <p className='text-sm font-bold text-muted-foreground'>Puntos</p>
                     </div>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-tight leading-relaxed font-medium">
@@ -680,7 +729,7 @@ function ProfilePageContent() {
         onOpenChange={setIsAddressModalOpen}
         onAddressSelect={() => {}}
         onSaveAddress={handleSaveAddress}
-        onDeleteAddress={deleteAddress}
+        onDeleteAddress={(id) => deleteAddress(id).then(() => {})}
         addresses={user.addresses || []}
         isSaving={isSavingAddress}
         addressToEdit={addressToEdit}

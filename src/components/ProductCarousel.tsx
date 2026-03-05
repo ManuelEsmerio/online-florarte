@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
-import type { Product, ProductRow } from '@/lib/definitions';
+import type { Product } from '@/lib/definitions';
 import { ProductCard } from './ProductCard';
 import { ProductCardSkeleton } from './ProductCardSkeleton';
 import {
@@ -22,7 +22,7 @@ const QuickView = dynamic(() => import('@/components/QuickView'));
 interface ProductCarouselProps {
     title: string;
     subtitle: string;
-    products: ProductRow[];
+    products: Product[];
     isLoading?: boolean;
     cardVariant?: 'default' | 'compact';
 }
@@ -35,9 +35,9 @@ const ProductCarousel = ({
     cardVariant = 'default' 
 }: ProductCarouselProps) => {
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  const handleQuickViewOpen = (product: ProductRow) => {
+  const handleQuickViewOpen = (product: Product) => {
     setSelectedProduct(product);
     setIsQuickViewOpen(true);
   };
@@ -74,7 +74,7 @@ const ProductCarousel = ({
               ))
             ) : (
               products.map((product, index) => (
-                <CarouselItem key={product.variantId ? `v-${product.id}-${product.variantId}` : `p-${product.id}`} className="pl-4 basis-1/2 sm:basis-1/3 lg:basis-1/4">
+                <CarouselItem key={`p-${product.id}-${index}`} className="pl-4 basis-1/2 sm:basis-1/3 lg:basis-1/4">
                   <ProductCard
                     product={product}
                     index={index}
