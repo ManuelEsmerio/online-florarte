@@ -3,6 +3,7 @@ import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession } from '@/utils/auth';
 import { orderService } from '@/services/orderService';
 import { getCancellationInfo } from '@/lib/business-logic/order-logic';
+import { assertOrderOwnership } from '@/utils/order-utils';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -30,8 +31,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return errorHandler(new Error('Pedido no encontrado.'), 404);
     }
 
-    const ownerUserId = Number((order as any).user_id ?? (order as any).userId ?? 0);
-    if (!ownerUserId || ownerUserId !== session.dbId) {
+    if (!assertOrderOwnership(order, session.dbId)) {
       return errorHandler(new Error('Acceso prohibido. No puedes ver este pedido.'), 403);
     }
 

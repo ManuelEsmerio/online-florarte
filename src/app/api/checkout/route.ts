@@ -1,10 +1,45 @@
 // src/app/api/checkout/route.ts
 import { NextRequest } from 'next/server';
+import { z, ZodError } from 'zod';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession } from '@/utils/auth';
 import { getSessionId } from '@/utils/session';
 import { orderService } from '@/services/orderService';
-import { ZodError } from 'zod';
+
+const checkoutBodySchema = z.object({
+  // Delivery
+  deliveryDate: z.string().min(1, 'La fecha de entrega es obligatoria'),
+  deliveryTimeSlot: z.string().optional(),
+  p_delivery_date: z.string().optional(),
+  p_delivery_time_slot: z.string().optional(),
+  // Address (logged-in user)
+  addressId: z.number().int().positive().optional(),
+  // Guest address
+  guestName: z.string().max(200).optional(),
+  guestEmail: z.string().email().optional(),
+  guestPhone: z.string().max(20).optional(),
+  guestAddressAlias: z.string().max(100).optional(),
+  guestStreetName: z.string().max(255).optional(),
+  guestStreetNumber: z.string().max(50).optional(),
+  guestInteriorNumber: z.string().max(50).optional(),
+  guestNeighborhood: z.string().max(150).optional(),
+  guestCity: z.string().max(150).optional(),
+  guestState: z.string().max(100).optional(),
+  guestPostalCode: z.string().max(10).optional(),
+  guestReferenceNotes: z.string().max(500).optional(),
+  shippingAddressSnapshot: z.string().max(500).optional(),
+  // Recipient overrides
+  recipientName: z.string().max(200).optional(),
+  recipientPhone: z.string().max(20).optional(),
+  // Order extras
+  couponCode: z.string().max(50).optional(),
+  dedication: z.string().max(500).optional(),
+  isAnonymous: z.boolean().optional(),
+  signature: z.string().max(200).optional(),
+  // Payment
+  gateway: z.enum(['stripe', 'mercadopago']).optional(),
+  currency: z.enum(['MXN']).optional(),
+});
 
 /**
  * POST /api/checkout
@@ -19,14 +54,21 @@ export async function POST(req: NextRequest) {
       return errorHandler(new Error('No se pudo identificar la sesión para checkout.'), 401);
     }
 
-    const body = await req.json();
+    let rawBody: unknown;
+    try {
+      rawBody = await req.json();
+    } catch {
+      return errorHandler(new Error('Formato de solicitud inválido.'), 400);
+    }
+
+    const parsed = checkoutBodySchema.parse(rawBody);
 
     const orderInput = {
         userId: session?.dbId ?? null,
         sessionId,
-        ...body,
-        gateway: body.gateway || 'stripe', // 'stripe' o 'paypal'
-        currency: body.currency || 'MXN',
+        ...parsed,
+        gateway: parsed.gateway ?? 'stripe',
+        currency: parsed.currency ?? 'MXN',
     };
     
     // El servicio ahora llama al nuevo sp_Checkout_Init

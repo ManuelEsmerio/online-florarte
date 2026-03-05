@@ -20,13 +20,16 @@ export async function GET(req: NextRequest) {
     const fetchAll = searchParams.get('all') === 'true';
 
     if (fetchAll) {
-      // Devuelve todos los productos activos y publicados para la funcionalidad de búsqueda.
+      // Returns published products for search — capped to prevent OOM on large catalogs.
+      const CAP = 2000;
       const adminProductData = await productService.getAdminProductList();
-      const activeAndPublished = adminProductData.products.filter(p => !p.isDeleted && p.status === 'PUBLISHED');
+      const activeAndPublished = adminProductData.products
+        .filter(p => !p.isDeleted && p.status === 'PUBLISHED')
+        .slice(0, CAP);
       return successResponse({
         products: activeAndPublished,
         total: activeAndPublished.length,
-        categories: adminProductData.categories, 
+        categories: adminProductData.categories,
       });
     }
 
