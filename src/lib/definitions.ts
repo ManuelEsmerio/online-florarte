@@ -20,10 +20,12 @@ export type ProductStatus = "PUBLISHED" | "HIDDEN" | "DRAFT";
 
 export type OrderStatus =
   | "PENDING"
+  | "PAYMENT_FAILED"
   | "PROCESSING"
   | "SHIPPED"
   | "DELIVERED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "EXPIRED";
 
 export type DiscountType = "PERCENTAGE" | "FIXED";
 

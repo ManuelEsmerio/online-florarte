@@ -20,8 +20,13 @@ export const stripeService = {
       baseMetadata.sessionId = String(params.sessionId);
     }
 
+    // Expire the session after 30 minutes so Stripe fires checkout.session.expired
+    // and we can clean up the order automatically via webhook.
+    const expiresAt = Math.floor(Date.now() / 1000) + 30 * 60;
+
     return stripe.checkout.sessions.create({
       mode: 'payment',
+      expires_at: expiresAt,
       success_url: params.successUrl,
       cancel_url: params.cancelUrl,
       line_items: [

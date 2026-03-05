@@ -11,10 +11,12 @@ import { UserFacingError } from '@/utils/errors';
 
 const ORDER_STATUS_MAP: Record<string, string> = {
   PENDING: 'pendiente',
+  PAYMENT_FAILED: 'pago_fallido',
   PROCESSING: 'procesando',
   SHIPPED: 'en_reparto',
   DELIVERED: 'completado',
   CANCELLED: 'cancelado',
+  EXPIRED: 'expirado',
 };
 
 function mapStatus(status: string): string {
@@ -495,18 +497,6 @@ export const orderService = {
       }
     }
 
-    const resolvedShippingCost = await resolveShippingCost(
-      selectedAddress?.id ?? normalizedAddressId,
-      guestPostalCode,
-    );
-    const shippingCost = Number.isFinite(Number(resolvedShippingCost))
-      ? Math.max(0, Number(resolvedShippingCost))
-      : 0;
-
-    const subtotal = cartData.subtotal;
-    const couponDiscount = calculateCouponDiscount(subtotal, appliedCoupon ?? (cartData.coupon ?? null));
-    const total = Math.max(0, Number((subtotal - couponDiscount + shippingCost).toFixed(2)));
-
     if (normalizedUserId && !normalizedAddressId) {
       throw new UserFacingError('Debes seleccionar una dirección guardada para completar tu compra.');
     }
@@ -524,6 +514,18 @@ export const orderService = {
     if (normalizedUserId && normalizedAddressId && !selectedAddress) {
       throw new UserFacingError('La dirección seleccionada no existe o no pertenece al usuario.');
     }
+
+    const resolvedShippingCost = await resolveShippingCost(
+      selectedAddress?.id ?? normalizedAddressId,
+      guestPostalCode,
+    );
+    const shippingCost = Number.isFinite(Number(resolvedShippingCost))
+      ? Math.max(0, Number(resolvedShippingCost))
+      : 0;
+
+    const subtotal = cartData.subtotal;
+    const couponDiscount = calculateCouponDiscount(subtotal, appliedCoupon ?? (cartData.coupon ?? null));
+    const total = Math.max(0, Number((subtotal - couponDiscount + shippingCost).toFixed(2)));
 
     const snapshotData = selectedAddress
       ? orderAddressService.normalizeSnapshot({
@@ -717,7 +719,7 @@ export const orderService = {
   }) {
     let amountMismatchDetected = false;
 
-    const shouldSendEmails = await prisma.$transaction(
+    const { shouldSendEmails, cartIdentity } = await prisma.$transaction(
       async (tx: any) => {
         const paymentTxModel = getPaymentTransactionModel(tx);
         const [existingTransaction, order] = await Promise.all([
@@ -727,7 +729,7 @@ export const orderService = {
           }),
           tx.order.findUnique({
             where: { id: params.orderId },
-            select: { id: true, total: true, status: true },
+            select: { id: true, total: true, status: true, userId: true, sessionId: true },
           }),
         ]);
 
@@ -750,7 +752,10 @@ export const orderService = {
             amount: params.amount,
             status: 'FAILED',
           });
-          return false;
+          return {
+            shouldSendEmails: false,
+            cartIdentity: { userId: order.userId ?? null, sessionId: order.sessionId ?? null },
+          };
         }
 
         await safeUpsertPaymentTransaction(paymentTxModel, {
@@ -761,14 +766,18 @@ export const orderService = {
           status: 'SUCCEEDED',
         });
 
-        if (order.status === 'PENDING') {
+        // Advance from any pre-payment state to PROCESSING
+        if (['PENDING', 'PAYMENT_FAILED'].includes(order.status)) {
           await tx.order.update({
             where: { id: params.orderId },
             data: { status: 'PROCESSING' },
           });
         }
 
-        return existingTransaction?.status !== 'SUCCEEDED';
+        return {
+          shouldSendEmails: existingTransaction?.status !== 'SUCCEEDED',
+          cartIdentity: { userId: order.userId ?? null, sessionId: order.sessionId ?? null },
+        };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }
     );
@@ -781,6 +790,20 @@ export const orderService = {
       });
       await this.cancelAbandonedOrder(params.orderId);
       return { success: false, orderId: params.orderId };
+    }
+
+    if (cartIdentity?.userId || cartIdentity?.sessionId) {
+      try {
+        await cartService.clearCart({
+          userId: cartIdentity.userId ?? null,
+          sessionId: cartIdentity.sessionId ?? null,
+        });
+      } catch (error) {
+        console.error('[ORDER_CLEAR_CART_AFTER_PAYMENT_ERROR]', {
+          orderId: params.orderId,
+          error,
+        });
+      }
     }
 
     if (shouldSendEmails) {
@@ -803,10 +826,21 @@ export const orderService = {
     const shouldSendFailureEmail = await prisma.$transaction(
       async (tx: any) => {
         const paymentTxModel = getPaymentTransactionModel(tx);
-        const existingTransaction = await paymentTxModel.findFirst({
-          where: { externalPaymentId: params.externalPaymentId },
-          select: { status: true },
-        });
+        const [existingTransaction, order] = await Promise.all([
+          paymentTxModel.findFirst({
+            where: { externalPaymentId: params.externalPaymentId },
+            select: { status: true },
+          }),
+          tx.order.findUnique({
+            where: { id: params.orderId },
+            select: { status: true },
+          }),
+        ]);
+
+        // Idempotency: already in a terminal state — nothing to do
+        if (!order || ['PROCESSING', 'DELIVERED', 'CANCELLED', 'EXPIRED'].includes(order.status)) {
+          return false;
+        }
 
         await safeUpsertPaymentTransaction(paymentTxModel, {
           orderId: params.orderId,
@@ -816,12 +850,16 @@ export const orderService = {
           status: 'FAILED',
         });
 
+        // Mark the order as PAYMENT_FAILED — keeps it alive for retry within Stripe Checkout
+        await tx.order.update({
+          where: { id: params.orderId },
+          data: { status: 'PAYMENT_FAILED' },
+        });
+
         return existingTransaction?.status !== 'FAILED';
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }
     );
-
-    await this.cancelAbandonedOrder(params.orderId);
 
     if (shouldSendFailureEmail) {
       try {
@@ -834,7 +872,17 @@ export const orderService = {
     return { success: true, orderId: params.orderId };
   },
 
-  async cancelAbandonedOrder(orderId: number): Promise<void> {
+  /**
+   * Expires or cancels a pre-payment order (no refund needed — payment never succeeded).
+   * Called by:
+   *  - Stripe webhook `checkout.session.expired` → targetStatus = 'EXPIRED'
+   *  - Stripe webhook `payment_intent.canceled`  → targetStatus = 'CANCELLED'
+   *  - Amount-mismatch path in finalizeSuccessfulPaymentFromWebhook → targetStatus = 'CANCELLED'
+   */
+  async cancelAbandonedOrder(
+    orderId: number,
+    targetStatus: 'CANCELLED' | 'EXPIRED' = 'CANCELLED',
+  ): Promise<void> {
     await prisma.$transaction(async (tx: any) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -846,7 +894,8 @@ export const orderService = {
         },
       });
 
-      if (!order || order.status !== 'PENDING') return;
+      // Only act on pre-payment states
+      if (!order || !['PENDING', 'PAYMENT_FAILED'].includes(order.status)) return;
 
       // Restaurar stock de cada ítem
       for (const item of order.items) {
@@ -874,7 +923,7 @@ export const orderService = {
 
       await tx.order.update({
         where: { id: orderId },
-        data: { status: 'CANCELLED' },
+        data: { status: targetStatus },
       });
     });
   },
@@ -906,7 +955,7 @@ export const orderService = {
     if (!rawOrder) throw new UserFacingError('Pedido no encontrado.');
 
     // Double-check status (may have changed since getCancellationInfo ran in the route)
-    if (rawOrder.status !== 'PENDING') {
+    if (!['PENDING', 'PAYMENT_FAILED'].includes(rawOrder.status)) {
       throw new UserFacingError('El pedido ya no puede cancelarse porque su estado cambió.');
     }
 

@@ -119,3 +119,62 @@ Además de Stripe, puedes probar el checkout con Mercado Pago.
    ```
 
    Reemplaza `<ORDER_ID>` por el ID real de la orden y revisa los logs del webhook para confirmar el flujo completo.
+
+5. Se necesita un SP para poder liberar cupones y stock si la compra falla
+
+DELIMITER $$
+
+CREATE PROCEDURE expire_pending_orders()
+BEGIN
+
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE v_order_id INT;
+
+    DECLARE cur CURSOR FOR
+        SELECT id
+        FROM orders
+        WHERE status = 'PENDING'
+        AND createdAt <= (NOW() - INTERVAL 30 MINUTE);
+
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+    OPEN cur;
+
+    read_loop: LOOP
+
+        FETCH cur INTO v_order_id;
+
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+
+        -- 1️⃣ Restaurar stock
+        UPDATE product_variants pv
+        JOIN order_items oi ON oi.variantId = pv.id
+        SET pv.stock = pv.stock + oi.quantity
+        WHERE oi.orderId = v_order_id;
+
+        UPDATE products p
+        JOIN order_items oi ON oi.productId = p.id
+        SET p.stock = p.stock + oi.quantity
+        WHERE oi.orderId = v_order_id
+        AND oi.variantId IS NULL;
+
+        -- 2️⃣ Liberar cupón (decrementar uso)
+        UPDATE coupons c
+        JOIN orders o ON o.couponId = c.id
+        SET c.usesCount = GREATEST(c.usesCount - 1,0)
+        WHERE o.id = v_order_id;
+
+        -- 3️⃣ Marcar orden como expirada
+        UPDATE orders
+        SET status = 'EXPIRED'
+        WHERE id = v_order_id;
+
+    END LOOP;
+
+    CLOSE cur;
+
+END$$
+
+DELIMITER ;

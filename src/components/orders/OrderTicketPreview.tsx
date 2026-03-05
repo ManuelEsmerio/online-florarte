@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
 import type { AdminOrderDetailsDTO } from '@/lib/definitions';
 import { Button } from '@/components/ui/button';
-import { printOrderTicket } from '@/lib/printing/order-ticket';
+import { printMonochromeOrderTicket } from '@/lib/printing/order-ticket-monochrome';
 import { cn, formatTimeSlotForUI } from '@/lib/utils';
 
 interface OrderTicketPreviewProps {
@@ -67,7 +67,7 @@ export function OrderTicketPreview({ order }: OrderTicketPreviewProps) {
     if (!order) return;
     try {
       setIsDownloading(true);
-      printOrderTicket(order);
+      printMonochromeOrderTicket(order);
     } finally {
       setTimeout(() => setIsDownloading(false), 500);
     }

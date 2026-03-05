@@ -5,8 +5,8 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/cancel-pending-orders",
-      "schedule": "0 3 * * *"
+      "path": "/api/cron/expire-orders",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

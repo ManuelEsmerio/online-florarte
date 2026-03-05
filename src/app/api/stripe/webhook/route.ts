@@ -47,23 +47,15 @@ export async function POST(req: Request) {
         break;
       }
 
-      case 'payment_intent.succeeded': {
-        const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        const orderId = Number(paymentIntent.metadata?.orderId);
-        const amount = (paymentIntent.amount_received ?? paymentIntent.amount ?? 0) / 100;
-
-        if (orderId > 0) {
-          await orderService.finalizeSuccessfulPaymentFromWebhook({
-            orderId,
-            amount,
-            externalPaymentId: paymentIntent.id,
-            gateway: 'stripe',
-          });
-        }
-        break;
-      }
+      // NOTE: payment_intent.succeeded is intentionally NOT handled here.
+      // For Checkout Sessions both checkout.session.completed AND payment_intent.succeeded
+      // fire for the same payment — handling both would create a duplicate PaymentTransaction.
+      // checkout.session.completed is the single canonical success event for this flow.
 
       case 'payment_intent.payment_failed': {
+        // A card attempt failed inside Stripe Checkout.
+        // The session is still open — Stripe lets the customer correct the card and retry.
+        // We record the failure and mark the order PAYMENT_FAILED; we do NOT cancel it.
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         const orderId = Number(paymentIntent.metadata?.orderId);
         const amount = (paymentIntent.amount ?? 0) / 100;
@@ -75,6 +67,30 @@ export async function POST(req: Request) {
             externalPaymentId: paymentIntent.id,
             gateway: 'stripe',
           });
+        }
+        break;
+      }
+
+      case 'checkout.session.expired': {
+        // The customer abandoned the checkout and the session timed out.
+        // Restore stock + coupon and mark the order EXPIRED.
+        const session = event.data.object as Stripe.Checkout.Session;
+        const orderId = Number(session.metadata?.orderId);
+
+        if (orderId > 0) {
+          await orderService.cancelAbandonedOrder(orderId, 'EXPIRED');
+        }
+        break;
+      }
+
+      case 'payment_intent.canceled': {
+        // PaymentIntent cancelled (e.g. manually via Stripe Dashboard).
+        // Restore stock + coupon and mark the order CANCELLED.
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        const orderId = Number(paymentIntent.metadata?.orderId);
+
+        if (orderId > 0) {
+          await orderService.cancelAbandonedOrder(orderId, 'CANCELLED');
         }
         break;
       }

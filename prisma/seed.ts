@@ -12,7 +12,7 @@
  *   SEED_ADMIN_PASSWORD — default: Admin@Florarte2024!
  *   SEED_ADMIN_NAME     — default: Administrador
  */
-import { PrismaClient, Prisma, Role } from '@prisma/client';
+import { PrismaClient, Prisma, Role, ProductStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -150,6 +150,151 @@ const defaultOccasions = [
     name: 'Sorpresa',
     description: 'Flores perfectas para sorprender y alegrar el día de alguien especial.',
     showOnHome: true,
+  },
+];
+
+type SampleProductVariantConfig = {
+  name: string;
+  price: number;
+  stock: number;
+  shortDescription?: string;
+  description?: string;
+  code?: string;
+};
+
+type SampleProductConfig = {
+  code: string;
+  name: string;
+  description: string;
+  shortDescription?: string;
+  price: number;
+  salePrice?: number;
+  stock: number;
+  badgeText?: string;
+  categorySlug: string;
+  mainImage: string;
+  imageGallery?: string[];
+  allowPhoto?: boolean;
+  photoPrice?: number;
+  occasionSlugs?: string[];
+  variants?: SampleProductVariantConfig[];
+};
+
+const sampleProducts: SampleProductConfig[] = [
+  {
+    code: 'ARR-DEMO-001',
+    name: 'Aurora Pastel Premium',
+    description: 'Composición artesanal con rosas pastel, lisianthus y follaje eucalipto diseñada para celebraciones memorables.',
+    shortDescription: 'Ramo pastel con rosas importadas y textura romántica.',
+    price: 1899,
+    stock: 12,
+    badgeText: 'Más vendido',
+    categorySlug: 'arreglos-florales',
+    mainImage: '/sample/products/aurora-pastel-1.webp',
+    imageGallery: ['/sample/products/aurora-pastel-1.webp', '/sample/products/aurora-pastel-2.webp'],
+    occasionSlugs: [slugify('Cumpleaños'), slugify('Amor / Romance')],
+  },
+  {
+    code: 'RAM-DEMO-002',
+    name: 'Bouquet Amanecer Citrino',
+    description: 'Bouquet vibrante con rosas amarillas, girasoles y toques blancos perfecto para levantar el ánimo al instante.',
+    shortDescription: 'Girasoles y rosas amarillas en envoltura de lino.',
+    price: 1099,
+    salePrice: 999,
+    stock: 15,
+    badgeText: 'Oferta',
+    categorySlug: 'ramos-florales',
+    mainImage: '/sample/products/amanecer-citrino-1.webp',
+    imageGallery: ['/sample/products/amanecer-citrino-1.webp'],
+    occasionSlugs: [slugify('Felicitaciones'), slugify('Sorpresa')],
+  },
+  {
+    code: 'PLT-DEMO-003',
+    name: 'Monstera Esmeralda XL',
+    description: 'Monstera deliciosa de vivero premium entregada en maceta de cerámica mate lista para interiores luminosos.',
+    shortDescription: 'Planta de interior tropical de 80 cm.',
+    price: 799,
+    stock: 10,
+    categorySlug: 'plantas',
+    mainImage: '/sample/products/monstera-esmeralda-1.webp',
+    imageGallery: ['/sample/products/monstera-esmeralda-1.webp'],
+    occasionSlugs: [slugify('Nacimiento')],
+  },
+  {
+    code: 'PLT-DEMO-008',
+    name: 'Terrario Suculentas Duo',
+    description: 'Terrario ovalado con suculentas seleccionadas, piedras de río y arena volcánica para oficinas o mesas auxiliares.',
+    shortDescription: 'Terrario moderno listo para regalar.',
+    price: 549,
+    stock: 18,
+    categorySlug: 'plantas',
+    mainImage: '/sample/products/terrario-duo-1.webp',
+    imageGallery: ['/sample/products/terrario-duo-1.webp'],
+    occasionSlugs: [slugify('Felicitaciones')],
+  },
+  {
+    code: 'PAQ-DEMO-004',
+    name: 'Kit Celebración Dulce',
+    description: 'Caja experiencia con mini bouquet, botella espumosa y tabla de postres artesanales para festejar en casa.',
+    shortDescription: 'Mini bouquet + postres + bebida espumosa.',
+    price: 1699,
+    stock: 6,
+    categorySlug: 'paquetes',
+    mainImage: '/sample/products/kit-celebracion-1.webp',
+    imageGallery: ['/sample/products/kit-celebracion-1.webp', '/sample/products/kit-celebracion-2.webp'],
+    occasionSlugs: [slugify('Aniversario'), slugify('Graduación')],
+    variants: [
+      {
+        name: 'Standard',
+        price: 1699,
+        stock: 6,
+        shortDescription: 'Incluye 6 postres y bouquet compacto.',
+        description: 'Selección estándar con mini bouquet y tabla de 6 postres.',
+      },
+      {
+        name: 'Deluxe',
+        price: 2099,
+        stock: 4,
+        shortDescription: 'Incluye postres extra y cava rosada.',
+        description: 'Versión deluxe con botella rosé y bouquet mediano.',
+      },
+    ],
+  },
+  {
+    code: 'PEL-DEMO-005',
+    name: 'Peluche Abrazo Gigante',
+    description: 'Oso de felpa hipoalergénica de 60 cm con moño lavanda combinado con nuestras colecciones románticas.',
+    shortDescription: 'Peluche premium de 60 cm.',
+    price: 499,
+    stock: 25,
+    categorySlug: 'complementos-peluches',
+    mainImage: '/sample/products/peluche-abrazo-1.webp',
+    imageGallery: ['/sample/products/peluche-abrazo-1.webp'],
+    occasionSlugs: [slugify('Amor / Romance'), slugify('San Valentín')],
+  },
+  {
+    code: 'GLOB-DEMO-006',
+    name: 'Set Globos Metálicos Solar',
+    description: 'Set de 5 globos metálicos helio en tonos oro y coral con mensaje personalizable.',
+    shortDescription: 'Set de globos helio listos para entrega.',
+    price: 349,
+    stock: 20,
+    categorySlug: 'complementos-globos',
+    mainImage: '/sample/products/globos-solar-1.webp',
+    imageGallery: ['/sample/products/globos-solar-1.webp'],
+    occasionSlugs: [slugify('Cumpleaños')],
+  },
+  {
+    code: 'CHO-DEMO-007',
+    name: 'Caja Trufas Artesanales Cacao 70%',
+    description: 'Selección de 12 trufas artesanales con rellenos de licor y frutos rojos, elaboradas por Maison Román.',
+    shortDescription: 'Caja gourmet de trufas mixtas.',
+    price: 389,
+    stock: 30,
+    categorySlug: 'complementos-chocolates',
+    mainImage: '/sample/products/trufas-artesanales-1.webp',
+    imageGallery: ['/sample/products/trufas-artesanales-1.webp'],
+    occasionSlugs: [slugify('Aniversario'), slugify('Sorpresa')],
   },
 ];
 
@@ -360,6 +505,109 @@ async function seedShippingZonesFromCsv() {
   console.log(`✅ ${zones.length} zonas de envío listas.`);
 }
 
+async function seedSampleProducts() {
+  console.log('🧪 Generando productos demo para pruebas...');
+
+  const neededCategorySlugs = Array.from(new Set(sampleProducts.map((product) => product.categorySlug)));
+  const categories = await prisma.productCategory.findMany({
+    where: { slug: { in: neededCategorySlugs } },
+  });
+  const categoryMap = new Map(categories.map((category) => [category.slug, category.id]));
+
+  if (categories.length !== neededCategorySlugs.length) {
+    console.warn('⚠️ Algunas categorías para productos demo no existen todavía.');
+  }
+
+  const neededOccasionSlugs = Array.from(
+    new Set(sampleProducts.flatMap((product) => product.occasionSlugs ?? []))
+  );
+
+  const occasionMap = new Map(
+    neededOccasionSlugs.length
+      ? (
+          await prisma.occasion.findMany({
+            where: { slug: { in: neededOccasionSlugs } },
+          })
+        ).map((occasion) => [occasion.slug, occasion.id])
+      : []
+  );
+
+  for (const productConfig of sampleProducts) {
+    const categoryId = categoryMap.get(productConfig.categorySlug);
+    if (!categoryId) {
+      console.warn(`⚠️ Omitiendo ${productConfig.name} porque falta la categoría ${productConfig.categorySlug}.`);
+      continue;
+    }
+
+    const slug = slugify(productConfig.name);
+    const existingProduct = await prisma.product.findUnique({ where: { slug } });
+    if (existingProduct) {
+      continue;
+    }
+
+    const product = await prisma.product.create({
+      data: {
+        name: productConfig.name,
+        slug,
+        code: productConfig.code,
+        description: productConfig.description,
+        shortDescription: productConfig.shortDescription,
+        price: new Prisma.Decimal(productConfig.price),
+        salePrice: productConfig.salePrice ? new Prisma.Decimal(productConfig.salePrice) : undefined,
+        stock: productConfig.stock,
+        hasVariants: Boolean(productConfig.variants?.length),
+        status: ProductStatus.PUBLISHED,
+        badgeText: productConfig.badgeText,
+        categoryId,
+        mainImage: productConfig.mainImage,
+        allowPhoto: productConfig.allowPhoto ?? false,
+        photoPrice: productConfig.photoPrice ? new Prisma.Decimal(productConfig.photoPrice) : undefined,
+        images: productConfig.imageGallery?.length
+          ? {
+              create: productConfig.imageGallery.map((src, index) => ({
+                src,
+                alt: `${productConfig.name} ${index === 0 ? 'principal' : `detalle ${index + 1}`}`,
+                isPrimary: index === 0,
+                sortOrder: index,
+              })),
+            }
+          : undefined,
+        variants: productConfig.variants?.length
+          ? {
+              create: productConfig.variants.map((variant, index) => ({
+                name: variant.name,
+                productName: `${productConfig.name} - ${variant.name}`,
+                code: variant.code ?? `${productConfig.code}-V${index + 1}`,
+                price: new Prisma.Decimal(variant.price),
+                stock: variant.stock,
+                shortDescription: variant.shortDescription,
+                description: variant.description,
+              })),
+            }
+          : undefined,
+      },
+    });
+
+    if (productConfig.occasionSlugs?.length) {
+      for (const occasionSlug of productConfig.occasionSlugs) {
+        const occasionId = occasionMap.get(occasionSlug);
+        if (!occasionId) continue;
+
+        await prisma.productOccasion.create({
+          data: {
+            productId: product.id,
+            occasionId,
+          },
+        });
+      }
+    }
+
+    console.log(`   • Producto demo creado: ${product.name}`);
+  }
+
+  console.log('✅ Productos demo listos.');
+}
+
 async function main() {
   console.log('🌱 Iniciando seed de la base de datos...');
 
@@ -385,6 +633,11 @@ async function main() {
   await seedDefaultCategories();
   await seedDefaultOccasions();
   await seedShippingZonesFromCsv();
+  /**
+   * 🚨 Bloque temporal de productos demo para QA.
+   * Eliminar esta sección cuando el catálogo real se gestione desde el panel.
+   */
+  await seedSampleProducts();
   console.log('');
   console.log('📋 Próximos pasos:');
   console.log('   1. Inicia sesión en /admin con las credenciales del seed');

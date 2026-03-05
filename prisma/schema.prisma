@@ -37,11 +37,13 @@ enum ProductStatus {
 }
 
 enum OrderStatus {
-  PENDING    // pendiente
-  PROCESSING // procesando
-  SHIPPED    // enviado
-  DELIVERED  // completado (en reparto → delivered)
-  CANCELLED  // cancelado
+  PENDING         // creada, esperando pago
+  PAYMENT_FAILED  // intento fallido — sigue activa para reintento
+  PROCESSING      // pago confirmado, preparando pedido
+  SHIPPED         // en reparto
+  DELIVERED       // entregado
+  CANCELLED       // cancelado manualmente o por Stripe
+  EXPIRED         // nunca pagada, expiró por tiempo
 }
 
 enum DiscountType {
