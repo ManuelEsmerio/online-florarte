@@ -126,11 +126,14 @@ model User {
   loyaltyHistory LoyaltyHistory[]
   testimonials   Testimonial[]
   couponUsers    CouponUser[]
+  couponRedemptions CouponRedemption[]
   wishlistItems  WishlistItem[]
   carts          Cart[]
   /// Cancellations performed by this admin user
   adminCancellations OrderCancellationLog[] @relation("AdminCancellations")
 
+  @@index([emailVerificationToken])
+  @@index([passwordResetToken])
   @@map("users")
 }
 
@@ -372,6 +375,7 @@ model Order {
   deliveryDriver          User?       @relation("DeliveryDriverOrders", fields: [deliveryDriverId], references: [id])
   couponId                Int?
   coupon                  Coupon?     @relation(fields: [couponId], references: [id])
+  couponRedemptions       CouponRedemption[]
   /// Snapshot of the coupon code used, for historical purposes
   couponCodeSnap          String?     @db.VarChar(50)
   status                  OrderStatus @default(PENDING)
@@ -485,8 +489,26 @@ model Coupon {
   couponUsers      CouponUser[]
   couponCategories CouponCategory[]
   couponProducts   CouponProduct[]
+  redemptions      CouponRedemption[]
 
   @@map("coupons")
+}
+
+model CouponRedemption {
+  id         Int       @id @default(autoincrement())
+  couponId   Int
+  userId     Int
+  orderId    Int?
+  redeemedAt DateTime  @default(now())
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order  Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@unique([couponId, userId])
+  @@index([userId])
+  @@index([orderId])
+  @@map("coupon_redemptions")
 }
 
 // ============================================================

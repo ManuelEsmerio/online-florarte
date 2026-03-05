@@ -9,7 +9,7 @@ import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 export async function POST(req: NextRequest) {
   // 3 solicitudes por IP cada hora (protege abuso del servicio de email)
   const ip = getClientIp(req);
-  const rl = checkRateLimit(`forgot-password:${ip}`, 3, 60 * 60 * 1000);
+  const rl = await checkRateLimit(`forgot-password:${ip}`, 3, 60 * 60 * 1000);
   if (!rl.allowed) {
     return errorHandler(new Error('Demasiadas solicitudes de restablecimiento. Intenta más tarde.'), 429);
   }

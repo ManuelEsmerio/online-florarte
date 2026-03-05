@@ -13,7 +13,7 @@ import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req);
-    const rl = checkRateLimit(`coupon_validate:${ip}`, 20, 60 * 1000);
+    const rl = await checkRateLimit(`coupon_validate:${ip}`, 20, 60 * 1000);
     if (!rl.allowed) {
       return errorHandler(new Error('Demasiadas solicitudes. Intenta de nuevo en unos minutos.'), 429);
     }

@@ -86,7 +86,7 @@ export async function POST(req: Request) {
         const refunds = (charge.refunds as Stripe.ApiList<Stripe.Refund> | null)?.data ?? [];
 
         for (const refund of refunds) {
-          const existingRefund = await (prisma as any).refund.findUnique({
+          const existingRefund = await prisma.refund.findUnique({
             where: { externalRefundId: refund.id },
             select: { id: true, status: true },
           });
@@ -94,7 +94,7 @@ export async function POST(req: Request) {
           if (existingRefund) {
             // Update status if it changed (pending → succeeded)
             if (existingRefund.status !== refund.status) {
-              await (prisma as any).refund.update({
+              await prisma.refund.update({
                 where: { id: existingRefund.id },
                 data: { status: refund.status },
               });
@@ -108,14 +108,14 @@ export async function POST(req: Request) {
               : charge.payment_intent?.id ?? null;
 
             if (paymentIntentId) {
-              const paymentTx = await (prisma as any).paymentTransaction.findUnique({
+              const paymentTx = await prisma.paymentTransaction.findUnique({
                 where: { externalPaymentId: paymentIntentId },
                 select: { id: true, orderId: true, amount: true },
               });
 
               if (paymentTx) {
                 try {
-                  await (prisma as any).refund.create({
+                  await prisma.refund.create({
                     data: {
                       paymentTransactionId: paymentTx.id,
                       externalRefundId: refund.id,
@@ -124,7 +124,7 @@ export async function POST(req: Request) {
                       reason: refund.reason ?? 'requested_by_customer',
                     },
                   });
-                  await (prisma as any).paymentTransaction.update({
+                  await prisma.paymentTransaction.update({
                     where: { id: paymentTx.id },
                     data: { status: 'CANCELED' },
                   });

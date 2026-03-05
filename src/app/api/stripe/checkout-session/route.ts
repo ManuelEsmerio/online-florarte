@@ -4,6 +4,7 @@ import { getDecodedToken, UserSession } from '@/utils/auth';
 import { getSessionId } from '@/utils/session';
 import { orderService } from '@/services/orderService';
 import { stripeService } from '@/services/stripeService';
+import { resolveShippingCost } from '@/lib/checkout/resolveShippingCost';
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +15,8 @@ export async function POST(req: NextRequest) {
     if (!session?.dbId && !sessionId) {
       return errorHandler(new Error('No se pudo identificar la sesión para checkout.'), 401);
     }
+
+    const shippingCost = await resolveShippingCost(body.addressId, body.guestPostalCode);
 
     const { orderId, total } = await orderService.initializeCheckout({
       userId: session?.dbId ?? null,
@@ -39,7 +42,7 @@ export async function POST(req: NextRequest) {
       dedication: body.dedication,
       isAnonymous: body.isAnonymous,
       signature: body.signature,
-      shippingCost: body.shippingCost,
+      shippingCost,
     });
 
     const amountMajor = Number(total);

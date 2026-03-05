@@ -8,13 +8,6 @@ import { stripeService } from './stripeService';
 import type { DbCartItem, Order, OrderStatus } from '@/lib/definitions';
 import { UserFacingError } from '@/utils/errors';
 
-const paymentTransactionModel = (prisma as unknown as {
-  paymentTransaction: {
-    findMany: (args: any) => Promise<any[]>;
-    findFirst: (args: any) => Promise<any | null>;
-  };
-}).paymentTransaction;
-
 const ORDER_STATUS_MAP: Record<string, string> = {
   PENDING: 'pendiente',
   PROCESSING: 'procesando',
@@ -172,7 +165,7 @@ export const orderService = {
 
     const orderIds = orders.map((order: any) => order.id);
     const transactions = orderIds.length > 0
-      ? await paymentTransactionModel.findMany({
+      ? await prisma.paymentTransaction.findMany({
           where: { orderId: { in: orderIds } },
           orderBy: { createdAt: 'desc' },
         })
@@ -234,7 +227,7 @@ export const orderService = {
 
     const orderIds = orders.map((order: any) => order.id);
     const transactions = orderIds.length > 0
-      ? await paymentTransactionModel.findMany({
+      ? await prisma.paymentTransaction.findMany({
           where: { orderId: { in: orderIds } },
           orderBy: { createdAt: 'desc' },
         })
@@ -324,7 +317,7 @@ export const orderService = {
     });
     if (!order) return null;
 
-    const latestPaymentTransaction = await paymentTransactionModel.findFirst({
+    const latestPaymentTransaction = await prisma.paymentTransaction.findFirst({
       where: { orderId: order.id },
       orderBy: { createdAt: 'desc' },
     });
@@ -558,16 +551,17 @@ export const orderService = {
 
     const newOrder = await prisma.$transaction(async (tx: any) => {
       if (appliedCoupon && normalizedUserId) {
-        const alreadyUsedByUser = await tx.order.findFirst({
+        const existingRedemption = await tx.couponRedemption.findUnique({
           where: {
-            userId: normalizedUserId,
-            couponId: appliedCoupon.id,
-            status: { not: 'CANCELLED' },
+            couponId_userId: {
+              couponId: appliedCoupon.id,
+              userId: normalizedUserId,
+            },
           },
           select: { id: true },
         });
 
-        if (alreadyUsedByUser) {
+        if (existingRedemption) {
           throw new UserFacingError('Este cupón ya fue utilizado por tu cuenta.');
         }
       }
@@ -647,6 +641,16 @@ export const orderService = {
         if (couponUpdateResult.count !== 1) {
           throw new UserFacingError('No se pudo reservar el cupón para este pedido. Intenta nuevamente.');
         }
+      }
+
+      if (appliedCoupon && normalizedUserId) {
+        await tx.couponRedemption.create({
+          data: {
+            couponId: appliedCoupon.id,
+            userId: normalizedUserId,
+            orderId: createdOrder.id,
+          },
+        });
       }
 
       const activeCart = await tx.cart.findFirst({
@@ -837,7 +841,7 @@ export const orderService = {
     }
 
     // --- 2. Find SUCCEEDED payment transaction ---
-    const paymentTx = await (prisma as any).paymentTransaction.findFirst({
+    const paymentTx = await prisma.paymentTransaction.findFirst({
       where: { orderId, status: 'SUCCEEDED' },
       orderBy: { createdAt: 'desc' },
       select: { id: true, externalPaymentId: true, gateway: true, amount: true },
@@ -870,7 +874,7 @@ export const orderService = {
     }
 
     // --- 4. Idempotency: check if refund already exists ---
-    const existingRefund = await (prisma as any).refund.findUnique({
+    const existingRefund = await prisma.refund.findUnique({
       where: { paymentTransactionId: paymentTx.id },
       select: { externalRefundId: true, status: true },
     });
@@ -880,7 +884,7 @@ export const orderService = {
       const currentOrder = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
       if (currentOrder?.status !== 'CANCELLED') {
         await prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
-        await (prisma as any).paymentTransaction.update({ where: { id: paymentTx.id }, data: { status: 'CANCELED' } });
+        await prisma.paymentTransaction.update({ where: { id: paymentTx.id }, data: { status: 'CANCELED' } });
       }
       console.info('[AUDIT] order_cancel_idempotent_hit', { orderId, externalRefundId: existingRefund.externalRefundId });
       return { refunded: true, stripeRefundId: existingRefund.externalRefundId };
@@ -1016,7 +1020,7 @@ export const orderService = {
     if (rawOrder.status === 'CANCELLED') throw new UserFacingError('El pedido ya está cancelado.');
 
     // --- 2. Find SUCCEEDED payment transaction ---
-    const paymentTx = await (prisma as any).paymentTransaction.findFirst({
+    const paymentTx = await prisma.paymentTransaction.findFirst({
       where: { orderId, status: 'SUCCEEDED' },
       orderBy: { createdAt: 'desc' },
       select: { id: true, externalPaymentId: true, gateway: true, amount: true },
@@ -1032,7 +1036,7 @@ export const orderService = {
 
     if (shouldRefund) {
       // --- 3. Idempotency check ---
-      const existingRefund = await (prisma as any).refund.findUnique({
+      const existingRefund = await prisma.refund.findUnique({
         where: { paymentTransactionId: paymentTx.id },
         select: { externalRefundId: true, amount: true },
       });

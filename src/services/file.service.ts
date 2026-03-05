@@ -6,6 +6,9 @@ import sharp from 'sharp';
 import fs from 'fs/promises';
 import path from 'path';
 import { cloudinary } from '@/lib/cloudinary';
+import { UserFacingError } from '@/utils/errors';
+
+const MAX_CUSTOM_PHOTO_PIXELS = 20_000_000; // ~20MP, evita imágenes gigantes
 
 /**
  * Asegura que un directorio exista, creándolo si es necesario.
@@ -175,10 +178,13 @@ export async function saveAnnouncementImage(file: File, announcementId: string |
  * @returns Un objeto con la ruta del archivo y un UUID único para el archivo.
  */
 export async function saveCartPhoto(file: File, sessionId: string, productId: number): Promise<{ filePath: string, fileUUID: string }> {
-    const webpBuffer = await sharp(Buffer.from(await file.arrayBuffer()))
-        .webp({ quality: 75 })
-        .toBuffer();
-    
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const webpBuffer = await sharp(Buffer.from(arrayBuffer), { limitInputPixels: MAX_CUSTOM_PHOTO_PIXELS })
+      .rotate()
+      .webp({ quality: 75 })
+      .toBuffer();
+        
     const fileUUID = uuidv4();
     const uniqueFilename = `photo-${productId}-${fileUUID}.webp`;
     const publicDir = path.join(process.cwd(), 'public', 'images', 'carts', sessionId);
@@ -189,6 +195,10 @@ export async function saveCartPhoto(file: File, sessionId: string, productId: nu
 
     const relativePath = `images/carts/${sessionId}/${uniqueFilename}`;
     return { filePath: relativePath, fileUUID };
+  } catch (error) {
+    console.error('[saveCartPhoto] Error procesando la foto personalizada', error);
+    throw new UserFacingError('No pudimos procesar la fotografía personalizada. Inténtalo con otra imagen.');
+  }
 }
 
 

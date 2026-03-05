@@ -7,7 +7,6 @@ import { AuthProvider } from '@/context/AuthContext';
 import { Inter, Playfair_Display } from 'next/font/google';
 import GlobalComponents from '@/components/GlobalComponents';
 import { ThemeProvider } from '@/components/ThemeProvider';
-import CartSessionBootstrap from '@/components/CartSessionBootstrap';
 import { ReactQueryProvider } from '@/providers/ReactQueryProvider';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://floreriaflorarte.com';
@@ -88,7 +87,6 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={cn('min-h-screen bg-background font-sans antialiased', fontSans.variable, fontHeadline.variable)}>
-        <CartSessionBootstrap />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

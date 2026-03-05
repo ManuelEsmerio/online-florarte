@@ -182,6 +182,7 @@ export function SearchDialog() {
                   size="icon"
                   onClick={() => setSearchTerm('')}
                   className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 h-8 w-8 md:h-10 md:w-10 rounded-full hover:bg-white/10"
+                  aria-label="Limpiar búsqueda"
                 >
                   <X className="h-4 w-4 md:h-5 md:w-5" />
                 </Button>
@@ -239,6 +240,7 @@ export function SearchDialog() {
                       size="icon"
                       className="h-12 w-12 rounded-full hover:bg-primary hover:text-white transition-all shadow-sm active:scale-90"
                       onClick={() => handleQuickView(item)}
+                      aria-label={`Vista rápida de ${item.name}`}
                     >
                       <ArrowRight className="h-6 w-6" />
                     </Button>

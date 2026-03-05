@@ -56,8 +56,12 @@ export async function POST(req: Request) {
 
   const dataId = body?.data?.id ?? '';
 
-  // Verificar firma cuando el secreto está disponible
-  if (webhookSecret && dataId) {
+  // Si el secreto está configurado, siempre verificar la firma
+  // (incluso si dataId está vacío — rechazar peticiones sin ID de pago)
+  if (webhookSecret) {
+    if (!dataId) {
+      return NextResponse.json({ error: 'Missing payment data id.' }, { status: 400 });
+    }
     const isValid = verifyWebhookSignature(xSignature, xRequestId, dataId, webhookSecret);
     if (!isValid) {
       console.error('[MERCADOPAGO_WEBHOOK] Invalid signature');

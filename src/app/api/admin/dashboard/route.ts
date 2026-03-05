@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
-import { userService } from '@/services/userService';
 import { dashboardService } from '@/services/dashboard.service';
 
 /**
@@ -15,10 +14,7 @@ export async function GET(req: NextRequest) {
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
-    const user = await userService.getUserById(session.dbId);
-    if (!isAdminRole(user?.role)) {
-      return errorHandler(new Error('Acceso prohibido.'), 403);
-    }
+        if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
     
     const stats = await dashboardService.getDashboardStatistics();
 

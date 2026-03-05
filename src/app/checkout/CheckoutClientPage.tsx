@@ -413,8 +413,14 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
                 <StepDedication isActive={activeStep === 4} setActiveStep={setActiveStep} disabled={hasValidationIssues} currentStep={activeStep} />
                 <StepPayment isActive={activeStep === 5} isProcessing={isProcessing} disabled={hasValidationIssues} />
               </div>
-              <div className="lg:col-span-4 lg:sticky lg:top-24 w-full">
+              <div className="lg:col-span-4 lg:sticky lg:top-24 w-full space-y-4">
                 <OrderSummary shippingCost={shippingCost ?? ctxShippingCost} validationIssues={validationIssues} isValidating={isValidatingCart} />
+                {isGuestCheckout && (
+                  <p className="text-xs text-muted-foreground text-center px-2">
+                    Los cupones de descuento no están disponibles para compras de invitado.{' '}
+                    <a href="/login" className="underline hover:text-foreground">Inicia sesión</a> para usarlos.
+                  </p>
+                )}
               </div>
             </form>
           </FormProvider>

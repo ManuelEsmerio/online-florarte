@@ -1,7 +1,7 @@
 // src/app/api/admin/users/[id]/route.ts
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
-import { getDecodedToken, UserSession } from '@/utils/auth';
+import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
 import { prisma } from '@/lib/prisma';
 import { ZodError } from 'zod';
@@ -19,13 +19,12 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
   try {
     const session: UserSession | null = await getDecodedToken(req);
-    if (!session?.dbId) {
-      return errorHandler(new Error('Acceso denegado.'), 401);
-    }
+    if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
+    if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const { id } = await params;
     routeUserId = id;
-    
+
     const userIdToUpdate = parseInt(id, 10);
     const body = await req.json();
     
@@ -37,7 +36,6 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         if (existing && existing.id !== userIdToUpdate) {
             return errorHandler(new Error("El correo electrónico ya está en uso por otra cuenta."), 409);
         }
-        // En modo demo no hay actualización real en Firebase Auth
     }
 
     const updatedUser = await userService.updateUserByAdmin(userIdToUpdate, body, session.dbId);
@@ -65,13 +63,12 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
   try {
     const session: UserSession | null = await getDecodedToken(req);
-    if (!session?.dbId) {
-      return errorHandler(new Error('Acceso denegado.'), 401);
-    }
+    if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
+    if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const { id } = await params;
     routeUserId = id;
-    
+
     const userIdToDelete = parseInt(id, 10);
     if (userIdToDelete === session.dbId) {
       return errorHandler(new Error('No puedes eliminar tu propia cuenta.'), 400);

@@ -51,6 +51,16 @@ const CartSummary = ({ shippingCost = 0 }: CartSummaryProps) => {
   };
 
   const handleApplyCoupon = () => {
+    if (!user) {
+      toast({
+        title: 'Inicia sesión para usar cupones',
+        description: 'Los cupones están vinculados a tu cuenta y son de uso único.',
+        variant: 'destructive',
+      });
+      router.push('/login?redirect=/cart');
+      return;
+    }
+
     if (!couponCode.trim()) {
         toast({ title: 'Ingresa un código de cupón.', variant: 'destructive' });
         return;
@@ -86,6 +96,9 @@ const CartSummary = ({ shippingCost = 0 }: CartSummaryProps) => {
             Aplicar
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          Los cupones están ligados a tu cuenta y solo se pueden usar una vez por usuario.
+        </p>
         {appliedCoupon && (
             <div className="mt-4">
                 <Badge>

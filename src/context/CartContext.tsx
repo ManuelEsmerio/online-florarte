@@ -218,6 +218,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, [fetchCart, apiFetch]);
 
   const removeFromCart = useCallback(async (cartItemId: string) => {
+    const prevCart = cart;
+    const prevSubtotal = subtotal;
+    const removedItem = cart.find(i => (i.cartItemId ?? String(i.id)) === cartItemId);
+    setCart(prev => prev.filter(i => (i.cartItemId ?? String(i.id)) !== cartItemId));
+    if (removedItem) {
+      const unitPrice = removedItem.price ?? (removedItem as any).unitPrice ?? 0;
+      setSubtotal(prev => Math.max(0, prev - unitPrice * removedItem.quantity));
+    }
     setUpdatingItemId(cartItemId);
     try {
       const result = await handleApiResponse<{ items: CartItemCompat[]; subtotal: number; coupon: CouponCompat | null }>(await apiFetch(`/api/cart/remove/${cartItemId}`, {
@@ -226,33 +234,47 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       setCart(result.items || []);
       setSubtotal(result.subtotal || 0);
       setAppliedCoupon((result.coupon as Coupon) || null);
+      if (removedItem) toast.success('Producto eliminado', { description: removedItem.name });
     } catch (error: any) {
+      setCart(prevCart);
+      setSubtotal(prevSubtotal);
       toast.error('Error al eliminar', { description: error.message });
-      await fetchCart();
     } finally {
-        setUpdatingItemId(null);
+      setUpdatingItemId(null);
     }
-  }, [apiFetch, fetchCart]);
+  }, [cart, subtotal, apiFetch]);
 
   const updateQuantity = useCallback(async (cartItemId: string, newQuantity: number) => {
+    const quantityAsNumber = Math.max(0, parseInt(String(newQuantity), 10));
+    if (quantityAsNumber < 1) {
+      await removeFromCart(cartItemId);
+      return;
+    }
+    const prevCart = cart;
+    const prevSubtotal = subtotal;
+    const item = cart.find(i => (i.cartItemId ?? String(i.id)) === cartItemId);
+    setCart(prev => prev.map(i =>
+      (i.cartItemId ?? String(i.id)) === cartItemId ? { ...i, quantity: quantityAsNumber } : i
+    ));
+    if (item) {
+      const unitPrice = item.price ?? (item as any).unitPrice ?? 0;
+      setSubtotal(prev => Math.max(0, prev + unitPrice * (quantityAsNumber - item.quantity)));
+    }
     setUpdatingItemId(cartItemId);
     try {
-      const quantityAsNumber = Math.max(0, parseInt(String(newQuantity), 10));
-      if (quantityAsNumber < 1) {
-          await removeFromCart(cartItemId);
-          return;
-      }
       await handleApiResponse(await apiFetch(`/api/cart/update/${cartItemId}`, {
         method: 'POST',
         body: JSON.stringify({ quantity: quantityAsNumber })
       }));
       await fetchCart();
     } catch (error: any) {
+      setCart(prevCart);
+      setSubtotal(prevSubtotal);
       toast.error('Error al actualizar', { description: error.message });
     } finally {
       setUpdatingItemId(null);
     }
-  }, [removeFromCart, fetchCart, apiFetch]);
+  }, [removeFromCart, cart, subtotal, fetchCart, apiFetch]);
 
   const toggleComplement = useCallback(async (complement: Product, parentCartItemId?: string) => {
     setIsTogglingComplement(true);

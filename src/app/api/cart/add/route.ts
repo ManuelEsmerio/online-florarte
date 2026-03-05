@@ -5,6 +5,10 @@ import { getIdentity, toIntOrThrow, toIntOrNull } from '@/utils/request-utils';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { productService } from '@/services/productService';
 import { saveCartPhoto } from '@/services/file.service';
+import { UserFacingError } from '@/utils/errors';
+
+const MAX_CUSTOM_PHOTO_BYTES = 5 * 1024 * 1024; // 5MB
+const ALLOWED_CUSTOM_PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,9 +39,19 @@ export async function POST(req: NextRequest) {
     }
 
     let photoUrl: string | null = null;
-    if (customPhotoFile && sessionId) {
-        const { filePath } = await saveCartPhoto(customPhotoFile, sessionId, productId);
-        photoUrl = filePath;
+    if (customPhotoFile) {
+      if (!sessionId) {
+        throw new UserFacingError('No pudimos asociar la fotografía personalizada con tu sesión. Vuelve a intentarlo.');
+      }
+      if (!ALLOWED_CUSTOM_PHOTO_TYPES.has(customPhotoFile.type)) {
+        throw new UserFacingError('Solo se permiten imágenes JPG, PNG o WebP para las fotos personalizadas.');
+      }
+      if (customPhotoFile.size > MAX_CUSTOM_PHOTO_BYTES) {
+        throw new UserFacingError('La foto personalizada no puede superar los 5MB.');
+      }
+
+      const { filePath } = await saveCartPhoto(customPhotoFile, sessionId, productId);
+      photoUrl = filePath;
     }
 
     const { itemId } = await cartService.upsertItem({

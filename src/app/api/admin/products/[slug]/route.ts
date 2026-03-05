@@ -2,7 +2,6 @@
 import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
-import { userService } from '@/services/userService';
 import { productService } from '@/services/productService';
 import type { ProductStatus } from '@/lib/definitions';
 import { ZodError } from 'zod';
@@ -24,10 +23,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
-    const user = await userService.getUserById(session.dbId);
-    if (!isAdminRole(user?.role)) {
-      return errorHandler(new Error('Acceso prohibido.'), 403);
-    }
+        if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const { slug } = await params;
     routeSlug = slug;
@@ -57,10 +53,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
-    const user = await userService.getUserById(session.dbId);
-    if (!isAdminRole(user?.role)) {
-      return errorHandler(new Error('Acceso prohibido.'), 403);
-    }
+        if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const { slug } = await params;
     routeSlug = slug;
@@ -135,10 +128,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
-    const user = await userService.getUserById(session.dbId);
-    if (!isAdminRole(user?.role)) {
-      return errorHandler(new Error('Acceso prohibido.'), 403);
-    }
+        if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const { slug } = await params;
     routeSlug = slug;

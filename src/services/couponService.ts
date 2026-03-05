@@ -134,6 +134,12 @@ export const couponService = {
       throw new UserFacingError('El código de cupón es requerido.');
     }
 
+    if (!userId) {
+      throw new UserFacingError('Debes iniciar sesión para usar cupones.');
+    }
+
+    const verifiedUserId = userId as number;
+
     const coupon = await prisma.coupon.findFirst({
       where: {
         code: normalizedCode,
@@ -158,7 +164,7 @@ export const couponService = {
     const activeCart = await prisma.cart.findFirst({
       where: {
         status: 'ACTIVE',
-        ...(userId ? { userId } : { sessionId: sessionId ?? undefined }),
+        ...(verifiedUserId ? { userId: verifiedUserId } : { sessionId: sessionId ?? undefined }),
       },
       include: {
         items: {
@@ -180,25 +186,24 @@ export const couponService = {
     }
 
     if (coupon.scope === 'USERS' || coupon.scope === 'SPECIFIC') {
-      if (!userId) throw new UserFacingError('Debes iniciar sesión para usar este cupón.');
-
-      const isLinkedToUser = coupon.couponUsers.some((link) => link.userId === userId);
+      const isLinkedToUser = coupon.couponUsers.some((link) => link.userId === verifiedUserId);
       if (!isLinkedToUser) {
         throw new UserFacingError('Este cupón no es válido para tu cuenta.');
       }
+    }
 
-      const alreadyUsedByUser = await prisma.order.findFirst({
-        where: {
-          userId,
+    const hasRedeemedCoupon = await prisma.couponRedemption.findUnique({
+      where: {
+        couponId_userId: {
           couponId: coupon.id,
-          status: { not: 'CANCELLED' },
+          userId: verifiedUserId,
         },
-        select: { id: true },
-      });
+      },
+      select: { id: true },
+    });
 
-      if (alreadyUsedByUser) {
-        throw new UserFacingError('Este cupón ya fue utilizado por tu cuenta.');
-      }
+    if (hasRedeemedCoupon) {
+      throw new UserFacingError('Este cupón ya fue utilizado por tu cuenta.');
     }
 
     if (coupon.scope === 'PRODUCTS') {

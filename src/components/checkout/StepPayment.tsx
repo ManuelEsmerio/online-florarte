@@ -143,10 +143,13 @@ export function StepPayment({
                     value={selectedGateway}
                     onValueChange={(val) => setValue('gateway', val, { shouldValidate: true })}
                     className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                    aria-label="Método de pago"
                 >
                     <RadioGroup.Item value="stripe" asChild>
                         <button
                             type="button"
+                            aria-label="Pagar con tarjeta de crédito o débito (Stripe)"
+                            aria-pressed={selectedGateway === 'stripe'}
                             className={cn(
                                 "flex flex-col items-start gap-3 p-5 rounded-2xl border-2 text-left transition-all cursor-pointer w-full",
                                 selectedGateway === 'stripe'
@@ -175,6 +178,8 @@ export function StepPayment({
                     <RadioGroup.Item value="mercadopago" asChild>
                         <button
                             type="button"
+                            aria-label="Pagar con Mercado Pago (efectivo, transferencia y más)"
+                            aria-pressed={selectedGateway === 'mercadopago'}
                             className={cn(
                                 "flex flex-col items-start gap-3 p-5 rounded-2xl border-2 text-left transition-all cursor-pointer w-full",
                                 selectedGateway === 'mercadopago'

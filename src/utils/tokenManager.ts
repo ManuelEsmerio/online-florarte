@@ -1,7 +1,6 @@
 // src/utils/tokenManager.ts
 
-// Este módulo gestiona un token en memoria para evitar llamadas innecesarias a Firebase.
-// Es solo para el lado del cliente.
+// Este módulo gestiona un token en memoria para optimizar las peticiones del cliente.
 
 let cachedToken: string | null = null;
 

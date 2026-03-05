@@ -1,11 +1,12 @@
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
 /**
- * Rate limiter en memoria para Next.js (Vercel serverless).
+ * Rate limiter híbrido (Upstash Redis + fallback en memoria).
  *
- * Funciona dentro de instancias Lambda calientes (warm invocations).
- * Protege contra ráfagas de peticiones a la misma función.
- *
- * NOTA: Para entornos con múltiples instancias concurrentes se recomienda
- * migrar a @upstash/ratelimit + Vercel KV (sin cambios en la API de uso).
+ * En producción se usará Redis (clave compartida entre lambdas). Si las
+ * credenciales no están configuradas, se mantiene el modo en memoria para
+ * entornos locales, aunque sin la misma protección.
  */
 
 interface RateLimitEntry {
@@ -13,8 +14,14 @@ interface RateLimitEntry {
   resetAt: number;
 }
 
-// Singleton del módulo — persiste entre invocaciones calientes
 const store = new Map<string, RateLimitEntry>();
+const limiterCache = new Map<string, Ratelimit>();
+
+const redisRestUrl = process.env.UPSTASH_REDIS_REST_URL;
+const redisRestToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+const redis = redisRestUrl && redisRestToken
+  ? new Redis({ url: redisRestUrl, token: redisRestToken })
+  : null;
 
 // Limpiar entradas expiradas cada 5 minutos para evitar memory leak
 if (typeof setInterval !== 'undefined') {
@@ -37,7 +44,31 @@ interface RateLimitResult {
  * @param max       Máximo de intentos permitidos en la ventana
  * @param windowMs  Duración de la ventana en milisegundos
  */
-export function checkRateLimit(key: string, max: number, windowMs: number): RateLimitResult {
+const getDistributedLimiter = (max: number, windowMs: number): Ratelimit | null => {
+  if (!redis) return null;
+  const cacheKey = `${max}:${windowMs}`;
+  if (!limiterCache.has(cacheKey)) {
+    const windowSeconds = Math.max(1, Math.ceil(windowMs / 1000));
+    limiterCache.set(cacheKey, new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(max, `${windowSeconds} s`),
+    }));
+  }
+  return limiterCache.get(cacheKey)!;
+};
+
+export async function checkRateLimit(key: string, max: number, windowMs: number): Promise<RateLimitResult> {
+  const distributedLimiter = getDistributedLimiter(max, windowMs);
+
+  if (distributedLimiter) {
+    const result = await distributedLimiter.limit(key);
+    return {
+      allowed: result.success,
+      remaining: Math.max(0, result.remaining),
+      resetAt: result.reset * 1000,
+    };
+  }
+
   const now = Date.now();
   const entry = store.get(key);
 

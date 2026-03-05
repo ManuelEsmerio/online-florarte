@@ -8,7 +8,7 @@ import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 export async function POST(req: NextRequest) {
   // 5 intentos por IP cada 15 minutos
   const ip = getClientIp(req);
-  const rl = checkRateLimit(`login:${ip}`, 5, 15 * 60 * 1000);
+  const rl = await checkRateLimit(`login:${ip}`, 5, 15 * 60 * 1000);
   if (!rl.allowed) {
     return errorHandler(new Error('Demasiados intentos. Espera 15 minutos e intenta de nuevo.'), 429);
   }

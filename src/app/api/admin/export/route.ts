@@ -17,8 +17,8 @@ type DataFetcher = (from?: string, to?: string) => Promise<any[]>;
 const dataFetchers: Record<string, DataFetcher> = {
   products: async () => (await productService.getAdminProductList()).products,
   orders: async (from, to) => (await orderService.getAllOrdersForAdmin({ search: '', status: [], from, to })).orders,
-  users: async () => (await userService.getAllUsersForAdmin({ status: 'all', searchTerm: '', roles: [], limit: 9999 })).users,
-  coupons: async () => (await couponService.getAllCoupons({ search: '', status: [], page: 1, limit: 9999 })).coupons,
+  users: async () => (await userService.getAllUsersForAdmin({ status: 'all', searchTerm: '', roles: [], limit: 5000 })).users,
+  coupons: async () => (await couponService.getAllCoupons({ search: '', status: [], page: 1, limit: 5000 })).coupons,
   categories: async () => categoryService.getAllCategories(),
   tags: async () => tagService.getAllTags(),
   occasions: async () => occasionService.getAllOccasions(),
@@ -61,8 +61,7 @@ export async function GET(req: NextRequest) {
   try {
     const session: UserSession | null = await getDecodedToken(req);
     if (!session?.dbId) return errorHandler(new Error('Acceso denegado.'), 401);
-    const user = await userService.getUserById(session.dbId);
-    if (!isAdminRole(user?.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
+        if (!isAdminRole(session.role)) return errorHandler(new Error('Acceso prohibido.'), 403);
 
     const { searchParams } = new URL(req.url);
     const dataType = searchParams.get('dataType');

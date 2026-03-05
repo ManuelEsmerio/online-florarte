@@ -64,19 +64,13 @@ type ProductPageProps = {
 };
 
 async function getProductData(slug: string) {
-    try {
-        const product = await productService.getCompleteProductDetailsBySlug(slug);
-        if (!product) return null;
-        return { product };
-    } catch (error) {
-        console.error(`Failed to fetch product data for slug ${slug}:`, error);
-        return null;
-    }
+    const product = await productService.getCompleteProductDetailsBySlug(slug);
+    if (!product) return null;
+    return { product };
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
-  console.log('slug: ', slug);
   const data = await getProductData(slug);
 
   if (!data || !data.product) {
