@@ -48,7 +48,8 @@
       "Read(//c/Users/Manuel/ Esmerio/ G/Documents/Projects/online-florarte/src/app/categories/[slug/]/**)",
       "Read(//c/Users/Manuel/ Esmerio/ G/Documents/Projects/online-florarte/src/components/**)",
       "Read(//c/Users/Manuel/ Esmerio/ G/Documents/Projects/online-florarte/src/app/products/**)",
-      "Read(//c/Users/Manuel/ Esmerio/ G/Documents/Projects/online-florarte/src/app/categories/[slug]/**)"
+      "Read(//c/Users/Manuel/ Esmerio/ G/Documents/Projects/online-florarte/src/app/categories/[slug]/**)",
+      "Bash(xargs grep -l \"bg-slate\\\\|dark:bg-zinc\\\\|dark:border-white\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Manuel Esmerio G\\.claude\\projects\\c--Users-Manuel-Esmerio-G-Documents-Projects-online-florarte\\memory"

@@ -492,6 +492,7 @@ model Coupon {
   redemptions      CouponRedemption[]
 
   @@map("coupons")
+  @@index([scope, status])
 }
 
 model CouponRedemption {
@@ -567,6 +568,7 @@ model CouponUser {
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([couponId, userId])
+  @@index([userId])
   @@map("coupon_users")
 }
 
@@ -578,6 +580,7 @@ model CouponCategory {
   category   ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@id([couponId, categoryId])
+  @@index([categoryId])
   @@map("coupon_categories")
 }
 
@@ -589,6 +592,7 @@ model CouponProduct {
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@id([couponId, productId])
+  @@index([productId])
   @@map("coupon_products")
 }
 

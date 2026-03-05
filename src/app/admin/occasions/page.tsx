@@ -108,7 +108,7 @@ export default function OccasionsPage() {
       fd.append('occasionData', JSON.stringify({
         name: data.name,
         description: data.description ?? '',
-        showOnHome: (data as any).show_on_home ?? data.showOnHome ?? false,
+        show_on_home: (data as any).show_on_home ?? (data as any).showOnHome ?? false,
       }));
       if (imageFile) fd.append('image', imageFile);
 
@@ -131,7 +131,11 @@ export default function OccasionsPage() {
     setUpdatingVisibilityId(occasion.id);
     try {
       const fd = new FormData();
-      fd.append('occasionData', JSON.stringify({ showOnHome: !occasion.showOnHome }));
+      fd.append('occasionData', JSON.stringify({
+        name: occasion.name,
+        description: occasion.description ?? '',
+        show_on_home: !occasion.showOnHome,
+      }));
       const res = await fetch(`/api/admin/occasions/${occasion.id}`, { method: 'PUT', body: fd });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Error al actualizar');

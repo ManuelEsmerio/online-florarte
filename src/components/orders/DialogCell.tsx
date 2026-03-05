@@ -465,7 +465,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                     <div className="space-y-4 my-8">
                         <AlertDialogAction
                             onClick={() => handlePayNow('stripe')}
-                            className="w-full py-4 px-6 rounded-full flex items-center justify-center gap-3 text-white font-bold text-lg shadow-lg shadow-primary/30 transition-all hover:scale-[1.02] active:scale-[0.98] bg-gradient-to-r from-[#FF2D78] to-[#FF5A9E]"
+                            className="w-full py-4 px-6 rounded-full flex items-center justify-center gap-3 text-white font-bold text-lg shadow-lg shadow-primary/30 transition-all hover:scale-[1.02] active:scale-[0.98] bg-gradient-to-r from-primary to-accent"
                             loading={isStartingPayment}
                             disabled={isStartingPayment}
                         >
@@ -484,12 +484,12 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                         </AlertDialogAction>
                     </div>
 
-                    <div className="flex items-center justify-center gap-2 text-slate-400 dark:text-slate-500 text-[10px] font-semibold uppercase tracking-[0.3em]">
+                    <div className="flex items-center justify-center gap-2 text-muted-foreground text-[10px] font-semibold uppercase tracking-[0.3em]">
                         <Lock className="w-3.5 h-3.5" />
                         Pago Seguro & Encriptado
                     </div>
                 </div>
-                <div className="h-1 w-full bg-gradient-to-r from-[#FF2D78] via-[#009EE3] to-[#FF2D78] opacity-40" />
+                <div className="h-1 w-full bg-gradient-to-r from-primary via-[#009EE3] to-primary opacity-40" />
             </AlertDialogContent>
         </AlertDialog>
 

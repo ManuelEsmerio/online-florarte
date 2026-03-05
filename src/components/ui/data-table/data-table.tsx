@@ -47,7 +47,7 @@ export function DataTable<TData>({
           {toolbar}
         </div>
       )}
-      <div className="rounded-[24px] border border-border/50 bg-background dark:bg-zinc-900/50 shadow-xl overflow-hidden animate-fade-in-up">
+      <div className="rounded-[24px] border border-border/50 bg-background dark:bg-card shadow-xl overflow-hidden animate-fade-in-up">
         <div className="overflow-x-auto custom-scrollbar">
         <Table>
           <TableHeader className="bg-transparent">
@@ -90,8 +90,8 @@ export function DataTable<TData>({
                     onRowClick && "cursor-pointer",
                     selectedRowId && row.id === selectedRowId && "border-l-4 border-l-primary bg-primary/5 dark:bg-primary/[0.06]",
                     row.original && (row.original as any).isVariant
-                      ? "bg-slate-50/20 dark:bg-zinc-900/40"
-                      : "hover:bg-slate-50/50 dark:hover:bg-zinc-800/30"
+                      ? "bg-muted/10"
+                      : "hover:bg-muted/30"
                   )}
                 >
                   {row.getVisibleCells().map((cell: any) => (

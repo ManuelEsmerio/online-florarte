@@ -139,14 +139,29 @@
 
 @layer utilities {
   .premium-glow {
-    box-shadow: 0 0 30px rgba(255, 45, 120, 0.15);
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.15);
+  }
+  /* Stronger glow — replaces every inline rgba(255,45,120,...) on CTA buttons */
+  .premium-glow-strong {
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.3);
   }
   .btn-hover-glow:hover {
-    box-shadow: 0 0 20px rgba(255, 45, 120, 0.4);
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.4);
   }
   .card-hover:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 25px -5px rgba(255, 45, 120, 0.15);
+    box-shadow: 0 10px 25px -5px hsl(var(--primary) / 0.15);
+  }
+
+  /* Text-shadow utilities (Tailwind v3 compatible) */
+  .text-shadow-sm {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  .text-shadow-md {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+  .text-shadow-lg {
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.7), 0 2px 4px rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -185,6 +200,11 @@
     50% {
       opacity: 1;
     }
+  }
+
+  @keyframes warn-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
   }
 
   .animate-shake {
@@ -229,15 +249,15 @@
   }
 
   .custom-scrollbar--muted {
-    --scrollbar-thumb-color: #e2e8f0;
+    --scrollbar-thumb-color: hsl(var(--border));
   }
 
   .dark .custom-scrollbar--muted {
-    --scrollbar-thumb-color: #333;
+    --scrollbar-thumb-color: hsl(var(--muted-foreground) / 0.3);
   }
 
   .custom-scrollbar--contrast {
-    --scrollbar-thumb-color: #444;
+    --scrollbar-thumb-color: hsl(var(--foreground) / 0.3);
   }
 
   .custom-scrollbar--panel {
@@ -253,11 +273,34 @@
 }
 
 @layer utilities {
+  /* Skeleton loading animation — replaces Tailwind's default pulse for a softer effect */
   .animate-pulse {
     animation: skeleton-soft-pulse 1.7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
 
+  /* Attention-grabbing pulse for warnings/alerts (scale-based, not opacity) */
+  .animate-warn-pulse {
+    animation: warn-pulse 1.4s ease-in-out infinite;
+  }
+
   .bg-radial-gradient {
     background: radial-gradient(circle, var(--tw-gradient-from) 0%, var(--tw-gradient-to) 70%);
+  }
+}
+
+/* ─── Global scroll behaviour ─────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ─── Reduce motion for accessibility ────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

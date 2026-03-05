@@ -323,8 +323,9 @@ const HeaderContent = () => {
               </div>
               <div className="flex items-center justify-between border-t p-4 bg-muted/20">
                 {isClient && user ? (
-                  <Button onClick={() => { logout(); handleMobileLinkClick(); }} variant="ghost" size="icon" className="text-destructive rounded-xl" aria-label="Cerrar Sesión">
-                    <LogOut className="h-6 w-6" />
+                  <Button onClick={() => { logout(); handleMobileLinkClick(); }} variant="ghost" className="text-destructive rounded-xl gap-2 px-3" aria-label="Cerrar Sesión">
+                    <LogOut className="h-5 w-5" />
+                    <span className="text-sm font-medium">Salir</span>
                   </Button>
                 ) : (
                   <Button asChild variant="outline" className="rounded-xl font-bold">

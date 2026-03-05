@@ -73,6 +73,7 @@ export default function CouponsPage() {
         page: String(pagination.pageIndex + 1),
         limit: String(pagination.pageSize),
         search: filters.search,
+        withDetails: 'true',
       });
       if (filters.status.length > 0) params.set('status', filters.status.join(','));
       const res = await fetch(`/api/admin/coupons?${params}`);

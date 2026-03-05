@@ -240,7 +240,7 @@ export default function CookiesPolicyPage() {
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center relative z-10 px-4 items-center">
-                <Button asChild size="lg" className="w-full sm:w-auto h-14 md:h-16 px-10 rounded-full font-bold text-base md:text-lg bg-primary hover:bg-primary/90 shadow-[0_0_30px_rgba(255,45,120,0.3)] gap-3 group border-none">
+                <Button asChild size="lg" className="w-full sm:w-auto h-14 md:h-16 px-10 rounded-full font-bold text-base md:text-lg bg-primary hover:bg-primary/90 premium-glow-strong gap-3 group border-none">
                   <Link href="/contact" className="flex items-center gap-2">
                     <MessageCircle className="w-5 h-5 group-hover:scale-110 transition-transform" />
                     Hablar con Soporte

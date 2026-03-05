@@ -7,6 +7,9 @@ import { ShippingDateSelector } from './ShippingDateSelector';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import Autoplay from 'embla-carousel-autoplay';
 import * as React from 'react';
+import type { UseEmblaCarouselType } from 'embla-carousel-react';
+
+type CarouselApi = UseEmblaCarouselType[1];
 
 const slides = [
   {
@@ -51,12 +54,22 @@ export const Hero = () => {
   const plugin = React.useRef(
     Autoplay({ delay: 5000, stopOnInteraction: true })
   );
+  const [api, setApi] = React.useState<CarouselApi>();
+  const [activeIndex, setActiveIndex] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!api) return;
+    const onSelect = () => setActiveIndex(api.selectedScrollSnap());
+    api.on('select', onSelect);
+    return () => { api.off('select', onSelect); };
+  }, [api]);
 
   return (
     <section className="relative w-full bg-background overflow-visible">
       {/* Wrapper for Carousel and Card */}
       <div className="relative">
         <Carousel
+          setApi={setApi}
           plugins={[plugin.current]}
           className="w-full"
           onMouseEnter={plugin.current.stop}
@@ -76,7 +89,11 @@ export const Hero = () => {
                     sizes="(max-width: 768px) 100vw, 100vw"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 md:from-black/40" />
-                  <div className="relative z-10 h-full container mx-auto px-4 flex flex-col items-center justify-center text-center pb-32 md:pb-0">
+                  {/* key changes when this slide becomes active → remounts content → re-triggers animation */}
+                  <div
+                    key={activeIndex === index ? `active-${index}` : `idle-${index}`}
+                    className="relative z-10 h-full container mx-auto px-4 flex flex-col items-center justify-center text-center pb-32 md:pb-0"
+                  >
                     <h1 className="text-2xl sm:text-5xl md:text-6xl font-bold font-headline leading-tight mb-2 md:mb-4 animate-fade-in-up text-white text-shadow-lg max-w-4xl">
                       {slide.title}
                     </h1>

@@ -90,13 +90,13 @@ export function OrderSummary({ shippingCost, validationIssues = [], isValidating
                 <span className="text-3xl font-bold text-primary font-sans leading-none block">
                     {formatCurrency(total)}
                 </span>
-                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1">IVA Incluido • MXN</span>
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mt-1">IVA Incluido • MXN</span>
             </div>
           </div>
         </div>
 
-        <div className="pt-2 flex items-center justify-center gap-2 text-[9px] font-bold text-muted-foreground/40 uppercase tracking-[0.25em]">
-            <Lock className="w-3 h-3" />
+        <div className="pt-2 flex items-center justify-center gap-2 text-[11px] font-medium text-muted-foreground/60 uppercase tracking-[0.2em]">
+            <Lock className="w-3 h-3 text-success" />
             Entorno Seguro de Pago
         </div>
       </CardContent>

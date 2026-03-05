@@ -97,15 +97,18 @@ export function OccasionForm({ isOpen, onOpenChange, onSave, occasion, isSaving 
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full sm:max-w-2xl max-h-[90vh] overflow-hidden border border-border/60 p-0" onInteractOutside={(e) => e.preventDefault()}>
-        <div className="flex flex-col h-full">
-          <DialogHeader className="px-6 pt-6 pb-2">
+      <DialogContent
+        className="w-full sm:max-w-2xl max-h-[90vh] overflow-hidden border border-border/60 p-0 flex flex-col"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
+        <div className="flex flex-col flex-1 min-h-0">
+          <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
             <DialogTitle className="font-headline text-2xl">{occasion ? 'Editar Ocasión' : 'Crear Ocasión'}</DialogTitle>
             <DialogDescription>{occasion ? 'Modifica los detalles de la ocasión.' : 'Completa el formulario para crear una nueva ocasión.'}</DialogDescription>
           </DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1">
-              <div className="flex-1 space-y-4 overflow-y-auto px-6 pb-6 custom-scrollbar">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 min-h-0 space-y-4 overflow-y-auto px-6 pr-8 pb-6 custom-scrollbar custom-scrollbar--panel">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}

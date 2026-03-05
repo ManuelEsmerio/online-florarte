@@ -1,6 +1,7 @@
 // src/services/orderService.ts
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { resolveShippingCost } from '@/lib/checkout/resolveShippingCost';
 import { cartService } from './cartService';
 import { orderAddressService } from './orderAddressService';
 import { orderEmailService } from './orderEmailService';
@@ -78,10 +79,12 @@ const getPaymentTransactionModel = (dbClient: any) => {
   }).paymentTransaction;
 };
 
+type SupportedGateway = 'stripe' | 'mercadopago' | 'paypal';
+
 type PaymentUpsertParams = {
   orderId: number;
   externalPaymentId: string;
-  gateway: 'stripe' | 'mercadopago';
+  gateway: SupportedGateway;
   amount: number;
   status: 'SUCCEEDED' | 'FAILED';
 };
@@ -118,6 +121,24 @@ async function safeUpsertPaymentTransaction(model: any, params: PaymentUpsertPar
 
     throw error;
   }
+}
+
+function ensureValidDeliveryDate(rawValue: unknown): Date {
+  if (!rawValue) {
+    throw new UserFacingError('Debes seleccionar una fecha de entrega.');
+  }
+
+  const deliveryDate = new Date(rawValue as any);
+  if (Number.isNaN(deliveryDate.getTime())) {
+    throw new UserFacingError('La fecha de entrega proporcionada es inválida.');
+  }
+
+  const now = Date.now();
+  if (deliveryDate.getTime() < now - 60 * 60 * 1000) {
+    throw new UserFacingError('La fecha de entrega no puede estar en el pasado.');
+  }
+
+  return deliveryDate;
 }
 
 export const orderService = {
@@ -398,6 +419,7 @@ export const orderService = {
       : null;
     const normalizedUserId = validUser?.id ?? null;
     const isGuest = !normalizedUserId;
+    const normalizedAddressId = Number.isFinite(Number(params.addressId)) ? Number(params.addressId) : null;
 
     if (!normalizedUserId && !normalizedSessionId) {
       throw new UserFacingError('No se pudo identificar la sesión del carrito.');
@@ -415,6 +437,7 @@ export const orderService = {
     const guestState = normalizeGuestText(params.guestState) ?? 'Jalisco';
     const guestPostalCode = normalizeGuestText(params.guestPostalCode);
     const guestReferenceNotes = normalizeGuestText(params.guestReferenceNotes);
+    const deliveryDate = ensureValidDeliveryDate(params.deliveryDate ?? params.p_delivery_date);
 
     if (isGuest) {
       if (!guestName) {
@@ -456,7 +479,7 @@ export const orderService = {
           userId: normalizedUserId,
           sessionId: normalizedSessionId,
           couponCode,
-          deliveryDate: params.deliveryDate ?? params.p_delivery_date ?? null,
+          deliveryDate: deliveryDate.toISOString(),
         });
 
         appliedCoupon = {
@@ -472,26 +495,33 @@ export const orderService = {
       }
     }
 
-    const subtotal = cartData.subtotal;
-    const shippingCost = params.shippingCost ?? 0;
-    const couponDiscount = calculateCouponDiscount(subtotal, appliedCoupon ?? (cartData.coupon ?? null));
-    const total = Math.max(0, subtotal - couponDiscount + shippingCost);
+    const resolvedShippingCost = await resolveShippingCost(
+      selectedAddress?.id ?? normalizedAddressId,
+      guestPostalCode,
+    );
+    const shippingCost = Number.isFinite(Number(resolvedShippingCost))
+      ? Math.max(0, Number(resolvedShippingCost))
+      : 0;
 
-    if (normalizedUserId && !params.addressId) {
+    const subtotal = cartData.subtotal;
+    const couponDiscount = calculateCouponDiscount(subtotal, appliedCoupon ?? (cartData.coupon ?? null));
+    const total = Math.max(0, Number((subtotal - couponDiscount + shippingCost).toFixed(2)));
+
+    if (normalizedUserId && !normalizedAddressId) {
       throw new UserFacingError('Debes seleccionar una dirección guardada para completar tu compra.');
     }
 
-    const selectedAddress = normalizedUserId && params.addressId
+    const selectedAddress = normalizedUserId && normalizedAddressId
       ? await prisma.address.findFirst({
           where: {
-            id: Number(params.addressId),
+            id: normalizedAddressId,
             userId: normalizedUserId,
             isDeleted: false,
           },
         })
       : null;
 
-    if (normalizedUserId && params.addressId && !selectedAddress) {
+    if (normalizedUserId && normalizedAddressId && !selectedAddress) {
       throw new UserFacingError('La dirección seleccionada no existe o no pertenece al usuario.');
     }
 
@@ -679,29 +709,49 @@ export const orderService = {
     };
   },
 
-  async finalizeOrderFromWebhook(params: any) {
-    await prisma.order.update({ where: { id: params.orderId }, data: { status: 'PENDING' } });
-    return { success: true, orderId: params.orderId };
-  },
-
   async finalizeSuccessfulPaymentFromWebhook(params: {
     orderId: number;
     externalPaymentId: string;
-    gateway: 'stripe' | 'mercadopago';
+    gateway: SupportedGateway;
     amount: number;
   }) {
+    let amountMismatchDetected = false;
+
     const shouldSendEmails = await prisma.$transaction(
       async (tx: any) => {
         const paymentTxModel = getPaymentTransactionModel(tx);
-        const existingTransaction = await paymentTxModel.findFirst({
-          where: { externalPaymentId: params.externalPaymentId },
-          select: { status: true },
-        });
+        const [existingTransaction, order] = await Promise.all([
+          paymentTxModel.findFirst({
+            where: { externalPaymentId: params.externalPaymentId },
+            select: { status: true },
+          }),
+          tx.order.findUnique({
+            where: { id: params.orderId },
+            select: { id: true, total: true, status: true },
+          }),
+        ]);
 
-        await tx.order.update({
-          where: { id: params.orderId },
-          data: { status: 'PENDING' },
-        });
+        if (!order) {
+          throw new UserFacingError('Pedido no encontrado para registrar el pago.');
+        }
+
+        const orderTotal = Number(order.total);
+        const normalizedAmount = Number(params.amount);
+        if (!Number.isFinite(orderTotal) || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+          throw new UserFacingError('Monto del pedido o del pago inválido.');
+        }
+
+        if (Math.abs(orderTotal - normalizedAmount) > 0.5) {
+          amountMismatchDetected = true;
+          await safeUpsertPaymentTransaction(paymentTxModel, {
+            orderId: params.orderId,
+            externalPaymentId: params.externalPaymentId,
+            gateway: params.gateway,
+            amount: params.amount,
+            status: 'FAILED',
+          });
+          return false;
+        }
 
         await safeUpsertPaymentTransaction(paymentTxModel, {
           orderId: params.orderId,
@@ -711,10 +761,27 @@ export const orderService = {
           status: 'SUCCEEDED',
         });
 
+        if (order.status === 'PENDING') {
+          await tx.order.update({
+            where: { id: params.orderId },
+            data: { status: 'PROCESSING' },
+          });
+        }
+
         return existingTransaction?.status !== 'SUCCEEDED';
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }
     );
+
+    if (amountMismatchDetected) {
+      console.error('[ORDER_PAYMENT_AMOUNT_MISMATCH]', {
+        orderId: params.orderId,
+        gateway: params.gateway,
+        reportedAmount: params.amount,
+      });
+      await this.cancelAbandonedOrder(params.orderId);
+      return { success: false, orderId: params.orderId };
+    }
 
     if (shouldSendEmails) {
       try {
@@ -730,7 +797,7 @@ export const orderService = {
   async registerFailedPaymentFromWebhook(params: {
     orderId: number;
     externalPaymentId: string;
-    gateway: 'stripe' | 'mercadopago';
+    gateway: SupportedGateway;
     amount: number;
   }) {
     const shouldSendFailureEmail = await prisma.$transaction(
@@ -753,6 +820,8 @@ export const orderService = {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }
     );
+
+    await this.cancelAbandonedOrder(params.orderId);
 
     if (shouldSendFailureEmail) {
       try {
@@ -800,6 +869,7 @@ export const orderService = {
           where: { id: order.couponId, usesCount: { gt: 0 } },
           data: { usesCount: { decrement: 1 } },
         });
+        await tx.couponRedemption.deleteMany({ where: { orderId } });
       }
 
       await tx.order.update({
@@ -859,6 +929,7 @@ export const orderService = {
         }
         if (rawOrder.couponId) {
           await tx.coupon.updateMany({ where: { id: rawOrder.couponId, usesCount: { gt: 0 } }, data: { usesCount: { decrement: 1 } } });
+          await tx.couponRedemption.deleteMany({ where: { orderId } });
         }
         await tx.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
         await (tx as any).orderCancellationLog.create({
@@ -962,6 +1033,7 @@ export const orderService = {
           where: { id: rawOrder.couponId, usesCount: { gt: 0 } },
           data: { usesCount: { decrement: 1 } },
         });
+        await tx.couponRedemption.deleteMany({ where: { orderId } });
       }
 
       // Cancellation audit log
@@ -1112,6 +1184,7 @@ export const orderService = {
           where: { id: rawOrder.couponId, usesCount: { gt: 0 } },
           data: { usesCount: { decrement: 1 } },
         });
+        await tx.couponRedemption.deleteMany({ where: { orderId } });
       }
 
       // Audit log

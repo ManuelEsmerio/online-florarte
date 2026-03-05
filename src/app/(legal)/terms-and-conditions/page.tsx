@@ -259,7 +259,7 @@ export default function TermsAndConditionsPage() {
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center px-4">
-                <Button asChild size="lg" className="w-full sm:w-auto h-14 md:h-16 px-10 rounded-full font-bold text-base md:text-lg bg-primary hover:bg-primary/90 shadow-[0_0_30px_rgba(255,45,120,0.3)] gap-3 border-none">
+                <Button asChild size="lg" className="w-full sm:w-auto h-14 md:h-16 px-10 rounded-full font-bold text-base md:text-lg bg-primary hover:bg-primary/90 premium-glow-strong gap-3 border-none">
                   <Link href="/contact">
                     <MessageCircle className="w-5 h-5 group-hover:scale-110 transition-transform" />
                     Hablar con Soporte

@@ -138,6 +138,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   // varias veces antes de que la anterior complete (ej. Strict Mode, renders rápidos).
   const fetchCartInFlight = useRef<Promise<void> | null>(null);
   const skipFirstFetchRef = useRef(Boolean(initialBootstrap));
+  const suppressCouponRemovalToastRef = useRef(false);
+  const previousCouponCodeRef = useRef<string | null>(initialBootstrap?.coupon?.code ?? null);
+  const skipCouponToastRef = useRef(true);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.__FLORARTE_CART_BOOTSTRAP__) {
@@ -325,26 +328,50 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   const removeCoupon = useCallback(async () => {
     try {
+        suppressCouponRemovalToastRef.current = true;
         await apiFetch('/api/coupons/remove', { method: 'POST' });
         setAppliedCoupon(null);
         await fetchCart();
         toast.info('Cupón removido');
     } catch (error: any) {
+      suppressCouponRemovalToastRef.current = false;
         toast.error('Error', { description: 'No se pudo quitar el cupón.' });
     }
   }, [apiFetch, fetchCart]);
 
   const clearCart = useCallback(async () => {
     try {
+      suppressCouponRemovalToastRef.current = true;
       await apiFetch('/api/cart', { method: 'DELETE' });
       setCart([]);
       setSubtotal(0);
       setAppliedCoupon(null);
       toast.info('Carrito vacío');
     } catch (e) {
+      suppressCouponRemovalToastRef.current = false;
       toast.error('Error al vaciar');
     }
   }, [apiFetch]);
+
+  useEffect(() => {
+    if (skipCouponToastRef.current) {
+      skipCouponToastRef.current = false;
+      previousCouponCodeRef.current = appliedCoupon?.code ?? null;
+      return;
+    }
+
+    if (previousCouponCodeRef.current && !appliedCoupon) {
+      if (suppressCouponRemovalToastRef.current) {
+        suppressCouponRemovalToastRef.current = false;
+      } else {
+        toast.info('Cupón ya no válido', {
+          description: 'Se eliminó automáticamente porque tu carrito dejó de cumplir las condiciones del cupón.',
+        });
+      }
+    }
+
+    previousCouponCodeRef.current = appliedCoupon?.code ?? null;
+  }, [appliedCoupon]);
 
   const getDiscountAmount = useCallback((currentSubtotal: number): number => {
     if (!appliedCoupon) return 0;
