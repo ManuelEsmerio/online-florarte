@@ -401,11 +401,8 @@ export const orderService = {
     });
 
     if (statusChanged) {
-      try {
-        await orderEmailService.sendOrderStatusChangeNotification(orderId, newStatus);
-      } catch (error) {
-        console.error('[ORDER_STATUS_NOTIFICATION_ERROR]', error);
-      }
+      orderEmailService.sendOrderStatusChangeNotification(orderId, newStatus)
+        .catch(error => console.error('[ORDER_STATUS_NOTIFICATION_ERROR]', error));
     }
 
     return true;
@@ -807,11 +804,8 @@ export const orderService = {
     }
 
     if (shouldSendEmails) {
-      try {
-        await orderEmailService.sendOrderConfirmationAndAdminNotification(params.orderId);
-      } catch (error) {
-        console.error('[ORDER_EMAIL_SEND_ERROR]', error);
-      }
+      orderEmailService.sendOrderConfirmationAndAdminNotification(params.orderId)
+        .catch(error => console.error('[ORDER_EMAIL_SEND_ERROR]', error));
     }
 
     return { success: true, orderId: params.orderId };
@@ -862,11 +856,8 @@ export const orderService = {
     );
 
     if (shouldSendFailureEmail) {
-      try {
-        await orderEmailService.sendFailedPaymentAdminNotification(params.orderId);
-      } catch (error) {
-        console.error('[ORDER_FAILED_PAYMENT_EMAIL_ERROR]', error);
-      }
+      orderEmailService.sendFailedPaymentAdminNotification(params.orderId)
+        .catch(error => console.error('[ORDER_FAILED_PAYMENT_EMAIL_ERROR]', error));
     }
 
     return { success: true, orderId: params.orderId };
@@ -1200,7 +1191,7 @@ export const orderService = {
             paymentTransactionId: paymentTx!.id,
             externalRefundId: refundResult.externalRefundId,
             amount: refundResult.amount,
-            status: refundResult.status,
+            status: refundResult.status as import('@prisma/client').RefundStatus,
             reason: 'requested_by_customer',
           },
           select: { id: true },

@@ -81,7 +81,7 @@ const LoginContent = () => {
 
       {/* Card */}
       <main className="w-full max-w-sm relative z-10 animate-fade-in-up">
-        <div className="bg-card/80 backdrop-blur-xl rounded-card-lg border border-border/50 shadow-2xl overflow-hidden">
+        <div className="bg-card/80 backdrop-blur-xl rounded-card-lg rounded-[2.5rem] border border-border/50 shadow-2xl overflow-hidden">
           {/* Top accent bar */}
           <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary to-transparent opacity-60" />
 
@@ -116,7 +116,9 @@ const LoginContent = () => {
                   Correo Electrónico
                 </Label>
                 <div className="relative group">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 transition-colors group-focus-within:text-primary" />
+                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+                    <Mail className="h-4 w-4 text-muted-foreground/50 transition-colors group-focus-within:text-primary" />
+                  </span>
                   <Input
                     id="email"
                     type="email"
@@ -144,7 +146,9 @@ const LoginContent = () => {
                   </Link>
                 </div>
                 <div className="relative group">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 transition-colors group-focus-within:text-primary" />
+                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+                    <Lock className="h-4 w-4 text-muted-foreground/50 transition-colors group-focus-within:text-primary" />
+                  </span>
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}

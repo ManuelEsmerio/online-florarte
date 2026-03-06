@@ -5,7 +5,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { MailCheck, MailWarning, Loader2, Mail } from 'lucide-react';
+import { MailCheck, MailWarning, Loader2, Mail, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { Isotype } from '@/components/icons/Isotype';
 import { useQuery } from '@tanstack/react-query';
@@ -21,6 +21,7 @@ const VerifyEmailContent = () => {
   const email = searchParams.get('email');
 
   const [isResending, setIsResending] = useState(false);
+  const [isPollingVerified, setIsPollingVerified] = useState(false);
 
   const { data, isLoading: isVerifying } = useQuery({
     queryKey: ['verify-email', token],
@@ -42,13 +43,44 @@ const VerifyEmailContent = () => {
 
   const errorMessage = (!data?.success && data?.error) || 'El enlace no es válido o ha expirado.';
 
-  // Side-effects al verificar exitosamente
+  // Side-effects al verificar exitosamente (flujo con token en URL)
   useEffect(() => {
     if (data?.success) {
       toast({ title: '¡Correo verificado!', description: 'Tu cuenta está activa.', variant: 'success' });
       setTimeout(() => router.push('/login?verified=true'), 3000);
     }
   }, [data?.success, toast, router]);
+
+  // Polling: active only in the "pending" state (email present, no token).
+  // Checks /api/auth/verification-status every 4 s to detect when the user
+  // clicks the link in their inbox from another device or tab.
+  useEffect(() => {
+    // Only poll when we have an email and no token (waiting for inbox click)
+    if (!email || token) return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `/api/auth/verification-status?email=${encodeURIComponent(email)}`,
+        );
+        if (!res.ok) return; // rate-limit or network error — just wait next tick
+
+        const json: { verified: boolean } = await res.json();
+
+        if (json.verified) {
+          clearInterval(intervalId);
+          setIsPollingVerified(true);
+          toast({ title: '¡Correo verificado!', description: 'Tu cuenta está activa.', variant: 'success' });
+          router.push('/login?verified=true');
+        }
+      } catch {
+        // Network error — silently wait for next tick
+      }
+    }, 4000);
+
+    // Cleanup: stop polling when component unmounts or deps change
+    return () => clearInterval(intervalId);
+  }, [email, token, router, toast]);
 
   const handleResend = async () => {
     if (!email) {
@@ -129,19 +161,30 @@ const VerifyEmailContent = () => {
           </>
         )}
 
-        {/* ESTADO: Pendiente (sin token, solo email) */}
+        {/* ESTADO: Pendiente (sin token, solo email) — con polling activo */}
         {status === 'pending' && (
           <>
             <div className="inline-flex p-4 bg-primary/10 rounded-full mb-4">
-              <Mail className="h-10 w-10 text-primary" />
+              {isPollingVerified
+                ? <MailCheck className="h-10 w-10 text-green-600" />
+                : <Mail className="h-10 w-10 text-primary" />}
             </div>
             <h2 className="text-xl font-bold mb-2">Revisa tu correo</h2>
             <p className="text-muted-foreground text-sm mb-1">
               Enviamos un enlace de verificación a:
             </p>
             {email && (
-              <p className="font-semibold text-foreground mb-6">{email}</p>
+              <p className="font-semibold text-foreground mb-4">{email}</p>
             )}
+
+            {/* Polling indicator */}
+            {!isPollingVerified && email && (
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground mb-6 bg-muted/40 rounded-xl px-4 py-2.5">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" />
+                <span>Esperando verificación...</span>
+              </div>
+            )}
+
             <p className="text-muted-foreground text-xs mb-6">
               Haz clic en el enlace del correo para activar tu cuenta. Si no lo ves, revisa tu carpeta de spam.
             </p>
@@ -149,9 +192,9 @@ const VerifyEmailContent = () => {
               <Button onClick={handleResend} loading={isResending} variant="outline" className="w-full h-12 rounded-2xl font-bold">
                 Reenviar correo
               </Button>
-              <p className="text-muted-foreground text-xs text-center">
-                Necesitas verificar tu correo para poder iniciar sesión.
-              </p>
+              <Button asChild variant="ghost" className="w-full h-12 rounded-2xl text-sm text-muted-foreground">
+                <Link href="/login">¿Ya verificaste? Continuar</Link>
+              </Button>
             </div>
           </>
         )}

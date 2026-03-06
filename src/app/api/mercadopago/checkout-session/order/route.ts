@@ -3,6 +3,7 @@ import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession } from '@/utils/auth';
 import { orderService } from '@/services/orderService';
 import { mercadoPagoService } from '@/services/mercadoPagoService';
+import { assertOrderOwnership } from '@/utils/order-utils';
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,8 +24,7 @@ export async function POST(req: NextRequest) {
       return errorHandler(new Error('Pedido no encontrado.'), 404);
     }
 
-    const ownerUserId = Number((order as any).user_id ?? (order as any).userId ?? 0);
-    if (!ownerUserId || ownerUserId !== session.dbId) {
+    if (!assertOrderOwnership(order, session.dbId)) {
       return errorHandler(new Error('Acceso prohibido. No puedes pagar este pedido.'), 403);
     }
 

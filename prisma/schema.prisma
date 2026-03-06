@@ -93,6 +93,14 @@ enum PaymentTransactionStatus {
   CANCELED
 }
 
+enum RefundStatus {
+  pending
+  succeeded
+  failed
+  approved
+  canceled
+}
+
 // ============================================================
 // USER & AUTH
 // ============================================================
@@ -615,6 +623,8 @@ model LoyaltyHistory {
   notes           String?                @db.Text
   createdAt       DateTime               @default(now())
 
+  @@index([userId])
+  @@index([orderId])
   @@map("loyalty_history")
 }
 
@@ -750,8 +760,8 @@ model Refund {
   /// Provider-specific refund ID (Stripe refund ID or Mercado Pago refund ID)
   externalRefundId     String             @unique @db.VarChar(191)
   amount               Decimal            @db.Decimal(10, 2)
-  /// Refund status from provider: pending | succeeded | failed | approved | canceled
-  status               String             @db.VarChar(50)
+  /// Refund status from provider
+  status               RefundStatus
   reason               String?            @db.VarChar(255)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt

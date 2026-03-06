@@ -1,6 +1,11 @@
 // src/app/api/cron/expire-orders/route.ts
 //
-// Scheduled every 30 min via vercel.json.
+// Invoked every 30 min by Railway's cron scheduler.
+// Protected by CRON_SECRET — only Railway (or authorized callers) may call this.
+//
+// Example Railway call:
+//   curl -H "Authorization: Bearer <CRON_SECRET>" https://your-domain/api/cron/expire-orders
+//
 // Handles two expiry paths:
 //
 // 1. PENDING orders (no payment attempted at all):
@@ -17,11 +22,10 @@ import { orderService } from '@/services/orderService';
 
 export const runtime = 'nodejs';
 
-// Vercel Cron calls GET
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get('authorization')?.replace('Bearer ', '');
+  const auth = req.headers.get('authorization');
 
-  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 

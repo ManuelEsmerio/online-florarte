@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import { orderService } from '@/services/orderService';
+import type { RefundStatus } from '@prisma/client';
 
 export const runtime = 'nodejs';
 
@@ -112,7 +113,7 @@ export async function POST(req: Request) {
             if (existingRefund.status !== refund.status) {
               await prisma.refund.update({
                 where: { id: existingRefund.id },
-                data: { status: refund.status },
+                data: { status: refund.status as RefundStatus },
               });
               console.info('[STRIPE_WEBHOOK] refund_status_updated', { stripeRefundId: refund.id, status: refund.status });
             }
@@ -136,7 +137,7 @@ export async function POST(req: Request) {
                       paymentTransactionId: paymentTx.id,
                       externalRefundId: refund.id,
                       amount: Number(refund.amount) / 100,
-                      status: refund.status,
+                      status: refund.status as RefundStatus,
                       reason: refund.reason ?? 'requested_by_customer',
                     },
                   });
