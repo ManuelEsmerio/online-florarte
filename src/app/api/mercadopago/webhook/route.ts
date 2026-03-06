@@ -54,17 +54,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const dataId = body?.data?.id ?? '';
+  // MP sends data.id in the URL query string for new-format webhooks (?data.id=...&type=payment).
+  // For old IPN format (?id=...&topic=payment), MP does NOT send x-signature, so we skip validation
+  // and use the id from the query string or body.
+  const url = new URL(req.url);
+  const dataIdFromQuery = url.searchParams.get('data.id') ?? url.searchParams.get('id') ?? '';
+  const dataId = dataIdFromQuery || (body?.data?.id ?? '');
 
-  // Si el secreto está configurado, siempre verificar la firma
-  // (incluso si dataId está vacío — rechazar peticiones sin ID de pago)
-  if (webhookSecret) {
+  // Solo verificar firma cuando x-signature está presente (formato nuevo de MP).
+  // El formato IPN legacy (?topic=payment) no incluye x-signature — se acepta sin firma.
+  if (webhookSecret && xSignature) {
     if (!dataId) {
       return NextResponse.json({ error: 'Missing payment data id.' }, { status: 400 });
     }
-    const isValid = verifyWebhookSignature(xSignature, xRequestId, dataId, webhookSecret);
+    // Para la firma, MP usa el data.id del query string de la URL, no del body
+    const isValid = verifyWebhookSignature(xSignature, xRequestId, dataIdFromQuery || dataId, webhookSecret);
     if (!isValid) {
-      console.error('[MERCADOPAGO_WEBHOOK] Invalid signature');
+      console.error('[MERCADOPAGO_WEBHOOK] Invalid signature', { dataId: dataIdFromQuery, xRequestId });
       return NextResponse.json({ error: 'Invalid webhook signature.' }, { status: 400 });
     }
   }
