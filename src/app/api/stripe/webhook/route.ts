@@ -4,9 +4,54 @@ import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import { orderService } from '@/services/orderService';
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { sessionService } from '@/services/chatbot/session.service';
+import { ConversationState } from '@/types/chatbot.types';
 import type { RefundStatus } from '@prisma/client';
 
 export const runtime = 'nodejs';
+
+// ─── WhatsApp payment confirmation ───────────────────────────────────────────
+
+async function sendWhatsAppOrderConfirmation(orderId: number): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where:  { id: orderId },
+    select: { guestPhone: true, total: true },
+  });
+  if (!order?.guestPhone) return;
+
+  // Find the chat session in WAITING_PAYMENT state for this phone
+  const session = await prisma.chatSession.findFirst({
+    where: {
+      phone:        { endsWith: order.guestPhone.replace(/\D/g, '').slice(-10) },
+      currentState: ConversationState.WAITING_PAYMENT,
+    },
+    select: { phone: true },
+  });
+  if (!session) return;
+
+  const orderNum = String(orderId).padStart(4, '0');
+  await sendWhatsAppMessage(session.phone, {
+    type: 'text',
+    body: [
+      '🎉 *¡Gracias por tu pago!*',
+      '',
+      `Tu pedido fue creado y pagado correctamente.`,
+      `📦 *Número de pedido:* #${orderNum}`,
+      `💰 *Total pagado:* $${Number(order.total).toFixed(2)} MXN`,
+      '',
+      'En breve comenzaremos a preparar tu arreglo. 🌸',
+      'Si necesitas ayuda, responde a este mensaje.',
+    ].join('\n'),
+  });
+
+  // Reset session to main menu
+  await sessionService.update(session.phone, {
+    currentState: ConversationState.MAIN_MENU,
+    lastMessage:  null,
+  });
+  await sessionService.clearContext(session.phone);
+}
 
 export async function POST(req: Request) {
   const requestHeaders = await headers();
@@ -44,6 +89,11 @@ export async function POST(req: Request) {
             externalPaymentId: paymentIntentId,
             gateway: 'stripe',
           });
+
+          // Send WhatsApp confirmation if this was a WhatsApp order
+          await sendWhatsAppOrderConfirmation(orderId).catch((e) =>
+            console.error('[STRIPE_WEBHOOK] wa_confirm_error', e),
+          );
         }
         break;
       }

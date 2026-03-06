@@ -41,6 +41,7 @@ import {
   FileDown,
   LineChart,
   ChevronDown,
+  Building2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -139,6 +140,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     { href: '/admin/loyalty', label: 'Historial de Puntos', icon: Gem },
     { href: '/admin/ads', label: 'Anuncios', icon: FileImage },
     { href: '/admin/newsletter', label: 'Newsletter', icon: Mail },
+    { href: '/admin/empresa',   label: 'Mi Empresa',  icon: Building2 },
   ];
   
   const advancedMenuItems = [

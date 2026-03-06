@@ -131,6 +131,7 @@ model User {
   updatedAt        DateTime  @updatedAt
 
   addresses      Address[]
+  chatSessions   ChatSession[]
   /// Orders placed by this user as a customer
   orders         Order[]          @relation("CustomerOrders")
   /// Orders assigned to this user as a delivery driver
@@ -379,9 +380,10 @@ model Order {
   userId                  Int?
   user                    User?       @relation("CustomerOrders", fields: [userId], references: [id])
   isGuest                 Boolean     @default(false)
+  isPickup                Boolean     @default(false)
   guestName               String?     @db.VarChar(150)
   guestEmail              String?     @db.VarChar(255)
-  guestPhone              String?     @db.VarChar(20)
+  guestPhone              String?     @db.VarChar(30)
   sessionId               String?     @db.VarChar(128)
   deliveryDriverId        Int?
   deliveryDriver          User?       @relation("DeliveryDriverOrders", fields: [deliveryDriverId], references: [id])
@@ -795,4 +797,44 @@ model OrderCancellationLog {
 
   @@index([orderId])
   @@map("order_cancellation_logs")
+}
+
+// ============================================================
+// CHATBOT
+// ============================================================
+
+/// Persists the conversation state for each WhatsApp contact.
+/// One row per phone number — upserted on every interaction.
+model ChatSession {
+  id           Int       @id @default(autoincrement())
+  /// WhatsApp phone number (e.g. "521234567890")
+  phone        String    @unique @db.VarChar(20)
+  /// Linked user account (optional — set when phone matches a registered user)
+  userId       Int?
+  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Current state in the conversation flow
+  currentState String    @default("WELCOME") @db.VarChar(50)
+  /// Last detected intent
+  lastIntent   String?   @db.VarChar(50)
+  /// Last message received from the user
+  lastMessage  String?   @db.Text
+  /// JSON blob — stores OrderDraft while a WhatsApp order is in progress
+  context      String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("chat_sessions")
+}
+
+/// Key–value store for company information shown by the chatbot.
+/// Editable from the admin panel without redeploying.
+model CompanyMeta {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique @db.VarChar(100)
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("company_meta")
 }
