@@ -126,6 +126,8 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
         .map(part => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ')
     : 'Sin registro';
+  const isPaymentCleared = hasPaymentTransaction && paymentStatusRaw === 'SUCCEEDED';
+  const isStatusUpdateBlocked = !isPaymentCleared;
   const isUnpaidOrder = !hasPaymentTransaction;
   const currentStatusLabel = statusLabels[normalizedStatus];
   const couponTypeRaw = String(order?.couponType ?? '').toUpperCase();
@@ -138,7 +140,7 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
   const guestPhone = order?.guestPhone ?? null;
 
   const handleQuickStatusUpdate = async () => {
-    if (!order?.id || !nextStatus || isUpdating) return;
+    if (!order?.id || !nextStatus || isUpdating || isStatusUpdateBlocked) return;
     if (typeof onUpdateStatus !== 'function') {
       console.error('[OrderDetailsDialog] onUpdateStatus is not a function', { onUpdateStatus });
       return;
@@ -398,13 +400,22 @@ export const OrderDetailsDialog = ({ order, isOpen, onOpenChange, onUpdateStatus
                     }
                   />
                 )}
-                <Button
-                 onClick={handleQuickStatusUpdate}
-                 disabled={!nextStatus || typeof onUpdateStatus !== 'function' || isUpdating}
-                 className="flex-1 sm:flex-none gap-2 bg-primary text-white hover:bg-primary/90 transition-all font-bold shadow-lg shadow-primary/20 h-11 px-8 rounded-xl">
-                  <RefreshCcw className={cn('h-5 w-5', isUpdating && 'animate-spin')} />
-                  {isUpdating ? 'Actualizando...' : 'Actualizar Estado'}
-                </Button>
+                <div className="flex-1 sm:flex-none flex flex-col gap-1">
+                  <Button
+                    onClick={handleQuickStatusUpdate}
+                    disabled={!nextStatus || typeof onUpdateStatus !== 'function' || isUpdating || isStatusUpdateBlocked}
+                    title={isStatusUpdateBlocked ? 'Registra un pago exitoso antes de avanzar el estado.' : undefined}
+                    className="w-full gap-2 bg-primary text-white hover:bg-primary/90 transition-all font-bold shadow-lg shadow-primary/20 h-11 px-8 rounded-xl"
+                  >
+                    <RefreshCcw className={cn('h-5 w-5', isUpdating && 'animate-spin')} />
+                    {isUpdating ? 'Actualizando...' : 'Actualizar Estado'}
+                  </Button>
+                  {isStatusUpdateBlocked && (
+                    <span className="text-[11px] text-muted-foreground font-medium">
+                      Este pedido sigue sin pago confirmado. Registra el cobro para habilitar esta acción.
+                    </span>
+                  )}
+                </div>
               </div>
             </footer>
           </>

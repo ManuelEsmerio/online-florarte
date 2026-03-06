@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
     const token = await signToken({
       sub: String(user.id),
       role: user.role,
+      tokenVersion: (user as any).tokenVersion ?? 1,
     });
 
     const res = NextResponse.json({ success: true, data: userSafe });

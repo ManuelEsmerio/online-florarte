@@ -54,6 +54,8 @@ const checkoutSchema = z.object({
   guestState: z.string().optional(),
   guestPostalCode: z.string().optional(),
   guestReferenceNotes: z.string().optional(),
+  guestRecipientName: z.string().optional(),
+  guestRecipientPhone: z.string().optional(),
   phone: z.string().min(10, 'El teléfono debe tener 10 dígitos.'),
   phoneCountryCode: z.enum(PHONE_CODES).default('+52'),
   savePhoneToProfile: z.boolean().default(false),
@@ -94,6 +96,78 @@ const checkoutSchema = z.object({
         code: z.ZodIssueCode.custom,
         message: 'Ingresa un email válido.',
         path: ['guestEmail'],
+      });
+    }
+
+    const recipientName = String(values.guestRecipientName ?? '').trim();
+    if (recipientName.length < 3) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ingresa el nombre del destinatario.',
+        path: ['guestRecipientName'],
+      });
+    }
+
+    const recipientPhoneDigits = String(values.guestRecipientPhone ?? '').replace(/\D/g, '');
+    if (!/^\d{10}$/.test(recipientPhoneDigits)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'El teléfono del destinatario debe tener 10 dígitos.',
+        path: ['guestRecipientPhone'],
+      });
+    }
+
+    const streetName = String(values.guestStreetName ?? '').trim();
+    if (streetName.length < 3) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ingresa la calle.',
+        path: ['guestStreetName'],
+      });
+    }
+
+    const streetNumber = String(values.guestStreetNumber ?? '').trim();
+    if (streetNumber.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ingresa el número exterior.',
+        path: ['guestStreetNumber'],
+      });
+    }
+
+    const neighborhood = String(values.guestNeighborhood ?? '').trim();
+    if (neighborhood.length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ingresa la colonia.',
+        path: ['guestNeighborhood'],
+      });
+    }
+
+    const city = String(values.guestCity ?? '').trim();
+    if (city.length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ingresa la ciudad.',
+        path: ['guestCity'],
+      });
+    }
+
+    const state = String(values.guestState ?? '').trim();
+    if (state.length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ingresa el estado.',
+        path: ['guestState'],
+      });
+    }
+
+    const postalCode = String(values.guestPostalCode ?? '').trim();
+    if (!/^\d{5}$/.test(postalCode)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ingresa un código postal de 5 dígitos.',
+        path: ['guestPostalCode'],
       });
     }
   }
@@ -179,6 +253,8 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
       guestState: 'Jalisco',
       guestPostalCode: '',
       guestReferenceNotes: '',
+      guestRecipientName: '',
+      guestRecipientPhone: '',
       phone: initialPhone.digits,
       phoneCountryCode: initialPhone.code,
       savePhoneToProfile: false,
@@ -210,6 +286,8 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
   const watchedGuestCity = watch('guestCity');
   const watchedGuestState = watch('guestState');
   const watchedGuestPostalCode = watch('guestPostalCode');
+  const watchedGuestRecipientName = watch('guestRecipientName');
+  const watchedGuestRecipientPhone = watch('guestRecipientPhone');
   const watchedPhone = watch('phone');
   const watchedAddressId = watch('addressId');
   const watchedDate = watch('deliveryDate');
@@ -290,16 +368,19 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(watchedGuestEmail ?? '').trim().toLowerCase())
     );
     const isStep1Valid = isPhoneValid && isGuestIdentityValid;
-    const isGuestAddressValid = !isGuestCheckout || (
+    const guestRecipientDigits = String(watchedGuestRecipientPhone ?? '').replace(/\D/g, '');
+    const isGuestDestinationValid = !isGuestCheckout || (
       String(watchedGuestStreetName ?? '').trim().length >= 3 &&
       String(watchedGuestStreetNumber ?? '').trim().length >= 1 &&
       String(watchedGuestNeighborhood ?? '').trim().length >= 2 &&
       String(watchedGuestCity ?? '').trim().length >= 2 &&
       String(watchedGuestState ?? '').trim().length >= 2 &&
-      /^\d{5}$/.test(String(watchedGuestPostalCode ?? '').trim())
+      /^\d{5}$/.test(String(watchedGuestPostalCode ?? '').trim()) &&
+      String(watchedGuestRecipientName ?? '').trim().length >= 3 &&
+      /^\d{10}$/.test(guestRecipientDigits)
     );
     const isStep2Valid = isGuestCheckout
-      ? (isStep1Valid && isGuestAddressValid)
+      ? (isStep1Valid && isGuestDestinationValid)
       : (isStep1Valid && !!watchedAddressId && watchedAddressId > 0 && (shippingCost !== null || ctxShippingCost !== null));
     const isStep3Valid = isStep2Valid && !!watchedDate && !!watchedSlot;
 
@@ -311,7 +392,7 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
       case 5: return isStep3Valid;
       default: return false;
     }
-  }, [activeStep, watchedGuestName, watchedGuestEmail, watchedGuestStreetName, watchedGuestStreetNumber, watchedGuestNeighborhood, watchedGuestCity, watchedGuestState, watchedGuestPostalCode, watchedPhone, watchedAddressId, watchedDate, watchedSlot, isValidatingCart, hasValidationIssues, isProcessing, shippingCost, ctxShippingCost, isDataSettled, isGuestCheckout]);
+  }, [activeStep, watchedGuestName, watchedGuestEmail, watchedGuestStreetName, watchedGuestStreetNumber, watchedGuestNeighborhood, watchedGuestCity, watchedGuestState, watchedGuestPostalCode, watchedGuestRecipientName, watchedGuestRecipientPhone, watchedPhone, watchedAddressId, watchedDate, watchedSlot, isValidatingCart, hasValidationIssues, isProcessing, shippingCost, ctxShippingCost, isDataSettled, isGuestCheckout]);
 
   const handleRemoveAndRevalidate = async (cartItemId: string) => {
     setIsValidatingCart(true);
@@ -339,6 +420,9 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
       if (!deliveryDateIso) {
         throw new Error('Selecciona una fecha y horario válidos.');
       }
+      const guestRecipientPhoneDigits = String(data.guestRecipientPhone ?? '').replace(/\D/g, '');
+      const payloadRecipientName = isGuestCheckout ? data.guestRecipientName?.trim() || undefined : selectedAddress?.recipientName;
+      const payloadRecipientPhone = isGuestCheckout ? guestRecipientPhoneDigits || undefined : selectedAddress?.recipientPhone;
       const endpoint = data.gateway === 'mercadopago'
         ? '/api/mercadopago/checkout-session'
         : '/api/stripe/checkout-session';
@@ -360,8 +444,8 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
           guestState: isGuestCheckout ? data.guestState : undefined,
           guestPostalCode: isGuestCheckout ? data.guestPostalCode : undefined,
           guestReferenceNotes: isGuestCheckout ? data.guestReferenceNotes : undefined,
-          recipientName: selectedAddress?.recipientName,
-          recipientPhone: selectedAddress?.recipientPhone,
+          recipientName: payloadRecipientName,
+          recipientPhone: payloadRecipientPhone,
           couponCode: isGuestCheckout ? undefined : data.couponCode,
           deliveryDate: deliveryDateIso,
           deliveryTimeSlot: data.deliveryTimeSlot,
@@ -471,7 +555,9 @@ export default function CheckoutClientPage({ bootstrap }: { bootstrap: CheckoutB
                 else {
                   const stepFields: any = {
                     1: isGuestCheckout ? ['guestName', 'guestEmail', 'phone'] : ['phone'],
-                    2: isGuestCheckout ? [] : ['addressId'],
+                    2: isGuestCheckout
+                      ? ['guestStreetName', 'guestStreetNumber', 'guestNeighborhood', 'guestCity', 'guestState', 'guestPostalCode', 'guestRecipientName', 'guestRecipientPhone']
+                      : ['addressId'],
                     3: ['deliveryDate', 'deliveryTimeSlot']
                   };
                   const valid = await trigger(stepFields[activeStep]);

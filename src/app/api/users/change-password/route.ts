@@ -7,6 +7,7 @@ import { getDecodedToken } from "@/utils/auth";
 import { successResponse, errorHandler } from "@/utils/api-utils";
 import * as z from "zod";
 import { PASSWORD_POLICY_MESSAGE, isPasswordStrong } from "@/utils/passwordPolicy";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 /* ===============================
    Validation
@@ -28,6 +29,13 @@ const schema = z.object({
 =================================*/
 
 export async function PUT(req: NextRequest) {
+  // 5 intentos por IP cada 15 minutos — previene fuerza bruta con sesión activa
+  const ip = getClientIp(req);
+  const rl = await checkRateLimit(`change_password:${ip}`, 5, 15 * 60 * 1000);
+  if (!rl.allowed) {
+    return errorHandler(new Error('Demasiados intentos. Espera 15 minutos.'), 429);
+  }
+
   try {
     /* ===============================
        Auth
@@ -101,10 +109,12 @@ export async function PUT(req: NextRequest) {
        Update
     ================================*/
 
+    // Incrementar tokenVersion invalida todos los JWTs activos — fuerza re-login
     await prisma.user.update({
       where: { id: session.dbId },
       data: {
         passwordHash: newHash,
+        tokenVersion: { increment: 1 },
       },
     });
 

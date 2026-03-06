@@ -125,6 +125,8 @@ model User {
   emailVerificationExpiry DateTime?
   isDeleted               Boolean   @default(false)
   deletedAt        DateTime?
+  /// Versión del token — se incrementa al cambiar contraseña o rol para invalidar JWTs activos
+  tokenVersion     Int       @default(1)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

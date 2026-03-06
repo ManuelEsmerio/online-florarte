@@ -143,6 +143,22 @@ function ensureValidDeliveryDate(rawValue: unknown): Date {
   return deliveryDate;
 }
 
+const mapTestimonialSnapshot = (testimonial?: any) => {
+  if (!testimonial) return null;
+  return {
+    id: testimonial.id,
+    userId: testimonial.userId,
+    orderId: testimonial.orderId,
+    rating: testimonial.rating,
+    comment: testimonial.comment,
+    userName: testimonial.userName,
+    userProfilePic: testimonial.userProfilePic,
+    status: testimonial.status,
+    createdAt: testimonial.createdAt,
+    updatedAt: testimonial.updatedAt,
+  };
+};
+
 export const orderService = {
   async getAllOrdersForAdmin(filters: any) {
     const where: any = {};
@@ -244,6 +260,7 @@ export const orderService = {
         user: { select: { name: true, email: true } },
         orderAddress: true,
         items: { include: { product: { include: { images: { where: { isPrimary: true, variantId: null }, take: 1 } } }, variant: true } },
+        testimonial: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -324,6 +341,7 @@ export const orderService = {
         recipientPhone,
         recipient_phone: recipientPhone,
         items,
+        testimonial: mapTestimonialSnapshot(o.testimonial),
       } as unknown as Order;
     });
   },
@@ -336,6 +354,7 @@ export const orderService = {
         coupon: { select: { code: true, discountType: true, discountValue: true } },
         orderAddress: true,
         items: { include: { product: true, variant: true } },
+        testimonial: true,
       },
     });
     if (!order) return null;
@@ -378,6 +397,7 @@ export const orderService = {
       is_anonymous: order.isAnonymous,
       signature: order.signature,
       created_at: order.createdAt.toISOString(),
+      testimonial: mapTestimonialSnapshot(order.testimonial),
       items: order.items.map((it: any) => ({
         product_id: it.productId,
         quantity: it.quantity,
@@ -394,6 +414,20 @@ export const orderService = {
       const current = await tx.order.findUnique({ where: { id: orderId }, select: { status: true } });
       if (!current) {
         throw new UserFacingError('Pedido no encontrado.');
+      }
+
+      const latestPayment = await tx.paymentTransaction.findFirst({
+        where: { orderId },
+        orderBy: { createdAt: 'desc' },
+        select: { status: true },
+      });
+
+      const latestPaymentStatus = String(latestPayment?.status ?? '').toUpperCase();
+      const isPaid = latestPaymentStatus === 'SUCCEEDED';
+      const isCancelling = newStatus === 'CANCELLED';
+
+      if (!isPaid && !isCancelling) {
+        throw new UserFacingError('No puedes actualizar el estado de un pedido sin un pago confirmado.');
       }
 
       await tx.order.update({ where: { id: orderId }, data: { status: prismaStatus as any, ...payload } });

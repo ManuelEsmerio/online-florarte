@@ -4,6 +4,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -21,7 +22,9 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import type { User } from '@/lib/definitions';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { PasswordRequirements } from '@/components/password/PasswordRequirements';
 import { PHONE_CODES, parsePhoneValue, sanitizePhoneDigits, formatPhoneDisplay } from '@/utils/phone';
+import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from '@/utils/passwordPolicy';
 
 const profileSchema = z.object({
   name: z.string().min(3, 'El nombre es requerido.'),
@@ -39,7 +42,9 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 const passwordSchema = z.object({
-  newPassword: z.string().min(6, 'La nueva contraseña debe tener al menos 6 caracteres.'),
+  newPassword: z.string()
+    .min(8, 'La nueva contraseña debe tener al menos 8 caracteres.')
+    .refine(isPasswordStrong, { message: PASSWORD_POLICY_MESSAGE }),
   confirmPassword: z.string(),
 }).refine((data) => data.newPassword === data.confirmPassword, {
   message: "Las contraseñas no coinciden",
@@ -109,6 +114,7 @@ export default function ProfilePageContent() {
     resolver: zodResolver(passwordSchema),
     defaultValues: { newPassword: '', confirmPassword: '' },
   });
+  const watchedNewPassword = passwordForm.watch('newPassword');
 
   const fetchUserDataCallback = useCallback(() => {
     if (user) {
@@ -298,6 +304,7 @@ export default function ProfilePageContent() {
                 <CardContent className="space-y-8">
                   <div>
                     <h3 className="font-semibold text-lg mb-4">Cambiar Contraseña</h3>
+                    <PasswordRequirements password={watchedNewPassword} className="max-w-md mb-4" />
                      <Form {...passwordForm}>
                         <form onSubmit={passwordForm.handleSubmit(handleChangePassword)} className="space-y-4 max-w-md">
                           <FormField control={passwordForm.control} name="newPassword" render={({ field }) => (<FormItem><FormLabel>Nueva Contraseña</FormLabel><div className="relative"><FormControl><Input type={showNewPassword ? 'text' : 'password'} {...field} disabled={isChangingPassword}/></FormControl><Button type="button" variant="ghost" size="icon" className="absolute inset-y-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent hover:text-primary" onClick={() => setShowNewPassword(!showNewPassword)}>{showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button></div><FormMessage /></FormItem>)} />

@@ -2,6 +2,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from '@/utils/passwordPolicy';
 
@@ -17,9 +18,11 @@ export async function POST(req: NextRequest) {
       return errorHandler(new Error(PASSWORD_POLICY_MESSAGE), 400);
     }
 
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
     const user = await prisma.user.findFirst({
       where: {
-        passwordResetToken: token,
+        passwordResetToken: tokenHash,
         passwordResetExpiry: { gt: new Date() },
         isDeleted: false,
       },
@@ -31,12 +34,14 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // Incrementar tokenVersion invalida todos los JWTs activos — fuerza re-login
     await prisma.user.update({
       where: { id: user.id },
       data: {
         passwordHash: hashedPassword,
         passwordResetToken: null,
         passwordResetExpiry: null,
+        tokenVersion: { increment: 1 },
       },
     });
 

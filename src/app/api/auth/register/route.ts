@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
     const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
 
     const newUser = await prisma.user.create({
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
         name,
         email: emailLower,
         passwordHash: hashedPassword,
-        emailVerificationToken: verificationToken,
+        emailVerificationToken: verificationTokenHash,
         emailVerificationExpiry: verificationExpiry,
       },
     });

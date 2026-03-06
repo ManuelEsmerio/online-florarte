@@ -49,7 +49,9 @@
       "Read(//c/Users/Manuel/ Esmerio/ G/Documents/Projects/online-florarte/src/components/**)",
       "Read(//c/Users/Manuel/ Esmerio/ G/Documents/Projects/online-florarte/src/app/products/**)",
       "Read(//c/Users/Manuel/ Esmerio/ G/Documents/Projects/online-florarte/src/app/categories/[slug]/**)",
-      "Bash(xargs grep -l \"bg-slate\\\\|dark:bg-zinc\\\\|dark:border-white\")"
+      "Bash(xargs grep -l \"bg-slate\\\\|dark:bg-zinc\\\\|dark:border-white\")",
+      "Bash(1:*)",
+      "Bash(npx dotenv -e .env -- npx prisma db execute --stdin 2)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Manuel Esmerio G\\.claude\\projects\\c--Users-Manuel-Esmerio-G-Documents-Projects-online-florarte\\memory"

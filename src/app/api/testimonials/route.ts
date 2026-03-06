@@ -34,21 +34,16 @@ export async function POST(req: NextRequest) {
     }
 
     const existing = await testimonialService.getTestimonialByOrder(orderId);
-    let isUpdate = false;
-    let result: { id: number };
     if (existing) {
-      result = await prisma.testimonial.update({ where: { orderId }, data: { rating, comment, status: 'PENDING' } });
-      isUpdate = true;
-    } else {
-      result = await testimonialService.createTestimonial({ userId: session.dbId, orderId, rating, comment });
+      return errorHandler(new Error('Este pedido ya cuenta con una reseña. Si necesitas actualizarla, contacta a soporte para que la eliminen.'), 409);
     }
+
+    const result = await testimonialService.createTestimonial({ userId: session.dbId, orderId, rating, comment });
 
     return successResponse({
       testimonialId: result.id,
-      message: isUpdate
-        ? 'Tu reseña ha sido actualizada y sigue pendiente de aprobación.'
-        : 'Tu testimonio ha sido enviado y está pendiente de aprobación. ¡Gracias por tus comentarios!',
-    }, isUpdate ? 200 : 201);
+      message: 'Tu testimonio ha sido enviado y está pendiente de aprobación. ¡Gracias por tus comentarios!',
+    }, 201);
 
   } catch (error) {
     if (error instanceof ZodError) {

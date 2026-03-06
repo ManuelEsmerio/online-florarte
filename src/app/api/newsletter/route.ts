@@ -1,6 +1,19 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
+// Mensaje genérico — no revela si el email ya estaba registrado ni su estado
+const SUCCESS_MESSAGE = "¡Gracias! Si tu correo no estaba suscrito, recibirás novedades pronto."
+
+// Sanitiza el user-agent: solo ASCII imprimible, máximo 300 chars
+// Evita stored XSS si el campo se muestra en el panel admin sin escape
+function sanitizeUserAgent(raw: string | null): string | null {
+  if (!raw) return null
+  return raw.replace(/[^\x20-\x7E]/g, '').slice(0, 300) || null
+}
+
+// Fuentes de suscripción permitidas
+const ALLOWED_SOURCES = new Set(['footer', 'popup', 'checkout', 'blog', 'home'])
+
 export async function POST(req: Request) {
   try {
     const { email, source } = await req.json()
@@ -13,35 +26,33 @@ export async function POST(req: Request) {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase()
-    const normalizedSource = typeof source === 'string' ? source.trim().toLowerCase() : null
-    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null
-    const userAgent = req.headers.get('user-agent') || null
+    // Validar formato básico de email antes de procesar
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return NextResponse.json({ error: "Formato de email inválido" }, { status: 400 })
+    }
 
-    // 1. Buscar primero
+    // Whitelist de fuentes — rechaza valores arbitrarios
+    const rawSource = typeof source === 'string' ? source.trim().toLowerCase() : null
+    const normalizedSource = rawSource && ALLOWED_SOURCES.has(rawSource) ? rawSource : null
+
+    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null
+    const userAgent = sanitizeUserAgent(req.headers.get('user-agent'))
+
     const existing = await prisma.newsletterSubscriber.findUnique({
       where: { email: normalizedEmail },
     })
 
-    // 2. Ya existe y está activo
     if (existing && existing.isActive) {
-      if ((normalizedSource && existing.source !== normalizedSource) || existing.ipAddress !== ipAddress || existing.userAgent !== userAgent) {
+      // Actualizar metadatos sin revelar que el email ya estaba registrado
+      if (normalizedSource && existing.source !== normalizedSource) {
         await prisma.newsletterSubscriber.update({
           where: { email: normalizedEmail },
-          data: {
-            source: normalizedSource ?? existing.source,
-            ipAddress,
-            userAgent,
-          },
+          data: { source: normalizedSource, ipAddress, userAgent },
         })
       }
-
-      return NextResponse.json({
-        success: true,
-        message: "Ya estás suscrito 😊",
-      })
+      return NextResponse.json({ success: true, message: SUCCESS_MESSAGE })
     }
 
-    // 3. Existe pero estaba inactivo
     if (existing && !existing.isActive) {
       await prisma.newsletterSubscriber.update({
         where: { email: normalizedEmail },
@@ -53,14 +64,9 @@ export async function POST(req: Request) {
           unsubAt: null,
         },
       })
-
-      return NextResponse.json({
-        success: true,
-        message: "Suscripción reactivada 🎉",
-      })
+      return NextResponse.json({ success: true, message: SUCCESS_MESSAGE })
     }
 
-    // 4. No existe → crear
     await prisma.newsletterSubscriber.create({
       data: {
         email: normalizedEmail,
@@ -70,13 +76,10 @@ export async function POST(req: Request) {
       },
     })
 
-    return NextResponse.json({
-      success: true,
-      message: "Suscripción exitosa 💐",
-    })
+    return NextResponse.json({ success: true, message: SUCCESS_MESSAGE })
 
   } catch (error) {
-    console.error(error)
+    console.error('[NEWSLETTER_SUBSCRIBE_ERROR]', error)
 
     return NextResponse.json(
       { error: "Error al suscribirse" },

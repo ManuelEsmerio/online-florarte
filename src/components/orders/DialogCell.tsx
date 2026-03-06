@@ -40,7 +40,6 @@ import {
         CalendarDays,
         MapPin,
         UserRound,
-    Edit,
     Lock,
     X
 } from 'lucide-react';
@@ -48,7 +47,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useState, useCallback } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import type { Testimonial } from '@/lib/definitions';
 import { useAuth } from '@/context/AuthContext';
 import { handleApiResponse } from '@/utils/handleApiResponse';
 import { formatTimeSlotForUI, cn } from '@/lib/utils';
@@ -196,15 +194,13 @@ const OrderDetailsSkeleton = () => (
 
 type PaymentGateway = 'stripe' | 'mercadopago';
 
-const ReviewForm = ({ orderId, onReviewSubmit, onCancel, existingReview }: { orderId: number, onReviewSubmit: () => void, onCancel: () => void, existingReview?: Testimonial | null }) => {
+const ReviewForm = ({ orderId, onReviewSubmit, onCancel }: { orderId: number, onReviewSubmit: () => void, onCancel: () => void }) => {
     const { toast } = useToast();
     const { apiFetch } = useAuth();
-    const [rating, setRating] = useState(existingReview?.rating || 0);
-    const [comment, setComment] = useState(existingReview?.comment || '');
+    const [rating, setRating] = useState(0);
+    const [comment, setComment] = useState('');
     const [hoverRating, setHoverRating] = useState(0);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    
-    const isEditing = !!existingReview?.id;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -229,7 +225,7 @@ const ReviewForm = ({ orderId, onReviewSubmit, onCancel, existingReview }: { ord
             });
 
             const result = await handleApiResponse<{ message?: string }>(response, {});
-            toast({ title: isEditing ? '¡Reseña Actualizada!' : '¡Reseña Enviada!', description: result.message });
+            toast({ title: '¡Reseña enviada!', description: result.message });
             onReviewSubmit();
         } catch (error: any) {
             toast({ title: "Error al enviar reseña", description: error.message, variant: "destructive" });
@@ -289,6 +285,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
     const [paymentStatus, setPaymentStatus] = useState<string>(String((row as any).payment_status || 'PENDING'));
     const [hasPaymentTransaction, setHasPaymentTransaction] = useState<boolean>(Boolean((row as any).has_payment_transaction));
     const [detailedOrder, setDetailedOrder] = useState<any | null>(null);
+    const [hasSubmittedReview, setHasSubmittedReview] = useState(Boolean((row as any).testimonial));
 
      const fetchOrderDetails = useCallback(async () => {
           setIsFetchingDetails(true);
@@ -300,6 +297,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
             }
             if (data?.order) {
                 setDetailedOrder(data.order);
+                setHasSubmittedReview(Boolean(data.order.testimonial));
             }
             if (data?.order?.payment_status) {
                 setPaymentStatus(String(data.order.payment_status));
@@ -359,6 +357,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
     
     const onReviewSubmit = () => {
         setView('details');
+        setHasSubmittedReview(true);
         if (onDataChange) onDataChange();
         else window.location.reload();
     }
@@ -392,6 +391,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
     const guestName = (currentOrder as any).guest_name ?? (currentOrder as any).guestName ?? null;
     const guestEmail = (currentOrder as any).guest_email ?? (currentOrder as any).guestEmail ?? null;
     const guestPhone = (currentOrder as any).guest_phone ?? (currentOrder as any).guestPhone ?? null;
+    const hasReview = hasSubmittedReview || Boolean((currentOrder as any).testimonial);
     
     return (
         <>
@@ -506,7 +506,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
             <DialogContent className="w-[96vw] max-w-6xl p-0 max-h-[92vh] overflow-hidden border-border/50 shadow-2xl rounded-[2rem] flex flex-col">
                 <DialogHeader className="px-6 md:px-10 pt-8 md:pt-10 pb-6 border-b border-border/50 text-left">
                     <DialogTitle className='font-headline text-3xl md:text-5xl font-bold tracking-tight'>
-                        {view === 'review' ? (row.testimonial ? 'Editar Reseña' : 'Califica tu Pedido') : (
+                        {view === 'review' ? 'Califica tu Pedido' : (
                             <>Detalles del Pedido: <span className="text-primary italic">{orderCode}</span></>
                         )}
                     </DialogTitle>
@@ -549,7 +549,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                             </Link>
                         </div>
                     ) : view === 'review' ? (
-                        <ReviewForm orderId={currentOrder.id} onReviewSubmit={onReviewSubmit} onCancel={() => setView('details')} existingReview={(currentOrder as any).testimonial as any} />
+                        <ReviewForm orderId={currentOrder.id} onReviewSubmit={onReviewSubmit} onCancel={() => setView('details')} />
                     ) : isFetchingDetails ? (
                         <OrderDetailsSkeleton />
                     ) : (
@@ -734,13 +734,21 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                         ) : (
                             <>
                         {currentOrder.status === 'completado' && (
-                            <Button
-                                variant="outline"
-                                className="sm:w-auto h-12 rounded-xl border-primary text-primary font-bold hover:bg-primary hover:text-white transition-all gap-2"
-                                onClick={() => setView('review')}
-                            >
-                                {(currentOrder as any).testimonial ? <><Edit className="w-4 h-4" /> Editar Reseña</> : <><Star className="w-4 h-4" /> Dejar una Reseña</>}
-                            </Button>
+                            <div className="sm:w-auto flex-1">
+                                <Button
+                                    variant="outline"
+                                    className="w-full h-12 rounded-xl border-primary text-primary font-bold hover:bg-primary hover:text-white transition-all gap-2"
+                                    onClick={() => setView('review')}
+                                    disabled={hasReview}
+                                >
+                                    <Star className="w-4 h-4" /> Dejar una Reseña
+                                </Button>
+                                {hasReview && (
+                                    <p className="mt-2 text-sm text-muted-foreground flex items-center gap-2" aria-live="polite">
+                                        <Lock className="w-4 h-4" /> Ya enviaste una reseña para este pedido. El botón se desactiva para evitar duplicados.
+                                    </p>
+                                )}
+                            </div>
                         )}
 
                         <Button
