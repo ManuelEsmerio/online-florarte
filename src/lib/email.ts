@@ -26,6 +26,11 @@ export async function sendEmail(params: {
 }
 
 export async function sendVerificationEmail(to: string, token: string) {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[EMAIL] RESEND_API_KEY no configurada. Se omite envío de verificación.');
+    return null;
+  }
+
   const verifyUrl = `${APP_URL}/verify-email?token=${token}`;
   const heroImageUrl = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=1200&q=80';
 
@@ -118,6 +123,11 @@ export async function sendVerificationEmail(to: string, token: string) {
 }
 
 export async function sendPasswordResetEmail(to: string, token: string) {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[EMAIL] RESEND_API_KEY no configurada. Se omite envío de reset de contraseña.');
+    return null;
+  }
+
   const resetUrl = `${APP_URL}/reset-password?token=${token}`;
 
   await resend.emails.send({

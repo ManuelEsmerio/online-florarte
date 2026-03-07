@@ -8,7 +8,7 @@ import { occasionService } from '@/services/occasionService';
 import { getActiveAnnouncements } from '@/services/announcementService';
 import { tagService } from '@/services/tagService';
 
-export const revalidate = 3600;
+export const revalidate = 86400; // 24 horas — los datos de home cambian raramente
 
 /**
  * GET /api/home

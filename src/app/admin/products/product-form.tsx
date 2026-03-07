@@ -20,7 +20,7 @@ import Image from 'next/image';
 import { Stepper } from '@/components/ui/stepper';
 import type { Product, ProductCategory, Occasion, ProductVariant, Tag } from '@/lib/definitions';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 import MultiSelect from '@/components/MultiSelect';
 import { Badge } from '@/components/ui/badge';
 
@@ -459,13 +459,19 @@ function VariantsField() {
                 <div className="p-4 border rounded-xl space-y-2 bg-muted/40">
                     <div className="flex items-center justify-between">
                         <FormLabel>Copiado Rápido</FormLabel>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild><Button type="button" variant="outline" size="sm"><Copy className="mr-2 h-4 w-4" />Copiar especificaciones a todas</Button></AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader><AlertDialogTitle>¿Confirmar acción?</AlertDialogTitle><AlertDialogDescription>Esto sobrescribirá las especificaciones de todas las variantes (excepto la primera) con las de la primera variante. Esta acción no se puede deshacer.</AlertDialogDescription></AlertDialogHeader>
-                                <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={copySpecsToAllVariants}>Sí, copiar</AlertDialogAction></AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
+                        <AdminConfirmDialog
+                            variant="warning"
+                            trigger={
+                                <Button type="button" variant="outline" size="sm">
+                                    <Copy className="mr-2 h-4 w-4" />
+                                    Copiar especificaciones a todas
+                                </Button>
+                            }
+                            title="¿Confirmar acción?"
+                            description="Esto sobrescribirá las especificaciones de todas las variantes (excepto la primera) con las de la primera variante. Esta acción no se puede deshacer."
+                            confirmText="Sí, copiar"
+                            onConfirm={copySpecsToAllVariants}
+                        />
                     </div>
                     <p className="text-xs text-muted-foreground">Usa este botón para copiar las especificaciones de la primera variante a todas las demás.</p>
                 </div>

@@ -5,13 +5,13 @@ import { ColumnDef } from '@tanstack/react-table';
 import { MoreHorizontal, ArrowUpDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Announcement } from '@/lib/definitions';
 import React from 'react';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 
 type ColumnsProps = {
   onEdit: (ad: Announcement) => void;
@@ -88,27 +88,26 @@ export const columns = ({ onEdit, onDelete, onToggleActive, isDeletingId, updati
               <DropdownMenuLabel>Acciones</DropdownMenuLabel>
               <DropdownMenuItem onSelect={() => onEdit(ad)}>Editar</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem className="text-destructive focus:bg-destructive/90 focus:text-destructive-foreground" onSelect={(e) => e.preventDefault()}>
+              <AdminConfirmDialog
+                trigger={
+                  <DropdownMenuItem
+                    className="text-destructive focus:bg-destructive/90 focus:text-destructive-foreground"
+                    onSelect={(e) => e.preventDefault()}
+                  >
                     Eliminar
                   </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro de que quieres eliminar este anuncio?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción no se puede deshacer. El anuncio "{ad.title}" será eliminado permanentemente.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => onDelete(ad.id)}>
-                      Sí, eliminar
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                }
+                title="¿Eliminar anuncio?"
+                description={
+                  <>
+                    Esta acción no se puede deshacer. El anuncio{' '}
+                    <span className="font-semibold">"{ad.title}"</span> será eliminado
+                    permanentemente.
+                  </>
+                }
+                confirmText="Sí, eliminar"
+                onConfirm={() => onDelete(ad.id)}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

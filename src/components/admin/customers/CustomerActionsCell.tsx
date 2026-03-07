@@ -9,22 +9,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, Loader2, Eye, Pencil, Copy, Send, Trash2 } from 'lucide-react';
 import { User } from '@/lib/definitions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 
 interface CustomerActionsCellProps {
   user: User;
@@ -47,14 +37,15 @@ export function CustomerActionsCell({
 }: CustomerActionsCellProps) {
   const { toast } = useToast();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const isSending = isSendingCredentialsFor === user.id;
   const isDeleting = isDeletingId === user.id;
 
   const itemClass = "group flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-primary hover:text-primary-foreground focus:outline-none focus:bg-primary focus:text-primary-foreground";
   const iconClass = "h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary-foreground";
-  
+
   return (
-    <AlertDialog>
+    <>
       <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button
@@ -71,12 +62,12 @@ export function CustomerActionsCell({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56 rounded-2xl border border-border/50 bg-background/80 p-2 shadow-2xl backdrop-blur-lg">
           <DropdownMenuLabel className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Acciones</DropdownMenuLabel>
-          
+
           <DropdownMenuItem onSelect={() => onViewDetails(user)} className={itemClass}>
             <Eye className={iconClass} />
             <span>Ver Detalle</span>
           </DropdownMenuItem>
-          
+
           <DropdownMenuItem onSelect={() => onEdit(user)} disabled={user.isDeleted} className={itemClass}>
             <Pencil className={iconClass} />
             <span>Editar</span>
@@ -98,40 +89,31 @@ export function CustomerActionsCell({
             )}
             <span>{isSending ? 'Enviando...' : 'Enviar Credenciales'}</span>
           </DropdownMenuItem>
-          
+
           <DropdownMenuSeparator className="my-2 bg-border/50" />
-          
-          <AlertDialogTrigger asChild>
-            <DropdownMenuItem
-              onSelect={(e) => e.preventDefault()}
-              className={cn(itemClass, "!text-destructive hover:!bg-destructive hover:!text-destructive-foreground focus:!bg-destructive focus:!text-destructive-foreground")}
-            >
-              <Trash2 className="h-4 w-4 text-destructive transition-colors group-hover:text-destructive-foreground" />
-              <span>Eliminar</span>
-            </DropdownMenuItem>
-          </AlertDialogTrigger>
-          
+
+          <DropdownMenuItem
+            onSelect={(e) => { e.preventDefault(); setIsDeleteOpen(true); setIsMenuOpen(false); }}
+            className={cn(itemClass, "!text-destructive hover:!bg-destructive hover:!text-destructive-foreground focus:!bg-destructive focus:!text-destructive-foreground")}
+          >
+            <Trash2 className="h-4 w-4 text-destructive transition-colors group-hover:text-destructive-foreground" />
+            <span>Eliminar</span>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl">
-        <AlertDialogHeader>
-          <AlertDialogTitle className="font-headline text-2xl">¿Estás absolutamente seguro?</AlertDialogTitle>
-          <AlertDialogDescription className="text-sm leading-relaxed text-muted-foreground">
-            Esta acción marcará al usuario como eliminado. Podrás reactivar su cuenta más tarde.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter className="gap-2">
-          <AlertDialogCancel className="rounded-2xl h-12 border-none bg-muted font-bold text-foreground">Cancelar</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-destructive hover:bg-destructive/90 rounded-2xl h-12 font-bold shadow-lg shadow-destructive/20 text-white"
-            onClick={() => onDelete(user.id)}
-            disabled={isDeleting}
-          >
-            {isDeleting ? "Eliminando..." : "Sí, desactivar"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      <AdminConfirmDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        title="¿Desactivar usuario?"
+        description="Esta acción marcará al usuario como eliminado. Podrás reactivar su cuenta más tarde."
+        confirmText={isDeleting ? 'Desactivando...' : 'Sí, desactivar'}
+        isLoading={isDeleting}
+        onConfirm={() => {
+          onDelete(user.id);
+          setIsDeleteOpen(false);
+        }}
+      />
+    </>
   );
 }

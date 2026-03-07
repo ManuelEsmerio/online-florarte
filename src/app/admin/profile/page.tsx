@@ -12,7 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 import { useForm, useForm as usePasswordForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -342,13 +342,14 @@ export default function ProfilePageContent() {
                 <CardContent className="space-y-4">
                     <div className='flex flex-col sm:flex-row justify-between items-center gap-4'>
                         <p className='font-semibold text-sm'>Eliminar tu cuenta</p>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild><Button variant="destructive" loading={isDeletingAccount} className="w-full sm:w-auto">Eliminar Cuenta</Button></AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminarán permanentemente tu cuenta y tus datos de nuestros servidores.</AlertDialogDescription></AlertDialogHeader>
-                            <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeleteAccount} className='bg-destructive hover:bg-destructive/90' loading={isDeletingAccount}>Sí, eliminar cuenta</AlertDialogAction></AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <AdminConfirmDialog
+                          trigger={<Button variant="destructive" loading={isDeletingAccount} className="w-full sm:w-auto">Eliminar Cuenta</Button>}
+                          title="¿Estás absolutamente seguro?"
+                          description="Esta acción no se puede deshacer. Se eliminarán permanentemente tu cuenta y tus datos de nuestros servidores."
+                          confirmText={isDeletingAccount ? 'Eliminando...' : 'Sí, eliminar cuenta'}
+                          isLoading={isDeletingAccount}
+                          onConfirm={handleDeleteAccount}
+                        />
                     </div>
                      <p className="text-xs text-muted-foreground">Esta acción es permanente y no se puede deshacer.</p>
                 </CardContent>

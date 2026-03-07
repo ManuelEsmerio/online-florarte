@@ -5,7 +5,7 @@ import { IncomingMessage, Intent, ConversationState, ChatbotResponse } from '@/t
 import { intentService } from './intent.service';
 import { sessionService } from './session.service';
 import { aiService } from './ai.service';
-import { chatbotCatalogService } from './catalog.service';
+import { chatbotCatalogService, sanitizeCatalogOffset } from './catalog.service';
 import { orderCaptureService } from './order-capture.service';
 import {
   welcomeFlow,
@@ -62,7 +62,7 @@ function parseCatalogContext(lastMessage: string | null): { offset: number; cate
   const cidM    = lastMessage.match(/cid:(\d+)/);
   const oidM    = lastMessage.match(/oid:(\d+)/);
   return {
-    offset:     offsetM ? parseInt(offsetM[1], 10) : 0,
+    offset:     sanitizeCatalogOffset(offsetM ? parseInt(offsetM[1], 10) : 0),
     categoryId: cidM ? parseInt(cidM[1], 10) : undefined,
     occasionId: oidM ? parseInt(oidM[1], 10) : undefined,
   };
@@ -70,8 +70,9 @@ function parseCatalogContext(lastMessage: string | null): { offset: number; cate
 
 /** Builds lastMessage string for catalog state */
 function buildCatalogMessage(offset: number, categoryId?: number, occasionId?: number): string {
+  const safeOffset = sanitizeCatalogOffset(offset);
   return [
-    `catalogOffset:${offset}`,
+    `catalogOffset:${safeOffset}`,
     categoryId ? `:cid:${categoryId}` : '',
     occasionId ? `:oid:${occasionId}` : '',
   ].join('');
@@ -81,7 +82,7 @@ function buildCatalogMessage(offset: number, categoryId?: number, occasionId?: n
 function extractCatalogMore(text: string): { offset: number; categoryId?: number; occasionId?: number } {
   const upper  = text.trim().toUpperCase();
   const baseM  = upper.match(/^CATALOG_MORE_(\d+)/);
-  const offset = baseM ? parseInt(baseM[1], 10) : 0;
+  const offset = sanitizeCatalogOffset(baseM ? parseInt(baseM[1], 10) : 0);
   const cidM   = upper.match(/:CID:(\d+)/);
   const oidM   = upper.match(/:OID:(\d+)/);
   return {

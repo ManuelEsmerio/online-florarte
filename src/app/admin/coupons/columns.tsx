@@ -16,20 +16,10 @@ import { Badge } from '@/components/ui/badge';
 import { Coupon, CouponStatus } from '@/lib/definitions';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import React from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 
 
 const getStatusVariant = (status: CouponStatus): 'success' | 'destructive' | 'secondary' => {
@@ -212,7 +202,7 @@ export const columns = ({
       const coupon = row.original;
       const isSending = isSendingCouponId === coupon.id;
       const isDeleting = isDeletingId === coupon.id;
-      
+
       return (
         <div className="text-right">
           <DropdownMenu>
@@ -238,37 +228,26 @@ export const columns = ({
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
+              <AdminConfirmDialog
+                trigger={
                   <DropdownMenuItem
                     className="text-destructive focus:bg-destructive focus:text-destructive-foreground"
                     onSelect={(e) => e.preventDefault()}
                   >
                     Eliminar
                   </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      ¿Estás seguro de que quieres eliminar este cupón?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción no se puede deshacer. El cupón{' '}
-                      <span className="font-mono font-bold">{coupon.code}</span>{' '}
-                      será eliminado permanentemente.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive hover:bg-destructive/90"
-                      onClick={() => onDelete(coupon.id)}
-                    >
-                      Sí, eliminar
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                }
+                title="¿Eliminar cupón?"
+                description={
+                  <>
+                    Esta acción no se puede deshacer. El cupón{' '}
+                    <span className="font-mono font-bold">{coupon.code}</span> será eliminado
+                    permanentemente.
+                  </>
+                }
+                confirmText="Sí, eliminar"
+                onConfirm={() => onDelete(coupon.id)}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

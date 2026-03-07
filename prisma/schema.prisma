@@ -827,6 +827,15 @@ model ChatSession {
   @@map("chat_sessions")
 }
 
+model ChatbotWebhookMessage {
+  id          Int      @id @default(autoincrement())
+  messageId   String   @unique @db.VarChar(100)
+  processedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@map("chatbot_webhook_messages")
+}
+
 model CompanyProfile {
   id                 Int       @id @default(autoincrement())
   legalName          String    @db.VarChar(255)

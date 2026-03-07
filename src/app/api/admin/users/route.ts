@@ -3,7 +3,6 @@ import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
-import { prisma } from '@/lib/prisma';
 import { z, ZodError } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -29,8 +28,7 @@ export async function GET(req: NextRequest) {
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso prohibido. Sesión no válida.'), 403);
     }
-    const user = await prisma.user.findFirst({ where: { id: session.dbId, isDeleted: false }, select: { role: true } });
-    if (!isAdminRole(user?.role)) {
+    if (!isAdminRole(session.role)) {
       return errorHandler(new Error('Acceso prohibido. Permisos insuficientes.'), 403);
     }
 
@@ -64,11 +62,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session: UserSession | null = await getDecodedToken(req);
-    if (!session || !session.dbId) {
+    if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
-    const adminUser = await prisma.user.findFirst({ where: { id: session.dbId, isDeleted: false }, select: { role: true } });
-    if (!isAdminRole(adminUser?.role)) {
+    if (!isAdminRole(session.role)) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 
@@ -100,8 +97,7 @@ export async function DELETE(req: NextRequest) {
         if (!session?.dbId) {
             return errorHandler(new Error('Acceso denegado.'), 401);
         }
-        const adminUser = await prisma.user.findFirst({ where: { id: session.dbId, isDeleted: false }, select: { role: true } });
-        if (!isAdminRole(adminUser?.role)) {
+        if (!isAdminRole(session.role)) {
             return errorHandler(new Error('Acceso prohibido.'), 403);
         }
 

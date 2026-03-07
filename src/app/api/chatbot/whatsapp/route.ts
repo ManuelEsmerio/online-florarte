@@ -4,29 +4,76 @@
 // GET  → webhook verification challenge (required by Meta)
 // POST → incoming messages from users
 
+import { createHmac, timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { chatbotService } from '@/services/chatbot/chatbot.service';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
 import { IncomingMessage } from '@/types/chatbot.types';
+import { webhookMessageService } from '@/services/chatbot/webhook-message.service';
 
 export const runtime = 'nodejs';
 
-// ─── In-process message deduplication ────────────────────────────────────────
-// Prevents double processing when WhatsApp retries webhook delivery (e.g. slow
-// DB response causes 20s timeout → Meta resends the same message).
-// Safe for single-server deployments (Railway). For multi-instance, replace
-// with a Redis SET NX EX check.
-const recentMessageIds = new Map<string, number>(); // messageId → processedAt timestamp
-const DEDUP_TTL_MS     = 5 * 60 * 1000; // 5 minutes
+const SIGNATURE_HEADER = 'x-hub-signature-256';
 
-function isDuplicateMessage(messageId: string): boolean {
-  const now = Date.now();
-  for (const [id, ts] of recentMessageIds) {
-    if (now - ts > DEDUP_TTL_MS) recentMessageIds.delete(id);
+function verifySignature(rawBody: string, headerValue: string | null, appSecret: string): boolean {
+  if (!headerValue) return false;
+  const expected = `sha256=${createHmac('sha256', appSecret).update(rawBody).digest('hex')}`;
+  const received = headerValue.trim();
+  if (expected.length !== received.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
+  } catch {
+    return false;
   }
-  if (recentMessageIds.has(messageId)) return true;
-  recentMessageIds.set(messageId, now);
-  return false;
+}
+
+function extractMessageText(message: any): string | null {
+  if (!message) return null;
+  if (message.type === 'text') {
+    return message.text?.body ?? null;
+  }
+  if (message.type === 'interactive') {
+    const interactive = message.interactive;
+    return interactive?.button_reply?.id ?? interactive?.list_reply?.id ?? null;
+  }
+  return null;
+}
+
+async function handleIncomingMessage(message: any): Promise<void> {
+  try {
+    const text = extractMessageText(message);
+    if (!text) return;
+
+    const registered = await webhookMessageService.register(message.id);
+    if (!registered) {
+      console.info('[WHATSAPP_WEBHOOK] Duplicate message skipped', { id: message.id, from: message.from });
+      return;
+    }
+
+    const incoming: IncomingMessage = {
+      phone:     message.from,
+      text,
+      messageId: message.id,
+    };
+
+    const response = await chatbotService.process(incoming);
+    for (const msg of response.messages) {
+      await sendWhatsAppMessage(incoming.phone, msg);
+    }
+  } catch (error) {
+    console.error('[WHATSAPP_WEBHOOK_MESSAGE_ERROR]', { id: message?.id, error });
+  }
+}
+
+async function dispatchMessages(messages: any[] | undefined): Promise<void> {
+  if (!messages?.length) return;
+  await Promise.allSettled(messages.map((message) => handleIncomingMessage(message)));
+}
+
+function scheduleDedupCleanup(): void {
+  webhookMessageService.purgeOlderThan().catch(() => {
+    /* best-effort */
+  });
 }
 
 // ─── GET: Webhook verification ───────────────────────────────────────────────
@@ -53,60 +100,46 @@ export async function GET(req: NextRequest) {
 // or Meta will retry the same message repeatedly.
 
 export async function POST(req: NextRequest) {
+  let rawBody = '';
+  try {
+    rawBody = await req.text();
+  } catch {
+    return NextResponse.json({ received: true });
+  }
+
+  const appSecret = process.env.WHATSAPP_APP_SECRET;
+  if (!appSecret) {
+    console.error('[WHATSAPP_WEBHOOK] WHATSAPP_APP_SECRET is not configured');
+    return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
+  }
+
+  const signature = req.headers.get(SIGNATURE_HEADER);
+  if (!verifySignature(rawBody, signature, appSecret)) {
+    console.warn('[WHATSAPP_WEBHOOK] Invalid signature');
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   let body: any;
   try {
-    body = await req.json();
+    body = rawBody ? JSON.parse(rawBody) : null;
   } catch {
-    return NextResponse.json({ received: true }); // malformed — ack anyway
+    console.warn('[WHATSAPP_WEBHOOK] Invalid JSON payload');
+    return NextResponse.json({ received: true });
   }
 
   try {
-    // WhatsApp payload structure:
-    // body.entry[0].changes[0].value.messages[0]
-    const entry   = body?.entry?.[0];
-    const change  = entry?.changes?.[0];
-    const value   = change?.value;
+    const entry    = body?.entry?.[0];
+    const change   = entry?.changes?.[0];
+    const value    = change?.value;
     const messages = value?.messages as any[] | undefined;
 
     if (!messages?.length) {
-      // Status updates (delivered, read) — acknowledge without processing
       return NextResponse.json({ received: true });
     }
 
-    for (const message of messages) {
-      // Only handle text messages in Phase 1
-      // (images / audio / buttons handled in later phases)
-      let text: string | null = null;
-
-      if (message.type === 'text') {
-        text = message.text?.body ?? null;
-      } else if (message.type === 'interactive') {
-        const interactive = message.interactive;
-        text = interactive?.button_reply?.id ?? interactive?.list_reply?.id ?? null;
-      }
-
-      if (!text) continue;
-
-      // Skip duplicate webhook deliveries
-      if (isDuplicateMessage(message.id)) {
-        console.info('[WHATSAPP_WEBHOOK] Duplicate message skipped', { id: message.id, from: message.from });
-        continue;
-      }
-
-      const incoming: IncomingMessage = {
-        phone:     message.from,
-        text,
-        messageId: message.id,
-      };
-
-      const response = await chatbotService.process(incoming);
-
-      for (const msg of response.messages) {
-        await sendWhatsAppMessage(incoming.phone, msg);
-      }
-    }
+    void dispatchMessages(messages);
+    scheduleDedupCleanup();
   } catch (error) {
-    // Log but always return 200 to prevent WhatsApp retry loops
     console.error('[WHATSAPP_WEBHOOK_ERROR]', error);
   }
 

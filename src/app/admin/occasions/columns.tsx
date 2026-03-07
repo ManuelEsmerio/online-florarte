@@ -4,11 +4,11 @@ import { ColumnDef } from '@tanstack/react-table';
 import { MoreHorizontal, ArrowUpDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Occasion } from '@/lib/definitions';
 import React from 'react';
 import Image from 'next/image';
 import { Switch } from '@/components/ui/switch';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 
 type ColumnsProps = {
   onEdit: (occasion: Occasion) => void;
@@ -112,29 +112,30 @@ export const columns = ({ onEdit, onDelete, onToggleShowOnHome, isDeletingId, up
               <DropdownMenuLabel>Acciones</DropdownMenuLabel>
               <DropdownMenuItem onSelect={() => onEdit(occasion)}>Editar</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem className="text-destructive focus:bg-destructive/90 focus:text-destructive-foreground" onSelect={(e) => e.preventDefault()}>
+              <AdminConfirmDialog
+                trigger={
+                  <DropdownMenuItem
+                    className="text-destructive focus:bg-destructive/90 focus:text-destructive-foreground"
+                    onSelect={(e) => e.preventDefault()}
+                  >
                     Eliminar
                   </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro de que quieres eliminar esta ocasión?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción no se puede deshacer. La ocasión <span className="font-medium">{occasion.name}</span> será eliminada permanentemente.
-                       <br/><br/>
-                      <span className="font-bold text-destructive">Nota:</span> Solo podrás eliminarla si no tiene productos asociados.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => onDelete(occasion.id)}>
-                      Sí, eliminar
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                }
+                title="¿Eliminar ocasión?"
+                description={
+                  <>
+                    Esta acción no se puede deshacer. La ocasión{' '}
+                    <span className="font-semibold">{occasion.name}</span> será eliminada
+                    permanentemente.
+                    <br />
+                    <br />
+                    <span className="font-semibold text-destructive">Nota:</span> Solo podrás
+                    eliminarla si no tiene productos asociados.
+                  </>
+                }
+                confirmText="Sí, eliminar"
+                onConfirm={() => onDelete(occasion.id)}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

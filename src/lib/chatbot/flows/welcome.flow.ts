@@ -3,7 +3,7 @@
 
 import { ChatbotResponse } from '@/types/chatbot.types';
 import { companyService } from '@/services/chatbot/company.service';
-import { chatbotCatalogService, CatalogPage, CatalogOccasion, CatalogCategory } from '@/services/chatbot/catalog.service';
+import { chatbotCatalogService, CatalogPage, CatalogOccasion, CatalogCategory, sanitizeCatalogOffset } from '@/services/chatbot/catalog.service';
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
 
@@ -116,7 +116,8 @@ export async function catalogFlow(
   occasionId?: number,
 ): Promise<ChatbotResponse> {
   const siteUrl = await companyService.get('site_url') ?? 'https://online-florarte.vercel.app';
-  const page: CatalogPage = await chatbotCatalogService.getPage(offset, categoryId, occasionId);
+  const safeOffset = sanitizeCatalogOffset(offset);
+  const page: CatalogPage = await chatbotCatalogService.getPage(safeOffset, categoryId, occasionId);
 
   if (page.products.length === 0) {
     return {
@@ -138,7 +139,7 @@ export async function catalogFlow(
   }
 
   // Build product list text
-  const pageNum  = Math.floor(offset / 3) + 1;
+  const pageNum  = Math.floor(safeOffset / 3) + 1;
   const listText = page.products
     .map((p, i) =>
       `${EMOJIS[i]} *${p.name}* — ${formatPrice(p.price, p.salePrice)}`,

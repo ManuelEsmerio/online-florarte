@@ -121,7 +121,9 @@ export default async function OrderSuccessPage({ searchParams }: Props) {
   const orderNumber = rawOrderId || ticketOrder?.id ? `ORD#${String(rawOrderId || ticketOrder?.id).padStart(4, '0')}` : 'ORD#----';
   const deliveryDateLabel = ticketOrder ? formatDateOnly(ticketOrder.deliveryDate) : 'Por confirmar';
   const deliveryWindowLabel = ticketOrder ? formatTimeSlotForUI(ticketOrder.deliveryTimeSlot) : 'Horario por confirmar';
-  const orderPlacedLabel = orderDetails ? formatDateTime(orderDetails.createdAt.toISOString()) : '—';
+  const orderPlacedLabel = orderDetails?.createdAt
+    ? formatDateTime(typeof orderDetails.createdAt === 'string' ? orderDetails.createdAt : orderDetails.createdAt.toISOString())
+    : '—';
   const paymentStatus = ticketOrder?.paymentStatus ? ticketOrder.paymentStatus.toUpperCase() : 'PENDING';
   const paymentBadge = PAYMENT_BADGE_MAP[paymentStatus] ?? PAYMENT_BADGE_MAP.PENDING;
   const statusLabel = orderDetails?.status ? orderDetails.status.replace('_', ' ') : 'pendiente';

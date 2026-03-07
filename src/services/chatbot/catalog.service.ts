@@ -4,6 +4,12 @@
 import { prisma } from '@/lib/prisma';
 
 export const PAGE_SIZE = 3;
+const MAX_CATALOG_OFFSET = 90; // 30 pages * 3 products per page
+
+export function sanitizeCatalogOffset(value = 0): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(Math.floor(value), MAX_CATALOG_OFFSET));
+}
 
 export interface CatalogProduct {
   id: number;
@@ -56,6 +62,7 @@ function mapProduct(p: { id: number; name: string; price: unknown; salePrice: un
 export const chatbotCatalogService = {
   /** Returns a paginated product page, optionally filtered by category and/or occasion. */
   async getPage(offset = 0, categoryId?: number, occasionId?: number): Promise<CatalogPage> {
+    const safeOffset = sanitizeCatalogOffset(offset);
     const rows = await prisma.product.findMany({
       where: {
         status:    'PUBLISHED',
@@ -66,17 +73,18 @@ export const chatbotCatalogService = {
       select:   PRODUCT_SELECT,
       orderBy:  [{ createdAt: 'desc' }],
       take:     PAGE_SIZE + 1,
-      skip:     offset,
+      skip:     safeOffset,
     });
 
-    const hasMore = rows.length > PAGE_SIZE;
+    const reachedLimit = safeOffset >= MAX_CATALOG_OFFSET;
+    const hasMore = !reachedLimit && rows.length > PAGE_SIZE;
     const page    = rows.slice(0, PAGE_SIZE);
 
     return {
       products:      page.map(mapProduct),
       hasMore,
-      nextOffset:    offset + PAGE_SIZE,
-      currentOffset: offset,
+      nextOffset:    sanitizeCatalogOffset(safeOffset + PAGE_SIZE),
+      currentOffset: safeOffset,
     };
   },
 

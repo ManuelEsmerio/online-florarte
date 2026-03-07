@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import './globals.css';
 import { Toaster } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -79,11 +80,14 @@ const fontHeadline = Playfair_Display({
 });
 
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headersList = await headers();
+  const nonce = headersList.get('x-nextjs-nonce') ?? headersList.get('x-nonce') ?? undefined;
+  const themeProviderProps = nonce ? { nonce } : {};
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={cn('min-h-screen bg-background font-sans antialiased', fontSans.variable, fontHeadline.variable)}>
@@ -92,6 +96,7 @@ export default function RootLayout({
           defaultTheme="system"
           enableSystem
           storageKey="florarte-theme"
+          {...themeProviderProps}
         >
           <ReactQueryProvider>
             <AuthProvider>

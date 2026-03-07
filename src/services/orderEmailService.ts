@@ -35,6 +35,9 @@ type OrderWithRelations = {
   items: Array<{
     id: number;
     productNameSnap: string;
+    variantNameSnap: string | null;
+    imageSnap: string | null;
+    customPhotoUrl: string | null;
     quantity: number;
     unitPrice: any;
   }>;
@@ -46,6 +49,8 @@ type OrderWithRelations = {
     createdAt: Date;
   }>;
 };
+
+const APP_BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://floreriaflorarte.com';
 
 const PAYMENT_GATEWAY_LABELS: Record<string, string> = {
   stripe: 'Tarjeta (Stripe)',
@@ -88,6 +93,9 @@ async function getOrderWithRelations(orderId: number): Promise<OrderWithRelation
         select: {
           id: true,
           productNameSnap: true,
+          variantNameSnap: true,
+          imageSnap: true,
+          customPhotoUrl: true,
           quantity: true,
           unitPrice: true,
         },
@@ -108,6 +116,14 @@ async function getOrderWithRelations(orderId: number): Promise<OrderWithRelation
 }
 
 const orderCode = (orderId: number) => `ORD${String(orderId).padStart(6, '0')}`;
+
+const resolveImageUrl = (raw?: string | null) => {
+  if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('//')) return `https:${raw}`;
+  const normalized = raw.startsWith('/') ? raw : `/${raw}`;
+  return `${APP_BASE_URL}${normalized}`;
+};
 
 const getGatewayLabel = (gateway?: string | null) => {
   if (!gateway) return 'Pago en línea';
@@ -158,11 +174,14 @@ function normalizeOrderForEmail(order: OrderWithRelations): OrderEmailPayload {
     items: order.items.map((item) => {
       const quantity = Number(item.quantity ?? 0);
       const unitPrice = Number(item.unitPrice ?? 0);
+      const resolvedImage = resolveImageUrl(item.customPhotoUrl ?? item.imageSnap);
       return {
         name: item.productNameSnap,
         quantity,
         unitPrice,
         subtotal: quantity * unitPrice,
+        imageUrl: resolvedImage,
+        variantName: item.variantNameSnap,
       };
     }),
   };
