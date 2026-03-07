@@ -22,6 +22,22 @@ import {
   unknownFlow,
 } from '@/lib/chatbot/flows/welcome.flow';
 import { startOrderFlow, orderCancelledFlow } from '@/lib/chatbot/flows/order.flow';
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { companyService } from './company.service';
+
+// ─── Staff notification helper ────────────────────────────────────────────────
+
+/** Fire-and-forget: sends a WhatsApp alert to the business `support_phone` (company meta). */
+function notifyHumanSupportRequested(userPhone: string, userMessage: string): void {
+  companyService.get('support_phone').then((supportPhone) => {
+    if (!supportPhone) return;
+    const time = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
+    sendWhatsAppMessage(supportPhone, {
+      type: 'text',
+      body: `🔔 *Solicitud de asesor*\n\n📱 Cliente: ${userPhone}\n🕐 ${time}\n💬 "${userMessage.slice(0, 100)}"`,
+    }).catch((err) => console.error('[HUMAN_SUPPORT_NOTIFY_ERROR]', err));
+  }).catch(() => {});
+}
 
 const WAITING_PAYMENT_EXIT_INTENTS = new Set<Intent>([
   Intent.CATALOG,
@@ -32,6 +48,8 @@ const WAITING_PAYMENT_EXIT_INTENTS = new Set<Intent>([
   Intent.LOCATION,
   Intent.HOURS,
   Intent.FAREWELL,
+  Intent.BACK_OCCASIONS,
+  Intent.BACK_CATEGORIES,
 ]);
 
 // ─── Catalog/navigation context helpers ──────────────────────────────────────
@@ -92,6 +110,50 @@ export const chatbotService = {
 
     console.info('[CHATBOT]', { phone: message.phone, state: currentState, intent, text: message.text });
 
+    // 2b. Session timeout — if user abandoned an order flow and returns after 2 hours, reset
+    const ORDER_INACTIVITY_MS = 2 * 60 * 60 * 1000; // 2 hours
+    const SESSION_IDLE_MS     = 24 * 60 * 60 * 1000; // 24 hours for browsing states
+    const ORDER_FLOW_STATES = new Set<ConversationState>([
+      ConversationState.ORDER_WHATSAPP,
+      ConversationState.DELIVERY_TYPE,
+      ConversationState.CONFIRMING_INPUT,
+      ConversationState.CAPTURE_ADDRESS,
+      ConversationState.CAPTURE_CARD_MSG,
+      ConversationState.CAPTURE_DATE,
+      ConversationState.CAPTURE_TIME,
+      ConversationState.UPSELL,
+      ConversationState.PAYMENT_METHOD,
+    ]);
+    const sessionAge        = Date.now() - new Date(session.updatedAt).getTime();
+    const isInOrderFlow     = ORDER_FLOW_STATES.has(currentState);
+    const isSessionTimedOut = (isInOrderFlow && sessionAge > ORDER_INACTIVITY_MS)
+                           || (!isInOrderFlow && sessionAge > SESSION_IDLE_MS
+                               && currentState !== ConversationState.WAITING_PAYMENT
+                               && currentState !== ConversationState.HUMAN_SUPPORT);
+
+    if (isSessionTimedOut) {
+      await sessionService.clearContext(message.phone);
+      await sessionService.update(message.phone, {
+        currentState: ConversationState.MAIN_MENU,
+        lastIntent:   null,
+        lastMessage:  null,
+      });
+      return {
+        messages: [
+          { type: 'text', body: '🌸 Tu sesión expiró por inactividad. ¡No te preocupes, empecemos de nuevo!' },
+          {
+            type: 'interactive_buttons',
+            body: '¿En qué puedo ayudarte?',
+            buttons: [
+              { id: 'CATALOG',       title: '🌺 Ver catálogo' },
+              { id: 'QUOTE',         title: '💰 Cotizar arreglo' },
+              { id: 'HUMAN_SUPPORT', title: '👤 Hablar con asesor' },
+            ],
+          },
+        ],
+      };
+    }
+
     // 3. Check if we are inside a WhatsApp order capture flow
     const isOrderState = [
       ConversationState.ORDER_WHATSAPP,
@@ -110,6 +172,37 @@ export const chatbotService = {
 
     // 3a. Cancel order from anywhere inside the order flow
     if (isOrderState && intent === Intent.ORDER_CANCEL) {
+      // If the order was already created (WAITING_PAYMENT + orderId), warn the user
+      // before clearing context — the DB record won't disappear automatically.
+      if (currentState === ConversationState.WAITING_PAYMENT) {
+        const draft = await sessionService.getContext(message.phone);
+        await sessionService.clearContext(message.phone);
+        await sessionService.update(message.phone, {
+          currentState: ConversationState.MAIN_MENU,
+          lastIntent:   intent,
+          lastMessage:  message.text.slice(0, 500),
+        });
+        if (draft.orderId) {
+          return {
+            messages: [
+              {
+                type: 'text',
+                body: `⚠️ Tu pedido *#${String(draft.orderId).padStart(4, '0')}* ya fue registrado en nuestro sistema.\n\nSi deseas cancelarlo, contáctanos directamente con ese número y un asesor te ayudará. 🌸`,
+              },
+              {
+                type: 'interactive_buttons',
+                body: '¿Qué deseas hacer?',
+                buttons: [
+                  { id: 'HUMAN_SUPPORT', title: '👤 Hablar con asesor' },
+                  { id: 'CATALOG',       title: '🌺 Ver catálogo' },
+                  { id: 'FAREWELL',      title: '✅ Finalizar' },
+                ],
+              },
+            ],
+          };
+        }
+        return orderCancelledFlow();
+      }
       await sessionService.clearContext(message.phone);
       await sessionService.update(message.phone, {
         currentState: ConversationState.MAIN_MENU,
@@ -169,34 +262,49 @@ export const chatbotService = {
 
       // ── Occasion selected ─────────────────────────────────────────────────
       case Intent.OCCASION_SELECT: {
-        const occasions    = await chatbotCatalogService.getOccasions();
-        const num          = parseInt(message.text.trim(), 10);
-        const isOther      = num === occasions.length + 1;
-        const occasion     = isOther ? null : occasions[num - 1];
+        const occasions = await chatbotCatalogService.getOccasions();
+        const num       = parseInt(message.text.trim(), 10);
+        const isOther   = num === occasions.length + 1;
+        const occasion  = isOther ? null : occasions[num - 1];
+
+        // Out-of-range number → re-show occasions list
+        if (!isOther && !occasion) {
+          nextState      = ConversationState.VIEWING_OCCASIONS;
+          persistMessage = 'occ:';
+          response       = await occasionsFlow(occasions);
+          break;
+        }
+
         const occasionId   = occasion?.id;
         const occasionName = occasion?.name;
-
-        const categories = await chatbotCatalogService.getCategories(occasionId);
+        const categories   = await chatbotCatalogService.getCategories(occasionId);
         nextState      = ConversationState.VIEWING_CATEGORIES;
         persistMessage = `oid:${occasionId ?? 0}`;
         response       = await categoriesFlow(categories, occasionName);
         break;
       }
 
+      // ── Back to occasions list ────────────────────────────────────────────
+      case Intent.BACK_OCCASIONS: {
+        const occasions = await chatbotCatalogService.getOccasions();
+        nextState      = ConversationState.VIEWING_OCCASIONS;
+        persistMessage = 'occ:';
+        response       = await occasionsFlow(occasions);
+        break;
+      }
+
+      // ── Back to categories (from catalog) ─────────────────────────────────
+      case Intent.BACK_CATEGORIES: {
+        const occasionId = readStoredOccasionId(session.lastMessage) ?? undefined;
+        const categories = await chatbotCatalogService.getCategories(occasionId || undefined);
+        nextState      = ConversationState.VIEWING_CATEGORIES;
+        persistMessage = `oid:${occasionId ?? 0}`;
+        response       = await categoriesFlow(categories);
+        break;
+      }
+
       // ── Category selected ─────────────────────────────────────────────────
       case Intent.CATEGORY_SELECT: {
-        const upper = message.text.trim().toUpperCase();
-
-        // BACK_CATEGORIES button or OCCASION_OTHER → re-show categories
-        if (upper === 'BACK_CATEGORIES' || upper === 'OCCASION_OTHER') {
-          const occasionId = readStoredOccasionId(session.lastMessage) ?? undefined;
-          const categories = await chatbotCatalogService.getCategories(occasionId || undefined);
-          nextState      = ConversationState.VIEWING_CATEGORIES;
-          persistMessage = `oid:${occasionId ?? 0}`;
-          response       = await categoriesFlow(categories);
-          break;
-        }
-
         const occasionId = readStoredOccasionId(session.lastMessage) ?? undefined;
         const categories = await chatbotCatalogService.getCategories(occasionId);
         const num        = parseInt(message.text.trim(), 10);
@@ -214,7 +322,8 @@ export const chatbotService = {
 
       // ── Catalog web redirect ───────────────────────────────────────────
       case Intent.CATALOG_WEB:
-        response = await catalogWebFlow();
+        nextState = ConversationState.MAIN_MENU;
+        response  = await catalogWebFlow();
         break;
 
       // ── Catalog pagination ────────────────────────────────────────────────
@@ -278,6 +387,8 @@ export const chatbotService = {
       case Intent.HUMAN_SUPPORT:
         nextState = ConversationState.HUMAN_SUPPORT;
         response  = humanSupportFlow();
+        console.warn('[HUMAN_SUPPORT_ALERT]', { phone: message.phone, state: currentState });
+        notifyHumanSupportRequested(message.phone, message.text);
         break;
 
       // ── Cancel (outside order flow) ───────────────────────────────────────
@@ -289,6 +400,7 @@ export const chatbotService = {
       // ── Farewell ──────────────────────────────────────────────────────────
       case Intent.FAREWELL:
         nextState = ConversationState.MAIN_MENU;
+        await sessionService.clearContext(message.phone);
         response  = {
           messages: [{
             type: 'text',
@@ -303,6 +415,19 @@ export const chatbotService = {
         if (currentState === ConversationState.WELCOME) {
           nextState = ConversationState.MAIN_MENU;
           response  = welcomeFlow();
+          break;
+        }
+        // In HUMAN_SUPPORT state: user may be writing freely to the advisor.
+        // Don't trigger AI or menu — just reassure them and stay in state.
+        if (currentState === ConversationState.HUMAN_SUPPORT) {
+          response = {
+            messages: [{ type: 'text', body: '⏳ Un asesor revisará tu mensaje y te responderá pronto. ¡Gracias por tu paciencia! 🌸' }],
+          };
+          break;
+        }
+        // In QUOTE_FLOW: re-show the quote info if user sends something unrecognised.
+        if (currentState === ConversationState.QUOTE_FLOW) {
+          response = await quoteFlow();
           break;
         }
         if (aiService.isEnabled()) {

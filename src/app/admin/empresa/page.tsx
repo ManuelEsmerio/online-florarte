@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Building2, MapPin, Clock, Globe, Phone, Save, RefreshCw } from 'lucide-react';
+import { Building2, MapPin, Clock, Globe, Phone, Save, RefreshCw, Landmark } from 'lucide-react';
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
@@ -27,6 +27,16 @@ const empresaSchema = z.object({
 });
 
 type EmpresaFormValues = z.infer<typeof empresaSchema>;
+
+type BankInfo = {
+  alias?: string;
+  name?: string;
+  account?: string;
+  clabe?: string;
+  owner?: string;
+  referenceHint?: string;
+  swift?: string;
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -44,20 +54,86 @@ const DEFAULT_VALUES: EmpresaFormValues = {
 
 function PageSkeleton() {
   return (
-    <div className="space-y-6">
-      {[1, 2, 3].map((i) => (
-        <Card key={i}>
+    <div className="flex flex-col lg:flex-row gap-6 items-start">
+      <div className="flex-1 space-y-6">
+        {[1, 2, 3].map((i) => (
+          <Card key={i}>
+            <CardHeader>
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-4 w-64 mt-1" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="w-full lg:w-80 xl:w-96">
+        <Card>
           <CardHeader>
-            <Skeleton className="h-5 w-40" />
-            <Skeleton className="h-4 w-64 mt-1" />
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-4 w-48 mt-1" />
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
+          <CardContent className="space-y-3">
+            {[1, 2, 3, 4].map((idx) => (
+              <div key={idx} className="space-y-1">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-4 w-full" />
+              </div>
+            ))}
           </CardContent>
         </Card>
-      ))}
+      </div>
     </div>
+  );
+}
+
+function BankInfoCard({ info }: { info: BankInfo | null }) {
+  const items = [
+    { label: 'Alias', value: info?.alias },
+    { label: 'Banco', value: info?.name },
+    { label: 'Titular', value: info?.owner },
+    { label: 'Cuenta', value: info?.account },
+    { label: 'CLABE', value: info?.clabe },
+    { label: 'Referencia sugerida', value: info?.referenceHint },
+    { label: 'SWIFT/BIC', value: info?.swift },
+  ];
+
+  const hasData = items.some((item) => item.value);
+
+  return (
+    <Card className="sticky top-24">
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-slate-900/10 dark:bg-slate-100/10 flex items-center justify-center">
+            <Landmark className="h-4 w-4 text-slate-900 dark:text-white" />
+          </div>
+          <div>
+            <CardTitle className="text-base">Datos Bancarios</CardTitle>
+            <CardDescription>Resumen de la cuenta para referencias en chatbot.</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {hasData ? (
+          <dl className="space-y-4">
+            {items.map((item) => (
+              <div key={item.label} className="rounded-xl border border-slate-200/60 dark:border-slate-800 px-4 py-3">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{item.label}</dt>
+                <dd className="text-base font-medium break-words text-slate-900 dark:text-slate-50">
+                  {item.value || '—'}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-300/80 dark:border-slate-700 p-4 text-sm text-muted-foreground">
+            No hay datos bancarios configurados en company_meta.
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -67,6 +143,7 @@ export default function EmpresaPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading]   = useState(true);
   const [isSaving,  setIsSaving]    = useState(false);
+  const [bankInfo,  setBankInfo]    = useState<BankInfo | null>(null);
 
   const form = useForm<EmpresaFormValues>({
     resolver: zodResolver(empresaSchema),
@@ -81,6 +158,15 @@ export default function EmpresaPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.message ?? 'Error al cargar los datos.');
       const data = json.data as Record<string, string>;
+      setBankInfo({
+        alias:         data['bank_alias']          ?? '',
+        name:          data['bank_name']           ?? '',
+        owner:         data['bank_owner']          ?? '',
+        account:       data['bank_account']        ?? '',
+        clabe:         data['bank_clabe']          ?? '',
+        referenceHint: data['bank_reference_hint'] ?? '',
+        swift:         data['bank_swift']          ?? '',
+      });
       form.reset({
         name:      data['name']      ?? '',
         address:   data['address']   ?? '',
@@ -124,7 +210,7 @@ export default function EmpresaPage() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex-1 space-y-8 p-6 md:p-10 pt-6 max-w-3xl">
+    <div className="flex-1 space-y-8 p-6 md:p-10 pt-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
@@ -167,173 +253,193 @@ export default function EmpresaPage() {
                     <CardDescription>Nombre, teléfono y sitio web de la empresa.</CardDescription>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
+                            <div className="flex flex-col lg:flex-row gap-6 items-start">
+                              <div className="flex-1 w-full max-w-3xl">
+                                <Form {...form}>
+                                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nombre de la empresa</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Florarte" {...field} className="rounded-xl" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="flex items-center gap-1.5">
-                          <Phone className="h-3.5 w-3.5" /> Teléfono
-                        </FormLabel>
-                        <FormControl>
-                          <Input placeholder="3312345678" {...field} className="rounded-xl" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="site_url"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="flex items-center gap-1.5">
-                          <Globe className="h-3.5 w-3.5" /> URL del sitio
-                        </FormLabel>
-                        <FormControl>
-                          <Input placeholder="https://online-florarte.vercel.app" {...field} className="rounded-xl" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                                    {/* ── Información general ── */}
+                                    <Card>
+                                      <CardHeader>
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                            <Building2 className="h-4 w-4 text-primary" />
+                                          </div>
+                                          <div>
+                                            <CardTitle className="text-base">Información General</CardTitle>
+                                            <CardDescription>Nombre, teléfono y sitio web de la empresa.</CardDescription>
+                                          </div>
+                                        </div>
+                                      </CardHeader>
+                                      <CardContent className="space-y-4">
+                                        <FormField
+                                          control={form.control}
+                                          name="name"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel>Nombre de la empresa</FormLabel>
+                                              <FormControl>
+                                                <Input placeholder="Florarte" {...field} className="rounded-xl" />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                          <FormField
+                                            control={form.control}
+                                            name="phone"
+                                            render={({ field }) => (
+                                              <FormItem>
+                                                <FormLabel className="flex items-center gap-1.5">
+                                                  <Phone className="h-3.5 w-3.5" /> Teléfono
+                                                </FormLabel>
+                                                <FormControl>
+                                                  <Input placeholder="3312345678" {...field} className="rounded-xl" />
+                                                </FormControl>
+                                                <FormMessage />
+                                              </FormItem>
+                                            )}
+                                          />
+                                          <FormField
+                                            control={form.control}
+                                            name="site_url"
+                                            render={({ field }) => (
+                                              <FormItem>
+                                                <FormLabel className="flex items-center gap-1.5">
+                                                  <Globe className="h-3.5 w-3.5" /> URL del sitio
+                                                </FormLabel>
+                                                <FormControl>
+                                                  <Input placeholder="https://online-florarte.vercel.app" {...field} className="rounded-xl" />
+                                                </FormControl>
+                                                <FormMessage />
+                                              </FormItem>
+                                            )}
+                                          />
+                                        </div>
+                                      </CardContent>
+                                    </Card>
 
-            {/* ── Ubicación ── */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                    <MapPin className="h-4 w-4 text-emerald-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base">Ubicación</CardTitle>
-                    <CardDescription>Dirección física y coordenadas para el mapa.</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="address"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Dirección</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Av. Hidalgo 123, Col. Centro, Guadalajara, Jal."
-                          rows={2}
-                          {...field}
-                          className="rounded-xl resize-none"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="latitude"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Latitud</FormLabel>
-                        <FormControl>
-                          <Input placeholder="20.6597" {...field} className="rounded-xl" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="longitude"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Longitud</FormLabel>
-                        <FormControl>
-                          <Input placeholder="-103.3496" {...field} className="rounded-xl" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                                    {/* ── Ubicación ── */}
+                                    <Card>
+                                      <CardHeader>
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                                            <MapPin className="h-4 w-4 text-emerald-600" />
+                                          </div>
+                                          <div>
+                                            <CardTitle className="text-base">Ubicación</CardTitle>
+                                            <CardDescription>Dirección física y coordenadas para el mapa.</CardDescription>
+                                          </div>
+                                        </div>
+                                      </CardHeader>
+                                      <CardContent className="space-y-4">
+                                        <FormField
+                                          control={form.control}
+                                          name="address"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel>Dirección</FormLabel>
+                                              <FormControl>
+                                                <Textarea
+                                                  placeholder="Av. Hidalgo 123, Col. Centro, Guadalajara, Jal."
+                                                  rows={2}
+                                                  {...field}
+                                                  className="rounded-xl resize-none"
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                        <div className="grid grid-cols-2 gap-4">
+                                          <FormField
+                                            control={form.control}
+                                            name="latitude"
+                                            render={({ field }) => (
+                                              <FormItem>
+                                                <FormLabel>Latitud</FormLabel>
+                                                <FormControl>
+                                                  <Input placeholder="20.6597" {...field} className="rounded-xl" />
+                                                </FormControl>
+                                                <FormMessage />
+                                              </FormItem>
+                                            )}
+                                          />
+                                          <FormField
+                                            control={form.control}
+                                            name="longitude"
+                                            render={({ field }) => (
+                                              <FormItem>
+                                                <FormLabel>Longitud</FormLabel>
+                                                <FormControl>
+                                                  <Input placeholder="-103.3496" {...field} className="rounded-xl" />
+                                                </FormControl>
+                                                <FormMessage />
+                                              </FormItem>
+                                            )}
+                                          />
+                                        </div>
+                                      </CardContent>
+                                    </Card>
 
-            {/* ── Horarios ── */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                    <Clock className="h-4 w-4 text-amber-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base">Horarios de Atención</CardTitle>
-                    <CardDescription>El chatbot mostrará este texto cuando un cliente pregunte por horarios.</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <FormField
-                  control={form.control}
-                  name="hours"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Horario</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Lun–Sáb 9:00am – 7:00pm&#10;Dom 10:00am – 3:00pm"
-                          rows={3}
-                          {...field}
-                          className="rounded-xl resize-none"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
+                                    {/* ── Horarios ── */}
+                                    <Card>
+                                      <CardHeader>
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                                            <Clock className="h-4 w-4 text-amber-600" />
+                                          </div>
+                                          <div>
+                                            <CardTitle className="text-base">Horarios de Atención</CardTitle>
+                                            <CardDescription>El chatbot mostrará este texto cuando un cliente pregunte por horarios.</CardDescription>
+                                          </div>
+                                        </div>
+                                      </CardHeader>
+                                      <CardContent>
+                                        <FormField
+                                          control={form.control}
+                                          name="hours"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel>Horario</FormLabel>
+                                              <FormControl>
+                                                <Textarea
+                                                  placeholder="Lun–Sáb 9:00am – 7:00pm&#10;Dom 10:00am – 3:00pm"
+                                                  rows={3}
+                                                  {...field}
+                                                  className="rounded-xl resize-none"
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </CardContent>
+                                    </Card>
 
-            {/* ── Submit ── */}
-            <div className="flex justify-end">
-              <Button
-                type="submit"
-                disabled={isSaving || !form.formState.isDirty}
-                className="rounded-2xl h-11 px-8 font-bold shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-white transition-all transform hover:-translate-y-0.5"
-              >
-                {isSaving ? (
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="mr-2 h-4 w-4" />
-                )}
-                {isSaving ? 'Guardando…' : 'Guardar Cambios'}
-              </Button>
-            </div>
+                                    {/* ── Submit ── */}
+                                    <div className="flex justify-end">
+                                      <Button
+                                        type="submit"
+                                        disabled={isSaving || !form.formState.isDirty}
+                                        className="rounded-2xl h-11 px-8 font-bold shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-white transition-all transform hover:-translate-y-0.5"
+                                      >
+                                        {isSaving ? (
+                                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <Save className="mr-2 h-4 w-4" />
+                                        )}
+                                        {isSaving ? 'Guardando…' : 'Guardar Cambios'}
+                                      </Button>
+                                    </div>
 
-          </form>
-        </Form>
-      )}
-    </div>
-  );
-}
+                                  </form>
+                                </Form>
+                              </div>
+                              <div className="w-full lg:w-80 xl:w-96">
+                                <BankInfoCard info={bankInfo} />
+                              </div>
+                            </div>
+                          )}
+                            </div>

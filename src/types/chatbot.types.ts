@@ -15,6 +15,9 @@ export enum Intent {
   HOURS            = 'HOURS',
   HUMAN_SUPPORT    = 'HUMAN_SUPPORT',
   FAREWELL         = 'FAREWELL',          // end conversation
+  // Catalog back-navigation
+  BACK_OCCASIONS   = 'BACK_OCCASIONS',   // from categories → back to occasions
+  BACK_CATEGORIES  = 'BACK_CATEGORIES',  // from catalog → back to categories
   // WhatsApp order flow
   ORDER_VIA_WA     = 'ORDER_VIA_WA',
   PAYMENT_TRANSFER = 'PAYMENT_TRANSFER',
@@ -97,6 +100,8 @@ export interface OrderDraft {
   deliveryTimeSlot?: string;
   // Upsell extras added to order
   upsellItems?: Array<{ id: number; name: string; price: number }>;
+  // Cached upsell product options (fetched once when entering UPSELL state)
+  upsellOptions?: Array<{ id: number; name: string; price: number }>;
   // Per-field confirmation sub-state
   confirmPending?: ConfirmPending;
   // Result

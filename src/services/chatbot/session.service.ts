@@ -91,14 +91,17 @@ export const sessionService = {
     try { return JSON.parse(row.context) as OrderDraft; } catch { return {}; }
   },
 
-  /** Merges partial draft data into the session context. */
+  /** Merges partial draft data into the session context (atomic read-modify-write). */
   async setContext(phone: string, patch: Partial<OrderDraft>): Promise<void> {
-    const existing = await this.getContext(phone);
-    const merged   = { ...existing, ...patch };
-    await prisma.chatSession.upsert({
-      where:  { phone },
-      create: { phone, currentState: ConversationState.WELCOME, context: JSON.stringify(merged) },
-      update: { context: JSON.stringify(merged) },
+    await prisma.$transaction(async (tx) => {
+      const row      = await tx.chatSession.findUnique({ where: { phone }, select: { context: true } });
+      const existing = row?.context ? (() => { try { return JSON.parse(row.context) as OrderDraft; } catch { return {}; } })() : {};
+      const merged   = { ...existing, ...patch };
+      await tx.chatSession.upsert({
+        where:  { phone },
+        create: { phone, currentState: ConversationState.WELCOME, context: JSON.stringify(merged) },
+        update: { context: JSON.stringify(merged) },
+      });
     });
   },
 

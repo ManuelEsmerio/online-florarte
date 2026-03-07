@@ -827,6 +827,56 @@ model ChatSession {
   @@map("chat_sessions")
 }
 
+model CompanyProfile {
+  id                 Int       @id @default(autoincrement())
+  legalName          String    @db.VarChar(255)
+  tradeName          String?   @db.VarChar(255)
+  rfc                String    @unique @db.VarChar(20)
+  taxRegime          String?   @db.VarChar(100)
+  fiscalStreet       String?   @db.VarChar(255)
+  fiscalNumber       String?   @db.VarChar(20)
+  fiscalNeighborhood String?   @db.VarChar(150)
+  fiscalCity         String?   @db.VarChar(100)
+  fiscalState        String?   @db.VarChar(100)
+  fiscalPostalCode   String?   @db.VarChar(10)
+  supportEmail       String?   @db.VarChar(255)
+  billingEmail       String?   @db.VarChar(255)
+  supportPhone       String?   @db.VarChar(30)
+  websiteUrl         String?   @db.VarChar(255)
+  csdCertPath        String?   @db.VarChar(500)
+  csdKeyPath         String?   @db.VarChar(500)
+  csdPassword        String?   @db.VarChar(255)
+  csdSeries          String?   @db.VarChar(50)
+  csdValidFrom       DateTime?
+  csdValidTo         DateTime?
+  notes              String?   @db.Text
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  bankAccounts CompanyBankAccount[]
+
+  @@map("company_profile")
+}
+
+model CompanyBankAccount {
+  id            Int             @id @default(autoincrement())
+  profileId     Int
+  profile       CompanyProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  alias         String?         @db.VarChar(100)
+  bankName      String          @db.VarChar(150)
+  accountNumber String?         @db.VarChar(50)
+  clabe         String?         @db.VarChar(50)
+  beneficiary   String?         @db.VarChar(255)
+  referenceHint String?         @db.VarChar(255)
+  swiftCode     String?         @db.VarChar(50)
+  isDefault     Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([profileId])
+  @@map("company_bank_accounts")
+}
+
 /// Key–value store for company information shown by the chatbot.
 /// Editable from the admin panel without redeploying.
 model CompanyMeta {

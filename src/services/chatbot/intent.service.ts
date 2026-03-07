@@ -52,9 +52,9 @@ const BUTTON_ID_MAP: Record<string, Intent> = {
   ORDER_CANCEL:     Intent.ORDER_CANCEL,
   // Navigation buttons
   BACK_TO_SHOP:     Intent.CATALOG,
-  OCCASION_OTHER:   Intent.CATEGORY_SELECT, // "Otro" occasion → show all categories
-  BACK_OCCASIONS:   Intent.CATALOG,         // back to occasions from categories
-  BACK_CATEGORIES:  Intent.CATEGORY_SELECT, // back to categories from catalog
+  OCCASION_OTHER:   Intent.BACK_CATEGORIES, // "Otro" occasion → show all categories (no occasion filter)
+  BACK_OCCASIONS:   Intent.BACK_OCCASIONS,  // from categories → back to occasions list
+  BACK_CATEGORIES:  Intent.BACK_CATEGORIES, // from catalog → back to categories
   FAREWELL:         Intent.FAREWELL,
 };
 
@@ -83,8 +83,8 @@ export const intentService = {
     const upper = text.trim().toUpperCase();
     if (BUTTON_ID_MAP[upper]) return BUTTON_ID_MAP[upper];
 
-    // 1b. Paginated catalog button: "CATALOG_MORE_6", "CATALOG_MORE_9", etc.
-    if (/^CATALOG_MORE_\d+$/.test(upper)) return Intent.CATALOG_MORE;
+    // 1b. Paginated catalog button: "CATALOG_MORE_6", "CATALOG_MORE_9:cid:3:oid:5", etc.
+    if (/^CATALOG_MORE_\d+/.test(upper)) return Intent.CATALOG_MORE;
 
     // 2a. When viewing occasions, any number selects an occasion
     if (state === ConversationState.VIEWING_OCCASIONS && /^\d+$/.test(normalized)) {

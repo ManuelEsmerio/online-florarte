@@ -11,6 +11,24 @@ import { IncomingMessage } from '@/types/chatbot.types';
 
 export const runtime = 'nodejs';
 
+// ─── In-process message deduplication ────────────────────────────────────────
+// Prevents double processing when WhatsApp retries webhook delivery (e.g. slow
+// DB response causes 20s timeout → Meta resends the same message).
+// Safe for single-server deployments (Railway). For multi-instance, replace
+// with a Redis SET NX EX check.
+const recentMessageIds = new Map<string, number>(); // messageId → processedAt timestamp
+const DEDUP_TTL_MS     = 5 * 60 * 1000; // 5 minutes
+
+function isDuplicateMessage(messageId: string): boolean {
+  const now = Date.now();
+  for (const [id, ts] of recentMessageIds) {
+    if (now - ts > DEDUP_TTL_MS) recentMessageIds.delete(id);
+  }
+  if (recentMessageIds.has(messageId)) return true;
+  recentMessageIds.set(messageId, now);
+  return false;
+}
+
 // ─── GET: Webhook verification ───────────────────────────────────────────────
 // Meta sends this once when you configure the webhook URL in the developer portal.
 // It expects the raw challenge string back with status 200.
@@ -68,6 +86,12 @@ export async function POST(req: NextRequest) {
       }
 
       if (!text) continue;
+
+      // Skip duplicate webhook deliveries
+      if (isDuplicateMessage(message.id)) {
+        console.info('[WHATSAPP_WEBHOOK] Duplicate message skipped', { id: message.id, from: message.from });
+        continue;
+      }
 
       const incoming: IncomingMessage = {
         phone:     message.from,

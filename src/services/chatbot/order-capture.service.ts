@@ -21,8 +21,9 @@ import {
   onlinePaymentFlow,
   waitingPaymentFlow,
   resolveDateOptionId,
-  mapTimeSlotId,
-  timeSlots as TIME_SLOTS?,
+  getAvailableTimeSlots,
+  formatDateValue,
+  parseDateValue,
   UpsellProduct,
 } from '@/lib/chatbot/flows/order.flow';
 
@@ -50,6 +51,10 @@ const CONFIRM_YES_KEYWORDS = new Set([
 
 const CONFIRM_EDIT_KEYWORDS = new Set([
   'no', 'editar', 'corregir', 'cambiar', 'modificar', 'volver', 'regresar', 'ajustar',
+]);
+
+const UPSELL_SKIP_KEYWORDS = new Set([
+  'no', 'nogracias', 'sinextra', 'sinextras', 'ninguno', 'ninguna', 'ningun', 'ningunaopcion', 'skip', 'continuar', 'seguir', 'nada', 'nose',
 ]);
 
 const MUNICIPALITY_CACHE_TTL = 1000 * 60 * 10; // 10 minutes
@@ -125,27 +130,6 @@ function applyAddressField(draft: OrderDraft, subStep: AddressSubStep, text: str
   }
 }
 
-// ─── Date validation (not in past, max 2 weeks ahead) ────────────────────────
-
-function isValidDate(text: string): boolean {
-  const match = text.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!match) return false;
-  const day = Number(match[1]);
-  const month = Number(match[2]);
-  const year = Number(match[3]);
-  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return false;
-  const dt = new Date(year, month - 1, day);
-  if (dt.getFullYear() !== year || dt.getMonth() !== month - 1 || dt.getDate() !== day) return false;
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const maxDate = new Date(today);
-  maxDate.setDate(maxDate.getDate() + 14);
-  dt.setHours(0, 0, 0, 0);
-
-  return dt >= today && dt <= maxDate;
-}
-
 // ─── Municipality shipping lookup ─────────────────────────────────────────────
 
 async function lookupShipping(municipality: string): Promise<{ cost: number; city: string; state: string }> {
@@ -182,6 +166,19 @@ async function fetchUpsellProducts(excludeId?: number): Promise<UpsellProduct[]>
     name:  r.name,
     price: Number(r.salePrice && r.salePrice < r.price ? r.salePrice : r.price),
   }));
+}
+
+async function appendUpsellProduct(draft: OrderDraft, productId: number): Promise<OrderDraft | null> {
+  const product = await prisma.product.findUnique({
+    where:  { id: productId },
+    select: { id: true, name: true, price: true, salePrice: true },
+  });
+  if (!product) return null;
+  const price = Number(product.salePrice && product.salePrice < product.price ? product.salePrice : product.price);
+  return {
+    ...draft,
+    upsellItems: [...(draft.upsellItems ?? []), { id: product.id, name: product.name, price }],
+  };
 }
 
 // ─── Confirmation builder ─────────────────────────────────────────────────────
@@ -222,8 +219,10 @@ async function getResponseForState(state: ConversationState, draft: OrderDraft):
       return draft.cardSubStep === 'from' ? askCardFrom() : askCardMessage();
     case ConversationState.CAPTURE_DATE:
       return buildDatePrompt();
-    case ConversationState.CAPTURE_TIME:
-      return askDeliveryTime();
+    case ConversationState.CAPTURE_TIME: {
+      const slots = getAvailableTimeSlots(draft.deliveryDate ?? null);
+      return askDeliveryTime(slots);
+    }
     case ConversationState.PAYMENT_METHOD:
       return draft.deliveryType === 'PICKUP' ? pickupSummaryFlow(draft) : orderSummaryFlow(draft);
     default:
@@ -258,7 +257,25 @@ export const orderCaptureService = {
     if (currentState === ConversationState.CONFIRMING_INPUT) {
       const cp = draft.confirmPending;
       if (!cp) {
-        return { nextState: ConversationState.MAIN_MENU, draft, response: waitingPaymentFlow() };
+        // Defensive fallback: confirmPending lost — reset to main menu with welcome message
+        return {
+          nextState: ConversationState.MAIN_MENU,
+          draft:     {},
+          response:  {
+            messages: [
+              { type: 'text', body: '🌸 Hubo un problema con tu sesión. ¡No te preocupes! Empecemos de nuevo.' },
+              {
+                type: 'interactive_buttons',
+                body: '¿En qué puedo ayudarte?',
+                buttons: [
+                  { id: 'CATALOG',       title: '🌺 Ver catálogo' },
+                  { id: 'QUOTE',         title: '💰 Cotizar arreglo' },
+                  { id: 'HUMAN_SUPPORT', title: '👤 Hablar con asesor' },
+                ],
+              },
+            ],
+          },
+        };
       }
 
       const normalizedInput = normalizeKeyword(text);
@@ -315,18 +332,22 @@ export const orderCaptureService = {
       if (subStep === 'municipality') {
         const options = await getMunicipalitySuggestions();
         const trimmedInput = text.trim();
-        const numericMatch = trimmedInput.match(/^\d+$/);
         let resolvedMunicipality = trimmedInput;
 
-        if (numericMatch) {
-          const idx = Math.max(0, parseInt(numericMatch[0], 10) - 1);
-          if (options[idx]) {
-            resolvedMunicipality = options[idx];
-          }
+        // Interactive list reply: button ID format is "MUNICIPALITY_0", "MUNICIPALITY_1", etc. (0-based)
+        const listButtonMatch = trimmedInput.toUpperCase().match(/^MUNICIPALITY_(\d+)$/);
+        if (listButtonMatch) {
+          const idx = parseInt(listButtonMatch[1], 10);
+          if (options[idx]) resolvedMunicipality = options[idx];
         } else {
-          const directMatch = options.find((option) => option.toLowerCase() === trimmedInput.toLowerCase());
-          if (directMatch) {
-            resolvedMunicipality = directMatch;
+          // Numbered text reply (1-based) or free-text municipality name
+          const numericMatch = trimmedInput.match(/^\d+$/);
+          if (numericMatch) {
+            const idx = Math.max(0, parseInt(numericMatch[0], 10) - 1);
+            if (options[idx]) resolvedMunicipality = options[idx];
+          } else {
+            const directMatch = options.find((option) => option.toLowerCase() === trimmedInput.toLowerCase());
+            if (directMatch) resolvedMunicipality = directMatch;
           }
         }
 
@@ -339,7 +360,7 @@ export const orderCaptureService = {
             nextState: ConversationState.CAPTURE_ADDRESS,
             draft,
             response: await buildAddressPrompt('municipality', {
-              errorMessage: 'Selecciona un municipio con el botón "Elegir municipio".',
+              errorMessage: '⚠️ No encontramos ese municipio. Selecciónalo de la lista o escribe el nombre exacto (ej: Guadalajara, Zapopan).',
             }),
           };
         }
@@ -421,8 +442,9 @@ export const orderCaptureService = {
     if (currentState === ConversationState.CAPTURE_DATE) {
       const buttonDate = resolveDateOptionId(upper);
       const candidateDate = buttonDate ?? text.trim();
+      const parsedDate = parseDateValue(candidateDate);
 
-      if (!isValidDate(candidateDate)) {
+      if (!parsedDate) {
         return {
           nextState: ConversationState.CAPTURE_DATE,
           draft,
@@ -430,11 +452,21 @@ export const orderCaptureService = {
         };
       }
 
+      const availableSlots = getAvailableTimeSlots(parsedDate);
+      if (availableSlots.length === 0) {
+        return {
+          nextState: ConversationState.CAPTURE_DATE,
+          draft,
+          response: buildDatePrompt('Ya no tenemos horarios disponibles para esa fecha. Elige otra fecha.'),
+        };
+      }
+
+      const normalizedDate = formatDateValue(parsedDate);
       const revertDraft  = { ...draft };
-      const pendingDraft = { ...draft, deliveryDate: candidateDate };
+      const pendingDraft = { ...draft, deliveryDate: normalizedDate };
       return buildConfirmStep(
         draft.deliveryType === 'PICKUP' ? 'Fecha de recolección' : 'Fecha de entrega',
-        candidateDate,
+        normalizedDate,
         pendingDraft, revertDraft,
         ConversationState.CAPTURE_DATE,
         ConversationState.CAPTURE_TIME,
@@ -443,13 +475,42 @@ export const orderCaptureService = {
 
     // ── CAPTURE_TIME ──────────────────────────────────────────────────────
     if (currentState === ConversationState.CAPTURE_TIME) {
-      const isTimeButton = TIME_SLOTS.some((s) => s.id === upper);
-      const slot    = isTimeButton ? mapTimeSlotId(upper) : TIME_SLOTS[0].value;
-      const updated = { ...draft, deliveryTimeSlot: slot };
+      const availableSlots = getAvailableTimeSlots(draft.deliveryDate ?? null);
+
+      if (availableSlots.length === 0) {
+        return {
+          nextState: ConversationState.CAPTURE_DATE,
+          draft,
+          response: buildDatePrompt('Ya no hay horarios disponibles para esa fecha. Selecciona una nueva fecha.'),
+        };
+      }
+
+      const buttonMatch = availableSlots.find((slot) => slot.id === upper);
+      let resolvedSlot = buttonMatch?.value ?? null;
+
+      if (!resolvedSlot) {
+        const normalizedInput = text.trim().toLowerCase();
+        resolvedSlot = availableSlots.find((slot) =>
+          slot.value.toLowerCase() === normalizedInput || slot.label.toLowerCase() === normalizedInput,
+        )?.value;
+      }
+
+      if (!resolvedSlot) {
+        return {
+          nextState: ConversationState.CAPTURE_TIME,
+          draft,
+          response: askDeliveryTime(availableSlots, {
+            errorMessage: 'Selecciona un horario disponible usando los botones.',
+          }),
+        };
+      }
+
+      const updated = { ...draft, deliveryTimeSlot: resolvedSlot };
 
       const upsellProducts = await fetchUpsellProducts(draft.productId);
       if (upsellProducts.length > 0) {
-        return { nextState: ConversationState.UPSELL, draft: updated, response: upsellFlow(upsellProducts) };
+        const withOptions = { ...updated, upsellOptions: upsellProducts };
+        return { nextState: ConversationState.UPSELL, draft: withOptions, response: upsellFlow(upsellProducts) };
       }
       return {
         nextState: ConversationState.PAYMENT_METHOD,
@@ -460,56 +521,98 @@ export const orderCaptureService = {
 
     // ── UPSELL ────────────────────────────────────────────────────────────
     if (currentState === ConversationState.UPSELL) {
-      if (upper === 'UPSELL_SKIP') {
+      const normalizedInput = normalizeKeyword(text);
+      if (upper === 'UPSELL_SKIP' || UPSELL_SKIP_KEYWORDS.has(normalizedInput)) {
         return {
           nextState: ConversationState.PAYMENT_METHOD,
           draft,
-          response:  draft.deliveryType === 'PICKUP' ? pickupSummaryFlow(draft) : orderSummaryFlow(draft),
+          response: draft.deliveryType === 'PICKUP' ? pickupSummaryFlow(draft) : orderSummaryFlow(draft),
         };
       }
+
+      const proceedToPayment = (updatedDraft: OrderDraft) => ({
+        nextState: ConversationState.PAYMENT_METHOD,
+        draft:     updatedDraft,
+        response:  updatedDraft.deliveryType === 'PICKUP' ? pickupSummaryFlow(updatedDraft) : orderSummaryFlow(updatedDraft),
+      });
+
       const upsellMatch = upper.match(/^UPSELL_P(\d+)$/);
       if (upsellMatch) {
         const productId = parseInt(upsellMatch[1], 10);
-        const product   = await prisma.product.findUnique({
-          where:  { id: productId },
-          select: { id: true, name: true, price: true, salePrice: true },
-        });
-        if (product) {
-          const price   = Number(product.salePrice && product.salePrice < product.price ? product.salePrice : product.price);
-          const updated = {
-            ...draft,
-            upsellItems: [...(draft.upsellItems ?? []), { id: product.id, name: product.name, price }],
-          };
-          return {
-            nextState: ConversationState.PAYMENT_METHOD,
-            draft:     updated,
-            response:  updated.deliveryType === 'PICKUP' ? pickupSummaryFlow(updated) : orderSummaryFlow(updated),
-          };
+        const updated   = await appendUpsellProduct(draft, productId);
+        if (updated) {
+          return proceedToPayment(updated);
         }
       }
-      const products = await fetchUpsellProducts(draft.productId);
-      return { nextState: ConversationState.UPSELL, draft, response: upsellFlow(products) };
+
+      // Use cached options from draft to avoid repeated DB queries
+      const products = draft.upsellOptions ?? await fetchUpsellProducts(draft.productId);
+
+      const numericMatch = text.trim().match(/^(\d+)$/);
+      if (numericMatch) {
+        const index = parseInt(numericMatch[1], 10) - 1;
+        if (index >= 0 && index < products.length) {
+          const option  = products[index];
+          const updated = await appendUpsellProduct(draft, option.id);
+          if (updated) {
+            return proceedToPayment(updated);
+          }
+        }
+        return {
+          nextState: ConversationState.UPSELL,
+          draft,
+          response: upsellFlow(products, { errorMessage: 'Selecciona un número válido o escribe "no" para continuar sin extras.' }),
+        };
+      }
+
+      return {
+        nextState: ConversationState.UPSELL,
+        draft,
+        response: upsellFlow(products, { errorMessage: 'Usa los botones, responde con el número del producto o escribe "no" para omitir.' }),
+      };
     }
 
     // ── PAYMENT_METHOD ────────────────────────────────────────────────────
     if (currentState === ConversationState.PAYMENT_METHOD) {
       if (upper === 'PAYMENT_TRANSFER') {
-        const meta  = await companyService.getAll();
-        const total = (draft.productPrice ?? 0)
-                    + (draft.shippingCost ?? 0)
-                    + (draft.upsellItems ?? []).reduce((s, i) => s + i.price, 0);
-        const orderId = Date.now();
-        return {
-          nextState: ConversationState.WAITING_PAYMENT,
-          draft,
-          response:  bankTransferFlow(
-            meta['bank_name']    ?? 'BBVA',
-            meta['bank_account'] ?? 'xxxx xxxx xxxx',
-            meta['bank_clabe']   ?? 'xxxxxxxxxxxxxxxxxx',
-            meta['bank_owner']   ?? 'Florarte',
-            orderId, total,
-          ),
-        };
+        try {
+          const [meta, orderResult] = await Promise.all([
+            companyService.getAll(),
+            whatsappOrderService.createOrderOnly(phone, draft),
+          ]);
+          return {
+            nextState: ConversationState.WAITING_PAYMENT,
+            draft:     { ...draft, orderId: orderResult.orderId },
+            response:  bankTransferFlow(
+              meta['bank_name']    ?? 'BBVA',
+              meta['bank_account'] ?? 'xxxx xxxx xxxx',
+              meta['bank_clabe']   ?? 'xxxxxxxxxxxxxxxxxx',
+              meta['bank_owner']   ?? 'Florarte',
+              orderResult.orderId,
+              orderResult.total,
+            ),
+          };
+        } catch (err) {
+          console.error('[ORDER_CAPTURE] Failed to create bank transfer order', err);
+          return {
+            nextState: ConversationState.PAYMENT_METHOD,
+            draft,
+            response: {
+              messages: [
+                { type: 'text', body: '⚠️ Hubo un problema al registrar tu pedido. ¿Deseas intentar de nuevo?' },
+                {
+                  type: 'interactive_buttons',
+                  body: 'Elige método de pago:',
+                  buttons: [
+                    { id: 'PAYMENT_TRANSFER', title: '🏦 Reintentar transferencia' },
+                    { id: 'PAYMENT_ONLINE',   title: '💳 Pagar en línea' },
+                    { id: 'ORDER_CANCEL',     title: '❌ Cancelar' },
+                  ],
+                },
+              ],
+            },
+          };
+        }
       }
 
       if (upper === 'PAYMENT_ONLINE') {

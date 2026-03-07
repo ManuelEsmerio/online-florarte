@@ -12,6 +12,11 @@ export interface WhatsAppOrderResult {
   paymentUrl: string;
 }
 
+export interface WhatsAppOrderOnly {
+  orderId: number;
+  total:   number;
+}
+
 /** Parses "DD/MM/YYYY" into a Date. Falls back to tomorrow if invalid. */
 function parseDate(dateStr?: string): Date {
   if (!dateStr) return tomorrow();
@@ -134,5 +139,79 @@ export const whatsappOrderService = {
     });
 
     return { orderId: order.id, total, paymentUrl: stripeSession.url! };
+  },
+
+  /**
+   * Creates a DB order record without a payment gateway session.
+   * Used for bank-transfer orders where payment is confirmed manually.
+   */
+  async createOrderOnly(
+    phone: string,
+    draft: OrderDraft,
+  ): Promise<WhatsAppOrderOnly> {
+    const isPickup     = draft.deliveryType === 'PICKUP';
+    const productPrice = draft.productPrice ?? 0;
+    const shippingCost = isPickup ? 0 : (draft.shippingCost ?? 0);
+    const upsellTotal  = (draft.upsellItems ?? []).reduce((s, i) => s + i.price, 0);
+    const total        = productPrice + shippingCost + upsellTotal;
+
+    const dedication = draft.cardMessage
+      ? `De: ${draft.cardFrom ?? 'Anónimo'}\n${draft.cardMessage}`
+      : null;
+
+    const orderItems = [
+      {
+        productId:       draft.productId!,
+        productNameSnap: draft.productName ?? '',
+        quantity:        1,
+        unitPrice:       productPrice,
+      },
+      ...(draft.upsellItems ?? []).map((item) => ({
+        productId:       item.id,
+        productNameSnap: item.name,
+        quantity:        1,
+        unitPrice:       item.price,
+      })),
+    ];
+
+    const order = await prisma.order.create({
+      data: {
+        isGuest:          true,
+        isPickup,
+        guestName:        draft.customerName ?? 'Cliente WhatsApp',
+        guestPhone:       phone,
+        status:           'PENDING',
+        subtotal:         productPrice + upsellTotal,
+        shippingCost,
+        total,
+        couponDiscount:   0,
+        deliveryDate:     parseDate(draft.deliveryDate),
+        deliveryTimeSlot: draft.deliveryTimeSlot ?? '',
+        dedication,
+        isAnonymous:      false,
+        items: { create: orderItems },
+        ...(!isPickup && {
+          orderAddress: {
+            create: {
+              recipientName:    draft.recipientName ?? draft.customerName ?? '',
+              recipientPhone:   draft.recipientPhone ?? null,
+              streetName:       draft.streetName ?? '',
+              streetNumber:     draft.streetNumber ?? 'S/N',
+              interiorNumber:   draft.interiorNumber ?? null,
+              neighborhood:     draft.neighborhood ?? '',
+              city:             draft.city ?? draft.municipalityName ?? '',
+              state:            draft.state ?? '',
+              country:          'México',
+              postalCode:       draft.postalCode ?? null,
+              referenceNotes:   draft.addressNotes ?? null,
+              formattedAddress: buildFormattedAddress(draft),
+              isGuestAddress:   true,
+            },
+          },
+        }),
+      },
+    });
+
+    return { orderId: order.id, total };
   },
 };

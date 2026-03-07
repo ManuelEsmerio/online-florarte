@@ -4,9 +4,9 @@
 import { ChatbotResponse, OrderDraft, OutgoingMessage } from '@/types/chatbot.types';
 
 export const TIME_SLOTS = [
-  { id: 'TIME_MORNING',   label: 'Mañana (9:00 - 13:00)',   value: '09:00 - 13:00', startHour: 9 },
-  { id: 'TIME_AFTERNOON', label: 'Tarde (13:00 - 18:00)',   value: '13:00 - 18:00', startHour: 13 },
-  { id: 'TIME_EVENING',   label: 'Noche (18:00 - 20:00)',   value: '18:00 - 20:00', startHour: 18 },
+  { id: 'TIME_MORNING',   label: 'Mañana 9-13h',  value: '09:00 - 13:00', startHour: 9 },
+  { id: 'TIME_AFTERNOON', label: 'Tarde 13-18h',  value: '13:00 - 18:00', startHour: 13 },
+  { id: 'TIME_EVENING',   label: 'Noche 18-20h',  value: '18:00 - 20:00', startHour: 18 },
 ];
 
 export function mapTimeSlotId(buttonId: string): string {
@@ -254,14 +254,20 @@ export function resolveDateOptionId(id: string): string | null {
 
 export function askDeliveryDate(errorMessage?: string): ChatbotResponse {
   const options = getAvailableDateOptions(5);
-  const firstGroup = options.slice(0, 3).map((option) => ({ id: option.id, title: option.label }));
-  const secondGroup = options.slice(3).map((option) => ({ id: option.id, title: option.label }));
-
   const messages: ChatbotResponse['messages'] = [];
 
   if (errorMessage) {
     messages.push({ type: 'text', body: errorMessage });
   }
+
+  if (!options.length) {
+    messages.push({ type: 'text', body: '⚠️ Por el momento ya no hay fechas con horarios disponibles. Un asesor te ayudará a programarla.' });
+    messages.push({ type: 'interactive_buttons', body: ' ', buttons: [{ id: 'ORDER_CANCEL', title: '❌ Cancelar' }] });
+    return { messages };
+  }
+
+  const firstGroup = options.slice(0, 3).map((option) => ({ id: option.id, title: option.label }));
+  const secondGroup = options.slice(3).map((option) => ({ id: option.id, title: option.label }));
 
   messages.push({ type: 'text', body: '📅 Selecciona la fecha de entrega (o escribe DD/MM/AAAA):' });
 
@@ -304,17 +310,28 @@ export function askDeliveryTime(
 
   if (!slots.length) {
     messages.push({ type: 'text', body: '⚠️ Ya no hay horarios disponibles para esa fecha. Elige otra fecha.' });
-    messages.push({ type: 'interactive_buttons', body: ' ', buttons: [{ id: 'ORDER_CANCEL', title: '❌ Cancelar' }] });
+    messages.push({ type: 'interactive_buttons', body: '¿Deseas cancelar?', buttons: [{ id: 'ORDER_CANCEL', title: '❌ Cancelar' }] });
     return { messages };
   }
 
-  messages.push({ type: 'text', body: '🕘 ¿En qué *horario* prefieres recibir el arreglo?' });
+  const slotSummary = slots
+    .map((slot) => `• ${slot.label.replace('h', ' hrs')} → ${slot.value}`)
+    .join('\n');
+
+  messages.push({
+    type: 'text',
+    body: `🕘 ¿En qué *horario* prefieres recibir el arreglo?\n\n${slotSummary}`,
+  });
   messages.push({
     type: 'interactive_buttons',
     body: 'Elige un horario:',
     buttons: slots.map((s) => ({ id: s.id, title: s.label })),
   });
-  messages.push({ type: 'interactive_buttons', body: ' ', buttons: [{ id: 'ORDER_CANCEL', title: '❌ Cancelar' }] });
+  messages.push({
+    type: 'interactive_buttons',
+    body: '¿Deseas cancelar el pedido?',
+    buttons: [{ id: 'ORDER_CANCEL', title: '❌ Cancelar' }],
+  });
 
   return { messages };
 }
@@ -323,30 +340,32 @@ export function askDeliveryTime(
 
 export type UpsellProduct = { id: number; name: string; price: number };
 
-export function upsellFlow(products: UpsellProduct[]): ChatbotResponse {
+export function upsellFlow(products: UpsellProduct[], opts?: { errorMessage?: string }): ChatbotResponse {
   const productButtons = products.slice(0, 2).map((p) => ({
     id: `UPSELL_P${p.id}`,
     title: `${p.name} $${p.price.toFixed(0)}`,
   }));
-  return {
-    messages: [
-      {
-        type: 'text',
-        body: `🎁 ¿Deseas agregar algo más a tu pedido?\n\n${products
-          .slice(0, 3)
-          .map((p, i) => `${i + 1}. *${p.name}* — $${p.price.toFixed(2)} MXN`)
-          .join('\n')}`,
-      },
-      {
-        type: 'interactive_buttons',
-        body: 'Elige una opción:',
-        buttons: [
-          ...productButtons,
-          { id: 'UPSELL_SKIP', title: '⏭️ No gracias' },
-        ],
-      },
+  const messages: ChatbotResponse['messages'] = [];
+
+  if (opts?.errorMessage) {
+    messages.push({ type: 'text', body: opts.errorMessage });
+  }
+
+  const intro = `🎁 ¿Deseas agregar algo más a tu pedido?\n\n${products
+    .slice(0, 3)
+    .map((p, i) => `${i + 1}. *${p.name}* — $${p.price.toFixed(2)} MXN`)
+    .join('\n')}\n\nResponde con el número, elige un botón o escribe *"no"* para continuar sin extras.`;
+  messages.push({ type: 'text', body: intro });
+  messages.push({
+    type: 'interactive_buttons',
+    body: 'Elige una opción:',
+    buttons: [
+      ...productButtons,
+      { id: 'UPSELL_SKIP', title: '⏭️ No gracias' },
     ],
-  };
+  });
+
+  return { messages };
 }
 
 // ─── Pickup summary ───────────────────────────────────────────────────────────
