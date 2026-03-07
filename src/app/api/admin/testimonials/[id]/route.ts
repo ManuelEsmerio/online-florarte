@@ -29,7 +29,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     const updated = await testimonialService.updateStatus(testimonialId, status);
-    revalidateTag('testimonials');
+    revalidateTag('testimonials', 'default');
     return successResponse(updated);
   } catch (error) {
     console.error('[API_ADMIN_TESTIMONIALS_PUT_ERROR]', error);
@@ -52,7 +52,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const testimonialId = parseInt(id, 10);
 
     await testimonialService.deleteTestimonial(testimonialId);
-    revalidateTag('testimonials');
+    revalidateTag('testimonials', 'default');
     return successResponse({ message: 'Testimonio eliminado correctamente.' });
   } catch (error) {
     console.error('[API_ADMIN_TESTIMONIALS_DELETE_ERROR]', error);

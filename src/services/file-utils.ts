@@ -1,15 +1,12 @@
-// src/utils/file-utils.ts
-import { storage as adminStorage } from '@/lib/firebase-admin';
-import sharp from 'sharp';
+// src/services/file-utils.ts
+// Images are stored in Cloudinary (absolute URLs) or as relative paths.
+// This helper passes them through unchanged.
 
 /**
- * Constructs the public URL for a file in a Firebase Storage bucket.
- * @param filePath The path to the file in the bucket (e.g., "users/123/profile.webp").
- * @returns The permanent, publicly accessible URL.
+ * Returns the public URL for a file path.
+ * Cloudinary and other absolute URLs are returned as-is.
+ * Relative paths are returned unchanged for Next.js Image to resolve.
  */
 export function getPublicUrlForPath(filePath: string): string {
-    if (!filePath || !filePath.includes('/')) return ""; // Basic check for valid path
-    const bucketName = adminStorage.bucket().name;
-    // Note: Standard public URL format, requires object to be publicly accessible.
-    return `https://storage.googleapis.com/${bucketName}/${filePath}`;
+  return filePath ?? '';
 }

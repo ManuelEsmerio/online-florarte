@@ -61,6 +61,8 @@ const REFUND_OPTIONS: Record<OrderStatus, RefundOption[]> = {
     { value: 0, label: 'Sin reembolso' },
   ],
   CANCELLED: [],
+  PAYMENT_FAILED: [],
+  EXPIRED: [],
 };
 
 const CANCELLATION_REASONS = [
@@ -78,6 +80,8 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   SHIPPED: 'En Reparto',
   DELIVERED: 'Completado',
   CANCELLED: 'Cancelado',
+  PAYMENT_FAILED: 'Pago Fallido',
+  EXPIRED: 'Expirado',
 };
 
 const formatMXN = (amount: number) =>

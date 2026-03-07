@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       return errorHandler(new Error('Debes iniciar sesión para validar el pago.'), 401);
     }
 
-    const body = (await req.json()) as Partial<ReconcilePayload>;
+    const body = (await req.json()) as Partial<StripePayload> & Partial<MercadoPagoPayload>;
     const orderId = Number(body.orderId);
     const gateway = String(body.gateway || '').toLowerCase() as Gateway;
 

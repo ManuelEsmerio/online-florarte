@@ -1036,7 +1036,7 @@ export const orderService = {
     }
 
     // --- 5. Call Stripe to issue the refund (outside the DB transaction) ---
-    let stripeRefund: { id: string; status: string };
+    let stripeRefund: { id: string; status: string | null };
     try {
       stripeRefund = await stripeService.createRefund({
         paymentIntentId: paymentTx.externalPaymentId,

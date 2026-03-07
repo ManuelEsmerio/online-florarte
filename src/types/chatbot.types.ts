@@ -123,7 +123,8 @@ export type OutgoingMessage =
   | InteractiveButtonMessage
   | InteractiveListMessage
   | CtaUrlMessage
-  | LocationMessage;
+  | LocationMessage
+  | ImageMessage;
 
 export interface TextMessage {
   type: 'text';
@@ -162,6 +163,13 @@ export interface LocationMessage {
   longitude: number;
   name: string;
   address: string;
+}
+
+/** Product image message (Cloudinary URL) */
+export interface ImageMessage {
+  type: 'image';
+  url: string;
+  caption?: string;
 }
 
 // ─── Chatbot response ────────────────────────────────────────────────────────

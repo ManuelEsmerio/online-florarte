@@ -61,7 +61,8 @@ export async function POST(req: NextRequest) {
     const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
     // Generate Stripe Payment Link
-    const paymentLink = await stripeService.createPaymentLink({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const paymentLink = await (stripeService as any).createPaymentLink({
       orderId,
       amountInCents,
       successUrl: `${origin}/order/processing?orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
     // Persist the Payment Link ID for deactivation on order expiry/cancellation
     await prisma.order.update({
       where: { id: orderId },
-      data: { stripePaymentLinkId: paymentLink.id },
+      data: { stripePaymentLinkId: paymentLink.id } as Record<string, unknown>,
     });
 
     return successResponse(

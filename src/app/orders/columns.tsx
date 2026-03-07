@@ -27,6 +27,8 @@ const statusTranslations: { [key in OrderStatus]: string } = {
     'SHIPPED': 'En Camino',
     'DELIVERED': 'Completado',
     'CANCELLED': 'Cancelado',
+    'PAYMENT_FAILED': 'Pago Fallido',
+    'EXPIRED': 'Expirado',
 }
 
 const formatCurrency = (amount: number | undefined) => {

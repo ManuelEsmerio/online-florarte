@@ -86,6 +86,10 @@ export const intentService = {
     // 1b. Paginated catalog button: "CATALOG_MORE_6", "CATALOG_MORE_9:cid:3:oid:5", etc.
     if (/^CATALOG_MORE_\d+/.test(upper)) return Intent.CATALOG_MORE;
 
+    // 1c. Interactive list replies for occasions/categories (0-based index from list picker)
+    if (/^OCCASION_\d+$/.test(upper)) return Intent.OCCASION_SELECT;
+    if (/^CATEGORY_\d+$/.test(upper)) return Intent.CATEGORY_SELECT;
+
     // 2a. When viewing occasions, any number selects an occasion
     if (state === ConversationState.VIEWING_OCCASIONS && /^\d+$/.test(normalized)) {
       return Intent.OCCASION_SELECT;

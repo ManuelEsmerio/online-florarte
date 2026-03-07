@@ -132,7 +132,7 @@ function applyAddressField(draft: OrderDraft, subStep: AddressSubStep, text: str
 
 // ─── Municipality shipping lookup ─────────────────────────────────────────────
 
-async function lookupShipping(municipality: string): Promise<{ cost: number; city: string; state: string }> {
+async function lookupShipping(municipality: string): Promise<{ cost: number; city: string; state: string; found: boolean }> {
   const zone = await prisma.shippingZone.findFirst({
     where: {
       municipality: { contains: municipality },
@@ -145,6 +145,7 @@ async function lookupShipping(municipality: string): Promise<{ cost: number; cit
     cost:  zone ? Number(zone.shippingCost) : 0,
     city:  zone?.municipality ?? municipality,
     state: zone?.state ?? '',
+    found: zone !== null,
   };
 }
 
@@ -365,10 +366,12 @@ export const orderCaptureService = {
           };
         }
 
-        const { cost, city, state } = await lookupShipping(resolvedMunicipality);
-        const costLabel = cost > 0
-          ? `${resolvedMunicipality}\nCosto de envío: $${cost.toFixed(2)} MXN`
-          : `${resolvedMunicipality}\n⚠️ Costo de envío a confirmar por asesor`;
+        const { cost, city, state, found } = await lookupShipping(resolvedMunicipality);
+        const costLabel = !found
+          ? `${resolvedMunicipality}\n⚠️ Costo de envío a confirmar por asesor`
+          : cost === 0
+            ? `${resolvedMunicipality}\n🎉 ¡Envío gratis!`
+            : `${resolvedMunicipality}\nCosto de envío: $${cost.toFixed(2)} MXN`;
         const nextSub     = nextAddressSubStep('municipality')!;
         const pendingDraft = {
           ...draft,
@@ -383,6 +386,20 @@ export const orderCaptureService = {
           ConversationState.CAPTURE_ADDRESS,
           ConversationState.CAPTURE_ADDRESS,
         );
+      }
+
+      // Phone validation — require at least 10 digits
+      if (subStep === 'phone') {
+        const digits = text.trim().replace(/\D/g, '');
+        if (digits.length < 10) {
+          return {
+            nextState: ConversationState.CAPTURE_ADDRESS,
+            draft,
+            response: await buildAddressPrompt('phone', {
+              errorMessage: '⚠️ El teléfono debe tener al menos 10 dígitos. Inténtalo de nuevo. (ej: 3312345678)',
+            }),
+          };
+        }
       }
 
       const updated    = applyAddressField(draft, subStep, text);
@@ -492,7 +509,7 @@ export const orderCaptureService = {
         const normalizedInput = text.trim().toLowerCase();
         resolvedSlot = availableSlots.find((slot) =>
           slot.value.toLowerCase() === normalizedInput || slot.label.toLowerCase() === normalizedInput,
-        )?.value;
+        )?.value ?? null;
       }
 
       if (!resolvedSlot) {
@@ -656,7 +673,7 @@ export const orderCaptureService = {
 
     // ── WAITING_PAYMENT ───────────────────────────────────────────────────
     if (currentState === ConversationState.WAITING_PAYMENT) {
-      return { nextState: ConversationState.WAITING_PAYMENT, draft, response: waitingPaymentFlow() };
+      return { nextState: ConversationState.WAITING_PAYMENT, draft, response: waitingPaymentFlow(draft.orderId) };
     }
 
     return { nextState: currentState, draft, response: waitingPaymentFlow() };

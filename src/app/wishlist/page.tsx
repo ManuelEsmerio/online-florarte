@@ -68,7 +68,7 @@ export default function WishlistPage() {
                          price: entry.variant.price,
                          salePrice: entry.variant.salePrice ?? null,
                          sale_price: (entry.variant as any)?.sale_price ?? entry.variant.salePrice ?? null,
-                         image: (entry.variant as any)?.images?.[0]?.src ?? entry.product.image,
+                         image: (entry.variant as any)?.images?.[0]?.src ?? entry.product.mainImage,
                          mainImage: (entry.variant as any)?.images?.[0]?.src ?? entry.product.mainImage,
                          variants: [entry.variant],
                        }

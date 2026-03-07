@@ -24,6 +24,7 @@ import {
 import { startOrderFlow, orderCancelledFlow } from '@/lib/chatbot/flows/order.flow';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
 import { companyService } from './company.service';
+import { whatsappContactService } from './whatsapp-contact.service';
 
 // ─── Staff notification helper ────────────────────────────────────────────────
 
@@ -222,6 +223,13 @@ export const chatbotService = {
       const result = await orderCaptureService.process(
         message.phone, message.text, currentState, draft,
       );
+
+      // Persist confirmed customer name to WhatsappContact (fire-and-forget)
+      if (result.draft.customerName && !draft.customerName) {
+        whatsappContactService.upsert(message.phone, result.draft.customerName)
+          .catch((err) => console.error('[WA_CONTACT_UPSERT_ERROR]', err));
+      }
+
       await sessionService.setContext(message.phone, result.draft);
       await sessionService.update(message.phone, {
         currentState: result.nextState,
@@ -239,10 +247,12 @@ export const chatbotService = {
     switch (intent) {
 
       // ── Welcome ──────────────────────────────────────────────────────────
-      case Intent.GREETING:
+      case Intent.GREETING: {
+        const contact = await whatsappContactService.get(message.phone);
         nextState = ConversationState.MAIN_MENU;
-        response  = welcomeFlow();
+        response  = welcomeFlow(contact?.name);
         break;
+      }
 
       // ── Catalog: show occasions first ─────────────────────────────────────
       case Intent.CATALOG: {
@@ -262,10 +272,13 @@ export const chatbotService = {
 
       // ── Occasion selected ─────────────────────────────────────────────────
       case Intent.OCCASION_SELECT: {
-        const occasions = await chatbotCatalogService.getOccasions();
-        const num       = parseInt(message.text.trim(), 10);
-        const isOther   = num === occasions.length + 1;
-        const occasion  = isOther ? null : occasions[num - 1];
+        const occasions  = await chatbotCatalogService.getOccasions();
+        const upperText  = message.text.trim().toUpperCase();
+        const btnMatch   = upperText.match(/^OCCASION_(\d+)$/);
+        // Interactive list reply (0-based) or plain number (1-based)
+        const num        = btnMatch ? parseInt(btnMatch[1], 10) + 1 : parseInt(message.text.trim(), 10);
+        const isOther    = !btnMatch && num === occasions.length + 1;
+        const occasion   = isOther ? null : occasions[num - 1];
 
         // Out-of-range number → re-show occasions list
         if (!isOther && !occasion) {
@@ -307,8 +320,11 @@ export const chatbotService = {
       case Intent.CATEGORY_SELECT: {
         const occasionId = readStoredOccasionId(session.lastMessage) ?? undefined;
         const categories = await chatbotCatalogService.getCategories(occasionId);
-        const num        = parseInt(message.text.trim(), 10);
-        const category   = categories[num - 1];
+        const upperText  = message.text.trim().toUpperCase();
+        const btnMatch   = upperText.match(/^CATEGORY_(\d+)$/);
+        // Interactive list reply (0-based) or plain number (1-based)
+        const idx        = btnMatch ? parseInt(btnMatch[1], 10) : parseInt(message.text.trim(), 10) - 1;
+        const category   = categories[idx];
 
         if (category) {
           nextState      = ConversationState.VIEWING_CATALOG;
@@ -349,7 +365,7 @@ export const chatbotService = {
               productSlug:  product.slug,
               productPrice: product.price,
             });
-            response = await productSelectFlow(product.name, product.slug);
+            response = await productSelectFlow(product.name, product.slug, product.imageUrl ?? undefined);
           } else {
             response = await catalogFlow(offset, categoryId, occasionId);
           }
@@ -413,8 +429,9 @@ export const chatbotService = {
       case Intent.UNKNOWN:
       default: {
         if (currentState === ConversationState.WELCOME) {
+          const contact = await whatsappContactService.get(message.phone);
           nextState = ConversationState.MAIN_MENU;
-          response  = welcomeFlow();
+          response  = welcomeFlow(contact?.name);
           break;
         }
         // In HUMAN_SUPPORT state: user may be writing freely to the advisor.

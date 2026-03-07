@@ -3,7 +3,7 @@
 
 import { OutgoingMessage } from '@/types/chatbot.types';
 
-const WA_BASE = 'https://graph.facebook.com/v19.0';
+const WA_BASE = 'https://graph.facebook.com/v22.0';
 
 /**
  * Sends a single outgoing message via the WhatsApp Cloud API.
@@ -73,6 +73,17 @@ export async function sendWhatsAppMessage(to: string, message: OutgoingMessage):
         longitude: message.longitude,
         name:      message.name,
         address:   message.address,
+      },
+    };
+  } else if (message.type === 'image') {
+    // Product image via public Cloudinary URL
+    payload = {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'image',
+      image: {
+        link: message.url,
+        ...(message.caption ? { caption: message.caption } : {}),
       },
     };
   } else {

@@ -121,7 +121,7 @@ export default async function OrderSuccessPage({ searchParams }: Props) {
   const orderNumber = rawOrderId || ticketOrder?.id ? `ORD#${String(rawOrderId || ticketOrder?.id).padStart(4, '0')}` : 'ORD#----';
   const deliveryDateLabel = ticketOrder ? formatDateOnly(ticketOrder.deliveryDate) : 'Por confirmar';
   const deliveryWindowLabel = ticketOrder ? formatTimeSlotForUI(ticketOrder.deliveryTimeSlot) : 'Horario por confirmar';
-  const orderPlacedLabel = orderDetails ? formatDateTime(orderDetails.created_at) : '—';
+  const orderPlacedLabel = orderDetails ? formatDateTime(orderDetails.createdAt.toISOString()) : '—';
   const paymentStatus = ticketOrder?.paymentStatus ? ticketOrder.paymentStatus.toUpperCase() : 'PENDING';
   const paymentBadge = PAYMENT_BADGE_MAP[paymentStatus] ?? PAYMENT_BADGE_MAP.PENDING;
   const statusLabel = orderDetails?.status ? orderDetails.status.replace('_', ' ') : 'pendiente';
@@ -183,11 +183,11 @@ export default async function OrderSuccessPage({ searchParams }: Props) {
                   </div>
                   <div className="flex justify-between">
                     <span>Cliente</span>
-                    <span className="font-semibold text-foreground">{orderDetails?.customerName ?? 'Cliente invitado'}</span>
+                    <span className="font-semibold text-foreground">{orderDetails?.user?.name ?? orderDetails?.guestName ?? 'Cliente invitado'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Contacto</span>
-                    <span className="font-semibold text-foreground">{orderDetails?.customerEmail ?? '—'}</span>
+                    <span className="font-semibold text-foreground">{orderDetails?.user?.email ?? orderDetails?.guestEmail ?? '—'}</span>
                   </div>
                 </div>
               </div>

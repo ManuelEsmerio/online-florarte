@@ -341,28 +341,29 @@ export function askDeliveryTime(
 export type UpsellProduct = { id: number; name: string; price: number };
 
 export function upsellFlow(products: UpsellProduct[], opts?: { errorMessage?: string }): ChatbotResponse {
-  const productButtons = products.slice(0, 2).map((p) => ({
-    id: `UPSELL_P${p.id}`,
-    title: `${p.name} $${p.price.toFixed(0)}`,
-  }));
   const messages: ChatbotResponse['messages'] = [];
 
   if (opts?.errorMessage) {
     messages.push({ type: 'text', body: opts.errorMessage });
   }
 
-  const intro = `🎁 ¿Deseas agregar algo más a tu pedido?\n\n${products
-    .slice(0, 3)
-    .map((p, i) => `${i + 1}. *${p.name}* — $${p.price.toFixed(2)} MXN`)
-    .join('\n')}\n\nResponde con el número, elige un botón o escribe *"no"* para continuar sin extras.`;
-  messages.push({ type: 'text', body: intro });
+  const rows = products.slice(0, 3).map((p) => ({
+    id:          `UPSELL_P${p.id}`,
+    title:       p.name.length > 24 ? `${p.name.slice(0, 21)}...` : p.name,
+    description: `$${p.price.toFixed(2)} MXN`,
+  }));
+
+  messages.push({
+    type: 'interactive_list',
+    body: '🎁 *¿Deseas agregar algo más a tu pedido?*\n\nElige un complemento o continúa sin extras:',
+    buttonText: 'Ver complementos',
+    sections: [{ title: 'Complementos disponibles', rows }],
+  });
+
   messages.push({
     type: 'interactive_buttons',
-    body: 'Elige una opción:',
-    buttons: [
-      ...productButtons,
-      { id: 'UPSELL_SKIP', title: '⏭️ No gracias' },
-    ],
+    body: '¿Continuar sin extras?',
+    buttons: [{ id: 'UPSELL_SKIP', title: '⏭️ No gracias' }],
   });
 
   return { messages };
@@ -497,6 +498,14 @@ export function bankTransferFlow(
           'Una vez realizada la transferencia, envía tu comprobante y un asesor confirmará tu pedido. 🌸',
         ].join('\n'),
       },
+      {
+        type: 'interactive_buttons',
+        body: '¿Necesitas algo más?',
+        buttons: [
+          { id: 'HUMAN_SUPPORT', title: '👤 Hablar con asesor' },
+          { id: 'FAREWELL',      title: '✅ Entendido' },
+        ],
+      },
     ],
   };
 }
@@ -522,12 +531,13 @@ export function onlinePaymentFlow(orderId: number, total: number, paymentUrl: st
 
 // ─── Waiting for payment ──────────────────────────────────────────────────────
 
-export function waitingPaymentFlow(): ChatbotResponse {
+export function waitingPaymentFlow(orderId?: number): ChatbotResponse {
+  const orderRef = orderId ? ` *#${String(orderId).padStart(4, '0')}*` : '';
   return {
     messages: [
       {
         type: 'text',
-        body: '⏳ Tu pedido está registrado. Un asesor confirmará el pago y te notificará cuando esté listo. 🌸',
+        body: `⏳ Tu pedido${orderRef} está registrado. Un asesor confirmará el pago y te notificará cuando esté listo. 🌸`,
       },
       {
         type: 'interactive_buttons',

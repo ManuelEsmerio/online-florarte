@@ -19,6 +19,8 @@ const statusStyles: { [key in OrderStatus]: string } = {
   SHIPPED: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-800',
   PROCESSING: 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-300 dark:border-yellow-800',
   CANCELLED: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/50 dark:text-red-300 dark:border-red-800',
+  PAYMENT_FAILED: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/50 dark:text-red-300 dark:border-red-800',
+  EXPIRED: 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800/50 dark:text-gray-400 dark:border-gray-700',
 };
 
 const statusTranslations: { [key in OrderStatus]: string } = {
@@ -27,6 +29,8 @@ const statusTranslations: { [key in OrderStatus]: string } = {
   SHIPPED: 'En Reparto',
   DELIVERED: 'Completado',
   CANCELLED: 'Cancelado',
+  PAYMENT_FAILED: 'Pago Fallido',
+  EXPIRED: 'Expirado',
 };
 
 const normalizeOrderStatus = (value: unknown): OrderStatus | null => {

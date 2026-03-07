@@ -47,6 +47,7 @@ const AlertDialogContent = React.forwardRef<
   return (
   <AlertDialogPortal>
     <AlertDialogOverlay />
+    {/* @ts-expect-error onInteractOutside is intentionally omitted from AlertDialogContentProps but needed for pulse animation */}
     <AlertDialogPrimitive.Content
       ref={contentRef}
       onInteractOutside={handlePulse}

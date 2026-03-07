@@ -877,6 +877,23 @@ model CompanyBankAccount {
   @@map("company_bank_accounts")
 }
 
+/// Known WhatsApp contacts — saved once the user confirms their name in an order.
+/// Used to greet returning customers by name.
+model WhatsappContact {
+  id         Int      @id @default(autoincrement())
+  /// WhatsApp phone number (same format as ChatSession.phone)
+  phone      String   @unique @db.VarChar(20)
+  /// Customer name as confirmed during order capture
+  name       String   @db.VarChar(150)
+  /// Total orders placed via WhatsApp
+  orderCount Int      @default(0)
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("whatsapp_contacts")
+}
+
 /// Key–value store for company information shown by the chatbot.
 /// Editable from the admin panel without redeploying.
 model CompanyMeta {

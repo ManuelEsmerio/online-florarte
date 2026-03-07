@@ -16,13 +16,14 @@ const EMOJIS = ['1️⃣', '2️⃣', '3️⃣'];
 
 // ─── Welcome / Menu ───────────────────────────────────────────────────────────
 
-export function welcomeFlow(): ChatbotResponse {
+export function welcomeFlow(contactName?: string): ChatbotResponse {
+  const greeting = contactName
+    ? `🌸 ¡Hola de nuevo, *${contactName}*! 💐\n\nQué gusto tenerte aquí. ¿En qué puedo ayudarte hoy?`
+    : '🌸 ¡Hola! Bienvenido a *Florarte* 💐\n\nSoy tu asistente floral. ¿En qué puedo ayudarte hoy?';
+
   return {
     messages: [
-      {
-        type: 'text',
-        body: '🌸 ¡Hola! Bienvenido a *Florarte* 💐\n\nSoy tu asistente floral. ¿En qué puedo ayudarte hoy?',
-      },
+      { type: 'text', body: greeting },
       {
         type: 'interactive_buttons',
         body: 'Elige una opción:',
@@ -46,15 +47,18 @@ export async function occasionsFlow(occasions?: CatalogOccasion[]): Promise<Chat
     return categoriesFlow();
   }
 
-  const listText = list
-    .map((o, i) => `${i + 1}. ${o.name}`)
-    .join('\n');
+  const rows = [
+    ...list.map((o, i) => ({ id: `OCCASION_${i}`, title: o.name.slice(0, 24) })),
+    { id: 'OCCASION_OTHER', title: '🌸 Otra ocasión' },
+  ];
 
   return {
     messages: [
       {
-        type: 'text',
-        body: `🌸 *¿Para qué ocasión buscas flores?*\n\n${listText}\n${list.length + 1}. Otra ocasión\n\n_Escribe el número de la ocasión._`,
+        type: 'interactive_list',
+        body: '🌸 *¿Para qué ocasión buscas flores?*\n\nSelecciona una opción de la lista:',
+        buttonText: 'Ver ocasiones',
+        sections: [{ title: 'Ocasiones', rows }],
       },
       {
         type: 'interactive_buttons',
@@ -81,13 +85,15 @@ export async function categoriesFlow(
   }
 
   const contextText = occasionName ? ` para *${occasionName}*` : '';
-  const listText    = list.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
+  const rows        = list.map((c, i) => ({ id: `CATEGORY_${i}`, title: c.name.slice(0, 24) }));
 
   return {
     messages: [
       {
-        type: 'text',
-        body: `📦 *Selecciona una categoría${contextText}:*\n\n${listText}\n\n_Escribe el número de la categoría._`,
+        type: 'interactive_list',
+        body: `📦 *Selecciona una categoría${contextText}:*`,
+        buttonText: 'Ver categorías',
+        sections: [{ title: 'Categorías', rows }],
       },
       {
         type: 'interactive_buttons',
@@ -168,33 +174,49 @@ export async function catalogFlow(
 
 // ─── Phase 6 — Product interest → direct purchase link ────────────────────────
 
-export async function productSelectFlow(productName: string, slug?: string): Promise<ChatbotResponse> {
+export async function productSelectFlow(
+  productName: string,
+  slug?: string,
+  imageUrl?: string,
+): Promise<ChatbotResponse> {
   const siteUrl    = await companyService.get('site_url') ?? 'https://online-florarte.vercel.app';
   const productUrl = slug ? `${siteUrl}/products/${slug}` : `${siteUrl}/catalog`;
 
-  return {
-    messages: [
-      {
-        type: 'text',
-        body: `💐 ¡Excelente elección!\n\n*${productName}*\n\n¿Cómo deseas realizar tu pedido?`,
-      },
-      {
-        type: 'interactive_buttons',
-        body: 'Elige una opción:',
-        buttons: [
-          { id: 'ORDER_WA',      title: '📲 Pedir por WhatsApp' },
-          { id: 'CATALOG',       title: '🌺 Ver más arreglos' },
-          { id: 'HUMAN_SUPPORT', title: '👤 Hablar con asesor' },
-        ],
-      },
-      {
-        type: 'cta_url',
-        body: 'O compra directamente desde nuestra tienda:',
-        buttonText: '🛒 Ordenar en sitio web',
-        url: productUrl,
-      },
+  const messages: ChatbotResponse['messages'] = [];
+
+  // WhatsApp requires a publicly accessible HTTPS URL.
+  // Convert relative paths (/sample/...) to absolute using siteUrl.
+  const absoluteImageUrl = imageUrl
+    ? /^https?:\/\//i.test(imageUrl)
+      ? imageUrl                    // already absolute (Cloudinary, CDN)
+      : `${siteUrl}${imageUrl}`     // relative → prepend site domain
+    : undefined;
+
+  if (absoluteImageUrl) {
+    messages.push({ type: 'image', url: absoluteImageUrl, caption: `🌸 ${productName}` });
+  }
+
+  messages.push({
+    type: 'text',
+    body: `💐 ¡Excelente elección!\n\n*${productName}*\n\n¿Cómo deseas realizar tu pedido?`,
+  });
+  messages.push({
+    type: 'interactive_buttons',
+    body: 'Elige una opción:',
+    buttons: [
+      { id: 'ORDER_WA',      title: '📲 Pedir por WhatsApp' },
+      { id: 'CATALOG',       title: '🌺 Ver más arreglos' },
+      { id: 'HUMAN_SUPPORT', title: '👤 Hablar con asesor' },
     ],
-  };
+  });
+  messages.push({
+    type: 'cta_url',
+    body: 'O compra directamente desde nuestra tienda:',
+    buttonText: '🛒 Ordenar en sitio web',
+    url: productUrl,
+  });
+
+  return { messages };
 }
 
 export async function catalogWebFlow(): Promise<ChatbotResponse> {
@@ -247,13 +269,34 @@ export async function locationFlow(): Promise<ChatbotResponse> {
     });
   }
 
+  messages.push({
+    type: 'interactive_buttons',
+    body: '¿En qué más puedo ayudarte?',
+    buttons: [
+      { id: 'CATALOG',  title: '🌺 Ver catálogo' },
+      { id: 'HOURS',    title: '🕘 Ver horarios' },
+      { id: 'FAREWELL', title: '✅ Finalizar' },
+    ],
+  });
+
   return { messages };
 }
 
 export async function hoursFlow(): Promise<ChatbotResponse> {
   const hours = await companyService.get('hours') ?? 'Lun–Sáb 9am–7pm, Dom 10am–3pm';
   return {
-    messages: [{ type: 'text', body: `🕘 *Horarios de atención:*\n${hours}\n\n¡Te esperamos! 🌸` }],
+    messages: [
+      { type: 'text', body: `🕘 *Horarios de atención:*\n${hours}\n\n¡Te esperamos! 🌸` },
+      {
+        type: 'interactive_buttons',
+        body: '¿En qué más puedo ayudarte?',
+        buttons: [
+          { id: 'CATALOG',       title: '🌺 Ver catálogo' },
+          { id: 'LOCATION',      title: '📍 Cómo llegar' },
+          { id: 'HUMAN_SUPPORT', title: '👤 Hablar con asesor' },
+        ],
+      },
+    ],
   };
 }
 
@@ -263,7 +306,21 @@ export async function quoteFlow(): Promise<ChatbotResponse> {
     messages: [
       {
         type: 'text',
-        body: `💰 Para cotizar un arreglo visita:\n👉 ${siteUrl}\n\nO cuéntame qué tipo de arreglo necesitas y con gusto te ayudo 🌸`,
+        body: '💰 Cuéntame qué tipo de arreglo necesitas y con gusto te ayudo. También puedes explorar precios en nuestra tienda: 🌸',
+      },
+      {
+        type: 'cta_url',
+        body: 'Explora opciones y precios:',
+        buttonText: '🛍️ Ver catálogo y precios',
+        url: `${siteUrl}/catalog`,
+      },
+      {
+        type: 'interactive_buttons',
+        body: '¿O prefieres que te asesore?',
+        buttons: [
+          { id: 'HUMAN_SUPPORT', title: '👤 Hablar con asesor' },
+          { id: 'ORDER_WA',      title: '📲 Pedir por WhatsApp' },
+        ],
       },
     ],
   };
@@ -275,6 +332,14 @@ export function humanSupportFlow(): ChatbotResponse {
       {
         type: 'text',
         body: '👤 En un momento un asesor se comunicará contigo.\n\nMientras tanto puedes explorar nuestro catálogo 🌺',
+      },
+      {
+        type: 'interactive_buttons',
+        body: 'Mientras te atendemos:',
+        buttons: [
+          { id: 'CATALOG',  title: '🌺 Ver catálogo' },
+          { id: 'FAREWELL', title: '✅ Finalizar chat' },
+        ],
       },
     ],
   };

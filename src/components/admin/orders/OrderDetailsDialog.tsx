@@ -43,6 +43,8 @@ const statusColors: Record<OrderStatus, string> = {
   SHIPPED: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800',
   DELIVERED: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800',
   CANCELLED: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/40 dark:text-rose-300 dark:border-rose-800',
+  PAYMENT_FAILED: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/40 dark:text-rose-300 dark:border-rose-800',
+  EXPIRED: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
 };
 
 const statusLabels: Record<OrderStatus, string> = {
@@ -51,6 +53,8 @@ const statusLabels: Record<OrderStatus, string> = {
   SHIPPED: 'En camino',
   DELIVERED: 'Completado',
   CANCELLED: 'Cancelado',
+  PAYMENT_FAILED: 'Pago Fallido',
+  EXPIRED: 'Expirado',
 };
 
 const paymentStatusLabels: Record<string, string> = {

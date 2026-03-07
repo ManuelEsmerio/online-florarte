@@ -67,6 +67,8 @@ const STATUS_SUBJECT_LABELS: Record<OrderStatus, string> = {
   SHIPPED: 'En ruta',
   DELIVERED: 'Entregado',
   CANCELLED: 'Cancelado',
+  PAYMENT_FAILED: 'Pago no procesado',
+  EXPIRED: 'Pedido expirado',
 };
 
 async function getOrderWithRelations(orderId: number): Promise<OrderWithRelations | null> {

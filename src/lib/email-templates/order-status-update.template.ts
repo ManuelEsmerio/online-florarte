@@ -43,6 +43,18 @@ const statusDetails: Record<OrderStatus, { title: string; message: string; accen
     accent: '#ef4444',
     bg: 'rgba(239,68,68,0.12)',
   },
+  PAYMENT_FAILED: {
+    title: 'Pago no procesado',
+    message: 'No pudimos procesar tu pago. Puedes intentarlo de nuevo o contactar a soporte.',
+    accent: '#ef4444',
+    bg: 'rgba(239,68,68,0.12)',
+  },
+  EXPIRED: {
+    title: 'Pedido expirado',
+    message: 'Tu pedido expiró porque no se completó el pago a tiempo. Crea un nuevo pedido cuando lo desees.',
+    accent: '#94a3b8',
+    bg: 'rgba(148,163,184,0.12)',
+  },
 };
 
 const formatDateTime = (value: Date) => format(value, "PPP 'a las' p", { locale: es });
