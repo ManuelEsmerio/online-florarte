@@ -8,7 +8,7 @@ import { SlidersHorizontal, ChevronDown, CheckCircle, EyeOff, Trash2, Search, Fi
 import { useEffect, useState } from "react"
 import type { ProductStatus } from "@/lib/definitions"
 import type { ProductCategory } from "@/lib/definitions"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 
 
 interface ProductTableToolbarProps<TData> {
@@ -31,6 +31,7 @@ export function ProductTableToolbar<TData>({
   isDeleting
 }: ProductTableToolbarProps<TData>) {
   const searchValue = (table.getColumn("name")?.getFilterValue() as string) ?? "";
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [searchInput, setSearchInput] = useState(searchValue);
 
   useEffect(() => {
@@ -180,36 +181,25 @@ export function ProductTableToolbar<TData>({
                 Ocultar seleccionados
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-               <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>
+               <DropdownMenuItem className="text-destructive" onSelect={(e) => { e.preventDefault(); setIsDeleteDialogOpen(true); }}>
                     <Trash2 className="mr-2 h-4 w-4" />
-                     Eliminar seleccionados
+                    Eliminar seleccionados
                   </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción marcará {selectedRowsCount} productos como eliminados. No serán visibles en la tienda.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive hover:bg-destructive/90"
-                      onClick={() => onBulkAction('delete')}
-                      disabled={isDeleting}
-                    >
-                      {isDeleting ? "Eliminando..." : "Sí, eliminar"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
       </div>
+    
+      {/* Diálogo fuera del DropdownMenu para evitar conflictos de portal */}
+      <AdminConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title="¿Eliminar productos seleccionados?"
+        description={<>Esta acción marcará <span className="font-semibold">{selectedRowsCount} producto{selectedRowsCount !== 1 ? 's' : ''}</span> como eliminados. No serán visibles en la tienda.</>}
+        confirmText="Sí, eliminar"
+        isLoading={isDeleting}
+        onConfirm={() => { onBulkAction('delete'); setIsDeleteDialogOpen(false); }}
+      />
     </div>
   )
 }

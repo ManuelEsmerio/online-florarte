@@ -8,7 +8,7 @@ import { AddressModal } from '@/components/AddressModal';
 import { useFormContext } from 'react-hook-form';
 import { CheckoutFormValues } from '@/app/checkout/CheckoutClientPage';
 import { useAuth } from '@/context/AuthContext';
-import { MapPin, AlertCircle, CheckCircle, Home, ArrowRight, Map, ChevronRight } from 'lucide-react';
+import { MapPin, AlertCircle, CheckCircle, Home, ArrowRight, Map as MapIcon, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Address } from '@/lib/definitions';
 import { cn } from '@/lib/utils';
@@ -18,13 +18,14 @@ import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/comp
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { sanitizePhoneDigits } from '@/utils/phone';
 
 const GoogleMapEmbed = ({ address }: { address: Address }) => {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
     return (
       <div className="aspect-video w-full bg-muted/30 rounded-2xl flex flex-col items-center justify-center text-center p-6 border border-dashed border-border/50 max-w-full">
-        <Map className="w-8 h-8 text-muted-foreground/30 mb-2" />
+        <MapIcon className="w-8 h-8 text-muted-foreground/30 mb-2" />
         <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">Mapa disponible en producción</span>
       </div>
     );
@@ -70,11 +71,24 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
   const guestCity = watch('guestCity');
   const guestState = watch('guestState');
   const guestPostalCode = watch('guestPostalCode');
+  const guestRecipientName = watch('guestRecipientName');
+  const guestRecipientPhone = watch('guestRecipientPhone');
 
-  const cityOptions = useMemo(
-    () => Array.from(new Set((shippingZones || []).map(zone => zone.locality).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [shippingZones]
-  );
+  const cityOptions = useMemo(() => {
+    const normalized = (shippingZones || [])
+      .map(zone => (zone.municipality || '').trim())
+      .filter((value): value is string => Boolean(value));
+
+    const uniqueBySlug = new Map<string, string>();
+    for (const name of normalized) {
+      const slug = name.toLowerCase();
+      if (!uniqueBySlug.has(slug)) {
+        uniqueBySlug.set(slug, name);
+      }
+    }
+
+    return Array.from(uniqueBySlug.values()).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [shippingZones]);
 
   const guestAddressIsComplete =
     String(guestStreetName ?? '').trim().length >= 3 &&
@@ -84,15 +98,22 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
     String(guestState ?? '').trim().length >= 2 &&
     /^\d{5}$/.test(String(guestPostalCode ?? '').trim());
 
+  const guestRecipientDigits = sanitizePhoneDigits(String(guestRecipientPhone ?? ''));
+  const guestRecipientIsComplete =
+    String(guestRecipientName ?? '').trim().length >= 3 &&
+    /^\d{10}$/.test(guestRecipientDigits);
+  const guestDestinationIsComplete = guestAddressIsComplete && guestRecipientIsComplete;
+
   const selectedAddress = user?.addresses?.find(a => a.id === addressId);
   const currentZone = selectedAddress
     ? shippingZones.find(z => z.postalCode === selectedAddress.postalCode)
+      ?? shippingZones.find(z => z.municipality === selectedAddress.city)
       ?? shippingZones.find(z => z.locality === selectedAddress.city)
     : null;
   const shippingCostValue = currentZone?.shippingCost ?? null;
 
   const isCompleted = isGuestCheckout
-    ? (guestAddressIsComplete || currentStep > 2)
+    ? (guestDestinationIsComplete || currentStep > 2)
     : ((!!selectedAddress && shippingCostValue !== null) || currentStep > 2);
 
   useEffect(() => {
@@ -106,6 +127,7 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
       }
 
       const guestZone = shippingZones.find(z => z.postalCode === postalCode)
+        ?? shippingZones.find(z => z.municipality === city)
         ?? shippingZones.find(z => z.locality === city);
 
       setShippingCost(guestZone ? Number(guestZone.shippingCost) : null);
@@ -114,6 +136,7 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
 
     if (selectedAddress) {
       const zone = shippingZones.find(z => z.postalCode === selectedAddress.postalCode)
+        ?? shippingZones.find(z => z.municipality === selectedAddress.city)
         ?? shippingZones.find(z => z.locality === selectedAddress.city);
       setShippingCost(zone ? zone.shippingCost : null);
     }
@@ -132,8 +155,9 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
     if (!postalCode) return;
 
     const matchedZone = shippingZones.find(zone => zone.postalCode === postalCode);
-    if (matchedZone?.locality && matchedZone.locality !== guestCity) {
-      setValue('guestCity', matchedZone.locality, { shouldValidate: true });
+    const matchedMunicipality = matchedZone?.municipality ?? matchedZone?.locality;
+    if (matchedMunicipality && matchedMunicipality !== guestCity) {
+      setValue('guestCity', matchedMunicipality, { shouldValidate: true });
     }
   }, [isGuestCheckout, guestPostalCode, shippingZones, guestCity, setValue]);
 
@@ -184,6 +208,8 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
   const handleNext = async () => {
     if (isGuestCheckout) {
       const checks: Array<{ field: keyof CheckoutFormValues; valid: boolean; message: string }> = [
+        { field: 'guestRecipientName', valid: String(guestRecipientName ?? '').trim().length >= 3, message: 'Ingresa el nombre del destinatario.' },
+        { field: 'guestRecipientPhone', valid: /^\d{10}$/.test(guestRecipientDigits), message: 'Ingresa el teléfono del destinatario (10 dígitos).' },
         { field: 'guestStreetName', valid: String(guestStreetName ?? '').trim().length >= 3, message: 'Ingresa la calle.' },
         { field: 'guestStreetNumber', valid: String(guestStreetNumber ?? '').trim().length >= 1, message: 'Ingresa el número exterior.' },
         { field: 'guestNeighborhood', valid: String(guestNeighborhood ?? '').trim().length >= 2, message: 'Ingresa la colonia.' },
@@ -234,7 +260,7 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
               {isCompleted && !isActive ? <CheckCircle className="w-5 h-5 md:w-6 md:h-6"/> : <MapPin className="w-5 h-5" />}
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="text-base md:text-xl font-bold font-headline truncate">Elige a quién enviarlo</h3>
+              <h3 className="text-base md:text-xl font-bold font-headline truncate">Datos del destinatario</h3>
               {!isActive && isCompleted && (
                   <p className="text-xs md:text-sm font-medium text-muted-foreground mt-0.5 tracking-tight truncate">
                       {selectedAddress?.alias}: {selectedAddress?.streetName}
@@ -260,172 +286,224 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
             <div className="space-y-5">
               <Alert className="rounded-2xl border-primary/20 bg-primary/5">
                 <MapPin className="h-5 w-5 text-primary" />
-                <AlertTitle className="font-bold text-sm">Dirección de envío (invitado)</AlertTitle>
+                <AlertTitle className="font-bold text-sm">Información para la entrega</AlertTitle>
                 <AlertDescription className="text-xs font-medium mt-1">
-                  Captura la dirección completa. Esta información se guardará como snapshot en tu orden.
+                  Necesitamos los datos del destinatario y la dirección exacta para coordinar al mensajero.
                 </AlertDescription>
               </Alert>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={control}
-                  name="guestAddressAlias"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Alias (opcional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Casa, Oficina, etc." {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <div className="space-y-8 divide-y divide-border/40">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Datos del destinatario</p>
+                    <h4 className="text-base font-semibold text-foreground">¿Quién recibe el arreglo?</h4>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={control}
+                      name="guestRecipientName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nombre del destinatario</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Nombre completo" {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={control}
-                  name="guestPostalCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Código postal</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="46400"
-                          inputMode="numeric"
-                          maxLength={5}
-                          {...field}
-                          onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 5))}
-                          className="h-12 rounded-xl bg-muted/30 border-none"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={control}
+                      name="guestRecipientPhone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Teléfono del destinatario</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="3312345678"
+                              inputMode="numeric"
+                              maxLength={10}
+                              {...field}
+                              onChange={(e) => field.onChange(sanitizePhoneDigits(e.target.value).slice(0, 10))}
+                              className="h-12 rounded-xl bg-muted/30 border-none"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
 
-                <FormField
-                  control={control}
-                  name="guestStreetName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Calle</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Nombre de la calle" {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="pt-6 space-y-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Dirección de entrega</p>
+                    <h4 className="text-base font-semibold text-foreground">Confirma la ubicación</h4>
+                  </div>
 
-                <FormField
-                  control={control}
-                  name="guestStreetNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Número exterior</FormLabel>
-                      <FormControl>
-                        <Input placeholder="123" {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={control}
+                      name="guestAddressAlias"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Alias (opcional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Casa, Oficina, etc." {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={control}
-                  name="guestInteriorNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Número interior (opcional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="A-3" {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={control}
+                      name="guestPostalCode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Código postal</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="46400"
+                              inputMode="numeric"
+                              maxLength={5}
+                              {...field}
+                              onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                              className="h-12 rounded-xl bg-muted/30 border-none"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={control}
-                  name="guestNeighborhood"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Colonia</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Colonia" {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={control}
+                      name="guestStreetName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Calle</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Nombre de la calle" {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={control}
-                  name="guestCity"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Municipio</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || ''}>
+                    <FormField
+                      control={control}
+                      name="guestStreetNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Número exterior</FormLabel>
+                          <FormControl>
+                            <Input placeholder="123" {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={control}
+                      name="guestInteriorNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Número interior (opcional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="A-3" {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={control}
+                      name="guestNeighborhood"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Colonia</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Colonia" {...field} className="h-12 rounded-xl bg-muted/30 border-none" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={control}
+                      name="guestCity"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Municipio</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ''}>
+                            <FormControl>
+                              <SelectTrigger className="h-12 rounded-xl bg-muted/30 border-none">
+                                <SelectValue placeholder="Selecciona municipio" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {cityOptions.length > 0 ? (
+                                cityOptions.map((city) => (
+                                  <SelectItem key={city} value={city}>
+                                    {city}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <SelectItem value="sin-localidades" disabled>
+                                  Sin municipios disponibles
+                                </SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={control}
+                      name="guestState"
+                      render={({ field: _field }) => (
+                        <FormItem>
+                          <FormLabel>Estado</FormLabel>
+                          <FormControl>
+                            <Input
+                              value="Jalisco"
+                              readOnly
+                              disabled
+                              className="h-12 rounded-xl bg-muted/30 border-none opacity-100"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={control}
+                    name="guestReferenceNotes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Referencias (opcional)</FormLabel>
                         <FormControl>
-                          <SelectTrigger className="h-12 rounded-xl bg-muted/30 border-none">
-                            <SelectValue placeholder="Selecciona municipio" />
-                          </SelectTrigger>
+                          <Textarea
+                            placeholder="Punto de referencia para facilitar la entrega"
+                            {...field}
+                            className="min-h-[90px] rounded-xl bg-muted/30 border-none"
+                          />
                         </FormControl>
-                        <SelectContent>
-                          {cityOptions.length > 0 ? (
-                            cityOptions.map((city) => (
-                              <SelectItem key={city} value={city}>
-                                {city}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="sin-localidades" disabled>
-                              Sin municipios disponibles
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={control}
-                  name="guestState"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Estado</FormLabel>
-                      <FormControl>
-                        <Input
-                          value="Jalisco"
-                          readOnly
-                          disabled
-                          className="h-12 rounded-xl bg-muted/30 border-none opacity-100"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
-
-              <FormField
-                control={control}
-                name="guestReferenceNotes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Referencias (opcional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Punto de referencia para facilitar la entrega"
-                        {...field}
-                        className="min-h-[90px] rounded-xl bg-muted/30 border-none"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
           ) : authLoading ? (
             <Skeleton className="h-32 w-full rounded-2xl" />
@@ -475,7 +553,7 @@ export function StepAddress({ isActive, setActiveStep, setShippingCost, disabled
             </div>
           ) : (
             <div className="text-center py-8 px-4 border-2 border-dashed border-border/50 rounded-2xl bg-muted/10 w-full">
-              <Map className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4" />
+              <MapIcon className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4" />
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mb-6">No has seleccionado una ubicación</p>
               <Button 
                 type="button" 

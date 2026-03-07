@@ -8,7 +8,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -18,6 +17,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Isotype } from '@/components/icons/Isotype';
 import { PasswordRequirements } from '@/components/password/PasswordRequirements';
 import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from '@/utils/passwordPolicy';
+import { cn } from '@/lib/utils';
 
 const registerSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
@@ -48,6 +48,7 @@ export default function RegisterPage() {
       agreedToTerms: false,
     },
   });
+  const { errors } = form.formState;
   const passwordValue = form.watch('password');
 
   useEffect(() => {
@@ -112,9 +113,12 @@ export default function RegisterPage() {
                       <Input 
                         placeholder="Juan Pérez" 
                         {...field} 
-                        className="h-12 md:h-14 bg-secondary/30 border-border rounded-2xl px-4 focus:ring-primary focus:border-primary transition-all pr-12"
+                        className={cn(
+                          'h-12 md:h-14 bg-secondary/30 border-border rounded-2xl px-4 transition-all pr-12 focus:ring-primary focus:border-primary',
+                          errors.name && 'border-destructive/60 bg-destructive/5 text-destructive placeholder:text-destructive/60 focus:ring-destructive/40 focus:border-destructive'
+                        )}
                       />
-                      <User className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/50" />
+                      <User className={cn('absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/50', errors.name && 'text-destructive')} />
                     </div>
                   </FormControl>
                   <FormMessage />
@@ -133,9 +137,12 @@ export default function RegisterPage() {
                         type="email" 
                         placeholder="tu@email.com" 
                         {...field} 
-                        className="h-12 md:h-14 bg-secondary/30 border-border rounded-2xl px-4 focus:ring-primary focus:border-primary transition-all pr-12"
+                        className={cn(
+                          'h-12 md:h-14 bg-secondary/30 border-border rounded-2xl px-4 focus:ring-primary focus:border-primary transition-all pr-12',
+                          errors.email && 'border-destructive/60 bg-destructive/5 text-destructive placeholder:text-destructive/60 focus:ring-destructive/40 focus:border-destructive'
+                        )}
                       />
-                      <Mail className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/50" />
+                      <Mail className={cn('absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/50', errors.email && 'text-destructive')} />
                     </div>
                   </FormControl>
                   <FormMessage />
@@ -153,14 +160,20 @@ export default function RegisterPage() {
                       <Input 
                         type={showPassword ? "text" : "password"}
                         {...field}
-                        className="h-12 md:h-14 bg-secondary/30 border-border rounded-2xl px-4 focus:ring-primary focus:border-primary transition-all pr-12"
+                        className={cn(
+                          'h-12 md:h-14 bg-secondary/30 border-border rounded-2xl px-4 focus:ring-primary focus:border-primary transition-all pr-12',
+                          errors.password && 'border-destructive/60 bg-destructive/5 text-destructive placeholder:text-destructive/60 focus:ring-destructive/40 focus:border-destructive'
+                        )}
                       />
                     </FormControl>
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="absolute inset-y-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent hover:text-foreground"
+                      className={cn(
+                        'absolute inset-y-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent hover:text-foreground',
+                        errors.password && 'text-destructive hover:text-destructive'
+                      )}
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -175,23 +188,23 @@ export default function RegisterPage() {
               control={form.control}
               name="agreedToTerms"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 p-1">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      className="border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary rounded-md"
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
+                <FormItem className="space-y-2 rounded-2xl bg-secondary/20 p-3">
+                  <div className="flex items-start space-x-3">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary rounded-md"
+                      />
+                    </FormControl>
                     <FormLabel className="text-sm font-normal text-muted-foreground">
                       Acepto los{' '}
                       <Link href="/terms-and-conditions" className="text-primary font-bold hover:underline">
                         términos y condiciones
                       </Link>
                     </FormLabel>
-                    <FormMessage />
                   </div>
+                  <FormMessage />
                 </FormItem>
               )}
             />

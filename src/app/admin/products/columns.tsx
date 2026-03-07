@@ -15,23 +15,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Product, ProductStatus } from '@/lib/definitions';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import Image from 'next/image';
 import { Switch } from '@/components/ui/switch';
 import React, { useState } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 
 export type ProductRow = Product & {
     isVariant: boolean;
@@ -73,11 +63,6 @@ const ToggleStatusCell = ({ product, onToggleStatus, isUpdating }: { product: Pr
     const isPublished = product.status === 'PUBLISHED';
     const [isAlertOpen, setIsAlertOpen] = useState(false);
 
-    const handleConfirmToggle = () => {
-        onToggleStatus(product);
-        setIsAlertOpen(false);
-    }
-    
     const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
         e.stopPropagation();
         e.preventDefault();
@@ -86,7 +71,7 @@ const ToggleStatusCell = ({ product, onToggleStatus, isUpdating }: { product: Pr
     };
 
     return (
-        <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+        <>
             <TooltipProvider>
                 <Tooltip>
                     <TooltipTrigger asChild>
@@ -114,26 +99,28 @@ const ToggleStatusCell = ({ product, onToggleStatus, isUpdating }: { product: Pr
                 </Tooltip>
             </TooltipProvider>
 
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>¿Confirmar cambio de estado?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Estás a punto de {isPublished ? 'ocultar' : 'publicar'} el producto <span className="font-medium">{product.name}</span>.
+            <AdminConfirmDialog
+                open={isAlertOpen}
+                onOpenChange={setIsAlertOpen}
+                variant="warning"
+                title="¿Confirmar cambio de estado?"
+                description={
+                    <>
+                        Estás a punto de{' '}
+                        <span className="font-semibold">{isPublished ? 'ocultar' : 'publicar'}</span>{' '}
+                        el producto <span className="font-semibold">{product.name}</span>.{' '}
                         {isPublished
-                            ? ' El producto ya no será visible en la tienda.'
-                            : ' El producto será visible para todos los clientes en la tienda.'
-                        }
-                        ¿Deseas continuar?
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleConfirmToggle}>
-                        Sí, confirmar
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
+                            ? 'El producto ya no será visible en la tienda.'
+                            : 'El producto será visible para todos los clientes.'}
+                    </>
+                }
+                confirmText="Sí, confirmar"
+                onConfirm={() => {
+                    onToggleStatus(product);
+                    setIsAlertOpen(false);
+                }}
+            />
+        </>
     );
 };
 
@@ -272,7 +259,7 @@ export const columns = ({
     cell: ({ row }) => {
       const stock = parseInt(row.getValue('stock') as string, 10);
       let variant: 'success' | 'warning' | 'destructive' = 'success';
-      
+
       if (isNaN(stock) || stock <= 0) {
         variant = 'destructive';
       } else if (stock <= 10) {
@@ -347,37 +334,26 @@ export const columns = ({
                 Copiar
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
+              <AdminConfirmDialog
+                trigger={
                   <DropdownMenuItem
                     className="text-destructive focus:bg-destructive/90 focus:text-destructive-foreground"
                     onSelect={(e) => e.preventDefault()}
                   >
                     Eliminar
                   </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      ¿Estás seguro de que quieres eliminar este producto?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción no se puede deshacer. El producto{' '}
-                      <span className="font-medium">{product.name}</span>{' '}
-                      será marcado como eliminado y ocultado de la vista pública.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive hover:bg-destructive/90"
-                      onClick={() => onDelete(product.slug)}
-                    >
-                      Sí, eliminar
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                }
+                title="¿Eliminar producto?"
+                description={
+                  <>
+                    Esta acción no se puede deshacer. El producto{' '}
+                    <span className="font-semibold">{product.name}</span> será marcado como
+                    eliminado y ocultado de la vista pública.
+                  </>
+                }
+                confirmText="Sí, eliminar"
+                onConfirm={() => onDelete(product.slug)}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

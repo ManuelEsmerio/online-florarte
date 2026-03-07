@@ -43,15 +43,33 @@ const statusDetails: Record<OrderStatus, { title: string; message: string; accen
     accent: '#ef4444',
     bg: 'rgba(239,68,68,0.12)',
   },
+  PAYMENT_FAILED: {
+    title: 'Pago no procesado',
+    message: 'No pudimos procesar tu pago. Puedes intentarlo de nuevo o contactar a soporte.',
+    accent: '#ef4444',
+    bg: 'rgba(239,68,68,0.12)',
+  },
+  EXPIRED: {
+    title: 'Pedido expirado',
+    message: 'Tu pedido expiró porque no se completó el pago a tiempo. Crea un nuevo pedido cuando lo desees.',
+    accent: '#94a3b8',
+    bg: 'rgba(148,163,184,0.12)',
+  },
 };
 
 const formatDateTime = (value: Date) => format(value, "PPP 'a las' p", { locale: es });
+const formatDateSafe = (value: Date | null, fallback: string) => (value ? format(value, 'PPP', { locale: es }) : fallback);
 const formatCurrency = (amount: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount);
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://floreriaflorarte.com';
+const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://floreriaflorarte.com').replace(/\/$/, '');
+const logoUrl = `${siteUrl}/Logo_Flor.svg`;
 
 export const renderOrderStatusUpdateTemplate = ({ userName, order, newStatus, updatedAt }: TemplateProps): string => {
   const details = statusDetails[newStatus];
   if (!details) return '';
+  const firstItem = order.items?.[0];
+  const firstItemPrice = firstItem ? formatCurrency(firstItem.subtotal) : null;
+  const deliveryDateLabel = formatDateSafe(order.deliveryDate, 'Fecha por confirmar');
+  const deliverySlot = order.deliveryTimeSlot || 'Horario por confirmar';
 
   return `
 <!DOCTYPE html>
@@ -61,56 +79,91 @@ export const renderOrderStatusUpdateTemplate = ({ userName, order, newStatus, up
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Actualización de estado · ${order.code}</title>
   <style>
-    body { margin:0; padding:0; background:#f4f4f5; font-family:'Segoe UI', Arial, sans-serif; color:#0f172a; }
+    @import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap');
+    body { margin:0; padding:0; background:#f4f5f7; font-family:'Public Sans','Segoe UI',Arial,sans-serif; color:#0f172a; }
     .wrapper { padding:32px 12px; }
-    .card { max-width:620px; margin:0 auto; border-radius:28px; overflow:hidden; background:#fff; box-shadow:0 15px 45px rgba(15,23,42,0.15); }
-    .hero { padding:28px; text-align:center; }
-    .badge { display:inline-flex; align-items:center; gap:8px; padding:6px 16px; border-radius:999px; font-weight:600; letter-spacing:0.5px; }
-    .hero h1 { margin:16px 0 6px; font-size:26px; }
-    .hero p { margin:0; color:#475569; }
-    .content { padding:0 32px 32px; }
-    .info-box { background:#f8fafc; border-radius:20px; padding:20px; margin-top:20px; }
-    .info-box h3 { margin:0 0 10px; font-size:14px; letter-spacing:0.4px; color:#64748b; text-transform:uppercase; }
-    .info-box p { margin:6px 0; color:#0f172a; font-size:14px; }
-    .totals { margin-top:16px; font-size:15px; color:#475569; }
-    .totals p { margin:4px 0; }
-    .cta { margin:28px 0 0; text-align:center; }
-    .cta a { display:inline-block; background:#0f172a; color:#fff; padding:14px 32px; text-decoration:none; border-radius:999px; font-weight:600; }
-    .footer { text-align:center; padding:20px; font-size:12px; color:#94a3b8; border-top:1px solid #e2e8f0; }
+    .card { max-width:640px; margin:0 auto; background:#ffffff; border-radius:32px; overflow:hidden; box-shadow:0 22px 60px rgba(15,23,42,0.18); }
+    .header { display:flex; align-items:center; justify-content:space-between; padding:28px 32px; border-bottom:1px solid #f0f0f0; }
+    .header img { width:120px; height:auto; }
+    .hero { text-align:center; padding:36px 32px 12px; }
+    .status-icon { width:80px; height:80px; border-radius:24px; margin:0 auto 18px; display:flex; align-items:center; justify-content:center; font-size:32px; font-weight:700; }
+    .status-pill { display:inline-block; padding:6px 18px; border-radius:999px; font-size:12px; letter-spacing:0.18em; text-transform:uppercase; font-weight:600; }
+    .content { padding:0 40px 40px; }
+    .card-section { margin-top:28px; border:1px solid #f0f0f0; border-radius:22px; padding:22px; background:#fdfdff; }
+    .card-section h3 { margin:0 0 14px; font-size:13px; letter-spacing:0.3em; color:#98a2b3; text-transform:uppercase; }
+    .info-row { display:flex; justify-content:space-between; margin-bottom:12px; }
+    .info-row span { font-size:14px; color:#475467; }
+    .info-row strong { font-size:15px; color:#0f172a; }
+    .product-card { margin-top:18px; border:1px solid #f0f0f0; border-radius:20px; padding:18px; display:flex; gap:16px; background:#fbfbfd; }
+    .product-avatar { width:64px; height:64px; border-radius:18px; background:#ffe4ef; color:#ff2d78; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:24px; }
+    .totals { margin-top:20px; border-top:1px dashed #e2e2ea; padding-top:14px; text-align:right; }
+    .totals p { margin:4px 0; font-size:14px; color:#475467; }
+    .totals strong { font-size:22px; color:#ff2d78; }
+    .cta { text-align:center; margin-top:32px; }
+    .cta a { display:inline-block; background:#ff2d78; color:#ffffff; text-decoration:none; font-weight:700; padding:16px 46px; border-radius:999px; box-shadow:0 18px 32px rgba(255,45,120,0.35); }
+    .footer { background:#f7f8fc; padding:24px 18px 32px; text-align:center; color:#98a2b3; font-size:12px; }
+    .footer a { color:#b0b0c0; text-decoration:none; margin:0 8px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; font-size:12px; }
     @media (max-width:640px) {
-      .card { border-radius:0; }
-      .content { padding:0 20px 24px; }
+      .content { padding:0 24px 32px; }
+      .header { flex-direction:column; gap:12px; text-align:center; }
+      .info-row { flex-direction:column; gap:4px; }
     }
   </style>
 </head>
 <body>
   <div class="wrapper">
     <div class="card">
-      <div class="hero" style="background:${details.bg};">
-        <div class="badge" style="color:${details.accent};background:#fff;">${newStatus}</div>
-        <h1>${details.title}</h1>
-        <p>Actualizado el ${formatDateTime(updatedAt)}</p>
+      <div class="header">
+        <img src="${logoUrl}" alt="Florarte" />
+        <span style="font-weight:600;color:#94a3b8;letter-spacing:0.3em;text-transform:uppercase;font-size:11px;">${order.code}</span>
+      </div>
+      <div class="hero">
+        <div class="status-icon" style="background:${details.bg};color:${details.accent};">
+          ${newStatus === 'DELIVERED' ? '✓' : '⚘'}
+        </div>
+        <div class="status-pill" style="background:${details.bg};color:${details.accent};">${newStatus}</div>
+        <h1 style="margin:14px 0 6px;font-size:28px;color:#0f172a;">${details.title}</h1>
+        <p style="margin:0;color:#475467;">Hola ${userName}, ${details.message}</p>
+        <p style="margin:6px 0 0;color:#98a2b3;font-size:13px;">Actualizado el ${formatDateTime(updatedAt)}</p>
       </div>
       <div class="content">
-        <p style="margin:24px 0 0;color:#475569;">Hola ${userName},</p>
-        <p style="margin:8px 0 20px;color:#475569;">${details.message}</p>
-
-        <div class="info-box">
-          <h3>Resumen del pedido</h3>
-          <p><strong>Orden:</strong> ${order.code}</p>
-          <p><strong>Entrega:</strong> ${order.deliveryDate ? format(order.deliveryDate, 'PPP', { locale: es }) : 'Por confirmar'} · ${order.deliveryTimeSlot || 'Horario por confirmar'}</p>
-          <p><strong>Destinatario:</strong> ${order.address.recipientName || order.customerName}</p>
-          <p><strong>Dirección:</strong> ${order.address.line1 || 'Por confirmar'}</p>
+        <div class="card-section">
+          <h3>Detalles de la orden</h3>
+          <div class="info-row">
+            <span>Número de pedido</span>
+            <strong>${order.code}</strong>
+          </div>
+          <div class="info-row">
+            <span>Entrega programada</span>
+            <strong>${deliveryDateLabel} · ${deliverySlot}</strong>
+          </div>
+          <div class="info-row">
+            <span>Destinatario</span>
+            <strong>${order.address.recipientName || order.customerName}</strong>
+          </div>
+          <div class="info-row" style="margin-bottom:0;">
+            <span>Dirección</span>
+            <strong>${order.address.line1 || 'Por confirmar'}</strong>
+          </div>
         </div>
 
-        <div class="info-box">
-          <h3>Estado y monto</h3>
-          <p><strong>Estado actual:</strong> ${details.title}</p>
+        <div class="product-card">
+          <div class="product-avatar">${firstItem ? firstItem.name.charAt(0).toUpperCase() : 'F'}</div>
+          <div style="flex:1;text-align:left;">
+            <p style="margin:0;font-weight:600;color:#0f172a;">${firstItem ? firstItem.name : 'Selecciona productos Florarte'}</p>
+            <p style="margin:6px 0;color:#98a2b3;font-size:13px;">${firstItem ? `Cantidad: ${firstItem.quantity}` : 'Tu arreglo sigue en preparación.'}</p>
+            ${firstItemPrice ? `<p style="margin:0;color:#ff2d78;font-weight:700;">${firstItemPrice}</p>` : ''}
+          </div>
+        </div>
+
+        <div class="card-section" style="margin-top:24px; background:#ffffff;">
+          <h3>Resumen de pago</h3>
+          <div class="info-row"><span>Subtotal</span><strong>${formatCurrency(order.subtotal)}</strong></div>
+          ${order.couponDiscount > 0 ? `<div class="info-row"><span>Descuento</span><strong>- ${formatCurrency(order.couponDiscount)}</strong></div>` : ''}
+          <div class="info-row"><span>Envío</span><strong>${formatCurrency(order.shippingCost)}</strong></div>
           <div class="totals">
-            <p>Subtotal: ${formatCurrency(order.subtotal)}</p>
-            ${order.couponDiscount > 0 ? `<p>Descuento: -${formatCurrency(order.couponDiscount)}</p>` : ''}
-            <p>Envío: ${formatCurrency(order.shippingCost)}</p>
-            <p><strong>Total: ${formatCurrency(order.total)}</strong></p>
+            <p style="margin:0;color:#98a2b3;font-size:13px;">Estado actual: ${details.title}</p>
+            <strong>${formatCurrency(order.total)}</strong>
           </div>
         </div>
 
@@ -119,7 +172,12 @@ export const renderOrderStatusUpdateTemplate = ({ userName, order, newStatus, up
         </div>
       </div>
       <div class="footer">
-        Florería Florarte · ${siteUrl}
+        <div style="margin-bottom:12px;">
+          <a href="${siteUrl}">Sitio</a>
+          <a href="${siteUrl}/privacy">Privacidad</a>
+          <a href="${siteUrl}/contacto">Soporte</a>
+        </div>
+        <p style="margin:0;color:#b0b4c3;font-size:11px;">© ${new Date().getFullYear()} Florarte · Este es un correo automático.</p>
       </div>
     </div>
   </div>

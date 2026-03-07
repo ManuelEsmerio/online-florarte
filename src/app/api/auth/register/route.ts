@@ -6,6 +6,13 @@ import { sendVerificationEmail } from '@/lib/email';
 import crypto from 'crypto';
 import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from '@/utils/passwordPolicy';
+import { z, ZodError } from 'zod';
+
+const registerSchema = z.object({
+  name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.').max(200),
+  email: z.string().email('El correo electrónico no es válido.').max(254),
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres.').max(1000),
+});
 
 export async function POST(req: NextRequest) {
   // 10 registros por IP cada hora
@@ -16,11 +23,24 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { name, email, password } = await req.json();
-
-    if (!name || !email || !password) {
-      return errorHandler(new Error('Todos los campos son requeridos.'), 400);
+    let rawBody: unknown;
+    try {
+      rawBody = await req.json();
+    } catch {
+      return errorHandler(new Error('Formato de solicitud inválido.'), 400);
     }
+
+    let parsed: z.infer<typeof registerSchema>;
+    try {
+      parsed = registerSchema.parse(rawBody);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return errorHandler(new Error(err.errors[0]?.message ?? 'Datos inválidos.'), 400);
+      }
+      throw err;
+    }
+
+    const { name, email, password } = parsed;
 
     if (!isPasswordStrong(password)) {
       return errorHandler(new Error(PASSWORD_POLICY_MESSAGE), 400);
@@ -42,6 +62,7 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
     const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
 
     const newUser = await prisma.user.create({
@@ -49,7 +70,7 @@ export async function POST(req: NextRequest) {
         name,
         email: emailLower,
         passwordHash: hashedPassword,
-        emailVerificationToken: verificationToken,
+        emailVerificationToken: verificationTokenHash,
         emailVerificationExpiry: verificationExpiry,
       },
     });

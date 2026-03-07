@@ -1,28 +1,10 @@
 
 import type {NextConfig} from 'next';
 
-// 'unsafe-eval' es necesario en desarrollo para el hot-module replacement de Next.js.
-// En producción se elimina para reducir la superficie de ataque XSS.
-const isDev = process.env.NODE_ENV === 'development';
-
-const ContentSecurityPolicy = `
-  default-src 'self';
-  script-src 'self' ${isDev ? "'unsafe-eval'" : ''} 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com;
-  child-src 'self' https://www.google.com;
-  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  img-src 'self' https://placehold.co https://picsum.photos https://i.pravatar.cc https://res.cloudinary.com data: blob:;
-  font-src 'self' https://fonts.gstatic.com;
-  connect-src 'self' https://www.googleapis.com https://www.google.com https://www.google-analytics.com;
-  frame-src 'self' https://www.google.com;
-  object-src 'none';
-  base-uri 'self';
-`;
+// La Content-Security-Policy con nonce se gestiona dinámicamente en src/proxy.ts (middleware).
+// Aquí solo se definen los demás security headers estáticos.
 
 const securityHeaders = [
-  {
-    key: 'Content-Security-Policy',
-    value: ContentSecurityPolicy.replace(/\s{2,}/g, ' ').trim(),
-  },
   {
     key: 'X-DNS-Prefetch-Control',
     value: 'on',

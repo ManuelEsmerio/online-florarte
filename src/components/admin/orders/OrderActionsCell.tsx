@@ -55,6 +55,8 @@ const statusTranslations: { [key in OrderStatus]: string } = {
   SHIPPED: 'En Reparto',
   DELIVERED: 'Completado',
   CANCELLED: 'Cancelado',
+  PAYMENT_FAILED: 'Pago Fallido',
+  EXPIRED: 'Expirado',
 };
 
 export const OrderActionsCell = ({

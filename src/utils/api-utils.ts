@@ -58,7 +58,7 @@ export function errorHandler(error: any, status: number = 500) {
   const isClientError = resolvedStatus >= 400 && resolvedStatus < 500;
   const clientMessage = explicitPublicMessage || (isClientError ? internalMessage : defaultMessage);
 
-  console.error(`[API Error]: ${internalMessage}`, { status: resolvedStatus, code: errorCode, errorObj: error });
+  console.error(`[API Error]: ${internalMessage}`, { status: resolvedStatus, code: errorCode });
 
   return NextResponse.json({
     success: false,

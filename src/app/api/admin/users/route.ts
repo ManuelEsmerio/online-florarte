@@ -3,9 +3,19 @@ import { NextRequest } from 'next/server';
 import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { userService } from '@/services/userService';
-import { prisma } from '@/lib/prisma';
-import { ZodError } from 'zod';
+import { z, ZodError } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
+
+// Roles que un administrador puede asignar (SUPERADMIN no existe en este sistema)
+const ALLOWED_ROLES = ['CUSTOMER', 'ADMIN'] as const;
+
+const createUserSchema = z.object({
+  name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(200),
+  email: z.string().email('El correo electrónico no es válido'),
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+  phone: z.string().max(20).optional().nullable(),
+  role: z.enum(ALLOWED_ROLES).default('CUSTOMER'),
+});
 
 /**
  * GET /api/admin/users
@@ -18,8 +28,7 @@ export async function GET(req: NextRequest) {
     if (!session?.dbId) {
       return errorHandler(new Error('Acceso prohibido. Sesión no válida.'), 403);
     }
-    const user = await prisma.user.findFirst({ where: { id: session.dbId, isDeleted: false }, select: { role: true } });
-    if (!isAdminRole(user?.role)) {
+    if (!isAdminRole(session.role)) {
       return errorHandler(new Error('Acceso prohibido. Permisos insuficientes.'), 403);
     }
 
@@ -53,17 +62,16 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session: UserSession | null = await getDecodedToken(req);
-    if (!session || !session.dbId) {
+    if (!session?.dbId) {
       return errorHandler(new Error('Acceso denegado.'), 401);
     }
-    const adminUser = await prisma.user.findFirst({ where: { id: session.dbId, isDeleted: false }, select: { role: true } });
-    if (!isAdminRole(adminUser?.role)) {
+    if (!isAdminRole(session.role)) {
       return errorHandler(new Error('Acceso prohibido.'), 403);
     }
 
-    const body = await req.json();
-    
-    // En modo demo, simplemente generamos un UID local
+    const rawBody = await req.json();
+    const body = createUserSchema.parse(rawBody);
+
     const localUid = `user_${uuidv4()}`;
 
     const newUser = await userService.createUserByAdmin({ ...body, uid: localUid }, session.dbId);
@@ -89,8 +97,7 @@ export async function DELETE(req: NextRequest) {
         if (!session?.dbId) {
             return errorHandler(new Error('Acceso denegado.'), 401);
         }
-        const adminUser = await prisma.user.findFirst({ where: { id: session.dbId, isDeleted: false }, select: { role: true } });
-        if (!isAdminRole(adminUser?.role)) {
+        if (!isAdminRole(session.role)) {
             return errorHandler(new Error('Acceso prohibido.'), 403);
         }
 

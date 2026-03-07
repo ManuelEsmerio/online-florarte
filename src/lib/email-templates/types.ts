@@ -3,6 +3,8 @@ export interface OrderEmailItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  imageUrl?: string | null;
+  variantName?: string | null;
 }
 
 export interface OrderEmailAddressInfo {

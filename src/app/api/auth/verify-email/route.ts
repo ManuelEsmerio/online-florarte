@@ -2,6 +2,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorHandler } from '@/utils/api-utils';
+import crypto from 'crypto';
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,9 +12,11 @@ export async function GET(req: NextRequest) {
       return errorHandler(new Error('Token de verificación requerido.'), 400);
     }
 
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
     const user = await prisma.user.findFirst({
       where: {
-        emailVerificationToken: token,
+        emailVerificationToken: tokenHash,
         emailVerificationExpiry: { gt: new Date() },
         isDeleted: false,
       },

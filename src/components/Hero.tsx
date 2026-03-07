@@ -14,8 +14,8 @@ type CarouselApi = UseEmblaCarouselType[1];
 const slides = [
   {
     src: {
-      desktop: '/assets/banner/banner-florarte-2.png',
-      mobile: '/assets/banner/banner-florarte-2-mobile.png',
+      desktop: 'https://picsum.photos/seed/hero1/1920/1080',
+      mobile: 'https://picsum.photos/seed/hero1/750/1200',
     },
     alt: 'Arreglos florales para toda ocasión',
     title: 'Flores que Hablan por Ti',

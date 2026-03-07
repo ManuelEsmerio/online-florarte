@@ -114,6 +114,11 @@ export async function POST(req: NextRequest) {
       return errorHandler(new Error('Solo se permiten archivos CSV.'), 400);
     }
 
+    const MAX_CSV_SIZE = 5 * 1024 * 1024; // 5 MB
+    if (file.size > MAX_CSV_SIZE) {
+      return errorHandler(new Error('El archivo CSV no puede superar los 5 MB.'), 400);
+    }
+
     const csvContent = await file.text();
     const rows = parseCSV(csvContent);
 

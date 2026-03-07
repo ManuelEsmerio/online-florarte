@@ -4,9 +4,11 @@ import { Redis } from '@upstash/redis';
 /**
  * Rate limiter híbrido (Upstash Redis + fallback en memoria).
  *
- * En producción se usará Redis (clave compartida entre lambdas). Si las
- * credenciales no están configuradas, se mantiene el modo en memoria para
- * entornos locales, aunque sin la misma protección.
+ * En producción Redis es OBLIGATORIO. Sin él, cada instancia serverless
+ * mantiene su propio contador y el límite puede multiplicarse por el número
+ * de instancias activas, haciendo el rate limiting inefectivo.
+ *
+ * En desarrollo local, el fallback en memoria es aceptable.
  */
 
 interface RateLimitEntry {
@@ -19,6 +21,16 @@ const limiterCache = new Map<string, Ratelimit>();
 
 const redisRestUrl = process.env.UPSTASH_REDIS_REST_URL;
 const redisRestToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+// En producción, Redis es obligatorio para rate limiting distribuido efectivo.
+if (process.env.NODE_ENV === 'production' && (!redisRestUrl || !redisRestToken)) {
+  console.error(
+    '[rateLimit] CRÍTICO: UPSTASH_REDIS_REST_URL y UPSTASH_REDIS_REST_TOKEN son obligatorios en ' +
+    'producción. El rate limiting en memoria es inefectivo en entornos multi-instancia (serverless). ' +
+    'Configura Upstash Redis para protección real.',
+  );
+}
+
 const redis = redisRestUrl && redisRestToken
   ? new Redis({ url: redisRestUrl, token: redisRestToken })
   : null;
@@ -85,11 +97,33 @@ export async function checkRateLimit(key: string, max: number, windowMs: number)
   return { allowed: true, remaining: max - entry.count, resetAt: entry.resetAt };
 }
 
-/** Extrae la IP real del cliente considerando proxies (Vercel, Cloudflare). */
+/**
+ * Extrae la IP real del cliente de forma segura.
+ *
+ * Orden de prioridad (del más confiable al menos):
+ * 1. CF-Connecting-IP  → Cloudflare lo inyecta y sobreescribe encabezados previos
+ * 2. X-Real-IP        → Vercel / nginx lo inyectan en el edge
+ * 3. X-Forwarded-For  → Último IP de la cadena (el que añadió el proxy conocido)
+ *
+ * NOTA IMPORTANTE: X-Forwarded-For puede ser falsificado por el cliente si la
+ * infraestructura no elimina el encabezado entrante. Usa siempre el ÚLTIMO IP
+ * de la cadena (añadido por tu proxy de confianza), no el primero. En Vercel/
+ * Cloudflare, CF-Connecting-IP / X-Real-IP son más seguros.
+ */
 export function getClientIp(req: Request): string {
-  return (
-    (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() ||
-    req.headers.get('x-real-ip') ||
-    'unknown'
-  );
+  // Cloudflare sobreescribe este header — es el más confiable en ese entorno
+  const cfConnecting = req.headers.get('cf-connecting-ip')?.trim();
+  if (cfConnecting) return cfConnecting;
+
+  // Vercel / nginx edge
+  const xRealIp = req.headers.get('x-real-ip')?.trim();
+  if (xRealIp) return xRealIp;
+
+  // X-Forwarded-For: usar el ÚLTIMO IP (añadido por el proxy de confianza),
+  // no el primero (que puede ser falsificado por el cliente).
+  const forwardedFor = req.headers.get('x-forwarded-for') ?? '';
+  const ips = forwardedFor.split(',').map((ip) => ip.trim()).filter(Boolean);
+  if (ips.length > 0) return ips[ips.length - 1];
+
+  return 'unknown';
 }

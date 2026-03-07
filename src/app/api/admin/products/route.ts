@@ -5,13 +5,34 @@ import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { productService } from '@/services/productService';
 import { z, ZodError } from 'zod';
 
-const productVariantSchema = z.object({
-  name: z.string().min(1).max(200),
-  sku: z.string().max(100).optional().nullable(),
-  price: z.number().nonnegative().optional().nullable(),
-  stock: z.number().int().min(0).optional(),
-  images: z.array(z.string()).optional(),
-}).passthrough();
+const variantImageSchema = z.union([
+  z.string().min(1),
+  z
+    .object({
+      id: z.number().optional(),
+      src: z.string(),
+      alt: z.string().optional().nullable(),
+      isNew: z.boolean().optional(),
+      is_new: z.boolean().optional(),
+      display_order: z.number().optional().nullable(),
+      sortOrder: z.number().optional().nullable(),
+      is_deleted: z.boolean().optional(),
+      isDeleted: z.boolean().optional(),
+      is_primary: z.boolean().optional(),
+      isPrimary: z.boolean().optional(),
+    })
+    .passthrough(),
+]);
+
+const productVariantSchema = z
+  .object({
+    name: z.string().min(1).max(200),
+    sku: z.string().max(100).optional().nullable(),
+    price: z.number().nonnegative().optional().nullable(),
+    stock: z.number().int().min(0).optional(),
+    images: z.array(variantImageSchema).optional(),
+  })
+  .passthrough();
 
 const productDataSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio').max(300),

@@ -5,7 +5,6 @@ import { ColumnDef } from '@tanstack/react-table';
 import { MoreHorizontal, ArrowUpDown, Star, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import type { Testimonial } from '@/lib/definitions';
@@ -13,6 +12,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { TestimonialDetailModal } from '@/components/admin/testimonials/TestimonialDetailModal';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 
 export type TestimonialStatus = 'pending' | 'APPROVED' | 'REJECTED';
 
@@ -133,27 +133,25 @@ export const columns = ({ onUpdateStatus, onDelete }: ColumnsProps): ColumnDef<T
               Rechazar
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <DropdownMenuItem className="text-destructive focus:bg-destructive/90 focus:text-destructive-foreground" onSelect={(e) => e.preventDefault()}>
+            <AdminConfirmDialog
+              trigger={
+                <DropdownMenuItem
+                  className="text-destructive focus:bg-destructive/90 focus:text-destructive-foreground"
+                  onSelect={(e) => e.preventDefault()}
+                >
                   Eliminar
                 </DropdownMenuItem>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Esta acción eliminará permanentemente el testimonio de {testimonial.userName}.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => onDelete(testimonial.id)}>
-                    Sí, eliminar
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+              }
+              title="¿Eliminar testimonio?"
+              description={
+                <>
+                  Esta acción eliminará permanentemente el testimonio de{' '}
+                  <span className="font-semibold">{testimonial.userName}</span>.
+                </>
+              }
+              confirmText="Sí, eliminar"
+              onConfirm={() => onDelete(testimonial.id)}
+            />
           </DropdownMenuContent>
         </DropdownMenu>
       );

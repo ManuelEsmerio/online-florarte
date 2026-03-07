@@ -338,6 +338,8 @@ const fetchOrders = useCallback(async () => {
     'SHIPPED': 'En Reparto',
     'DELIVERED': 'Completado',
     'CANCELLED': 'Cancelado',
+    'PAYMENT_FAILED': 'Pago Fallido',
+    'EXPIRED': 'Expirado',
   }
 
   if (isLoading && orders.length === 0) {

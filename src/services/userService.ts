@@ -286,12 +286,12 @@ export const userService = {
     const existing = await prisma.user.findFirst({ where: { email: data.email.toLowerCase(), isDeleted: false } });
     if (existing) throw new UserFacingError('El correo electrónico ya está en uso.');
 
-    const rawPassword = data.password || 'Florarte2024!';
-    if (data.password) {
-      assertPasswordStrength(data.password);
+    if (!data.password) {
+      throw new UserFacingError('La contraseña es obligatoria al crear un usuario.');
     }
+    assertPasswordStrength(data.password);
 
-    const passwordHash = await bcrypt.hash(rawPassword, 12);
+    const passwordHash = await bcrypt.hash(data.password, 12);
 
     const newUser = await prisma.user.create({
       data: {
@@ -316,16 +316,28 @@ export const userService = {
       if (existing) throw new UserFacingError('El correo electrónico ya está en uso por otra cuenta.');
     }
 
+    // Whitelist de roles — previene escalada de privilegios con roles arbitrarios
+    const ALLOWED_ROLES = ['CUSTOMER', 'ADMIN'];
+    const requestedRole = String(data.role || 'CUSTOMER').toUpperCase();
+    if (!ALLOWED_ROLES.includes(requestedRole)) {
+      throw new UserFacingError(`Rol no válido. Los roles permitidos son: ${ALLOWED_ROLES.join(', ')}.`);
+    }
+
     const updateData: any = {
       name: data.name,
       phone: data.phone || null,
-      role: (data.role || 'CUSTOMER').toUpperCase() as any,
+      role: requestedRole as any,
     };
 
     if (data.email) updateData.email = data.email.toLowerCase();
     if (data.password) {
       assertPasswordStrength(data.password);
       updateData.passwordHash = await bcrypt.hash(data.password, 12);
+    }
+
+    // Si cambia contraseña o rol, revocar JWTs activos incrementando tokenVersion
+    if (data.password || data.role) {
+      updateData.tokenVersion = { increment: 1 };
     }
 
     const updated = await prisma.user.update({ where: { id: userId }, data: updateData });

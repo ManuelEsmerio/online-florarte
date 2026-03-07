@@ -233,6 +233,8 @@ export default function OrdersPage() {
     'SHIPPED': 'En Camino',
     'DELIVERED': 'Completado',
     'CANCELLED': 'Cancelado',
+    'PAYMENT_FAILED': 'Pago Fallido',
+    'EXPIRED': 'Expirado',
   };
 
   const getStatusBadgeClass = (status: OrderStatus, isUnpaidOrder: boolean) => {

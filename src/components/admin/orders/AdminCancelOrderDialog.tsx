@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducer } from 'react';
-import { AlertTriangle, CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, X, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -25,6 +25,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import type { AdminOrderListDTO, OrderStatus } from '@/lib/definitions';
+import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,6 +62,8 @@ const REFUND_OPTIONS: Record<OrderStatus, RefundOption[]> = {
     { value: 0, label: 'Sin reembolso' },
   ],
   CANCELLED: [],
+  PAYMENT_FAILED: [],
+  EXPIRED: [],
 };
 
 const CANCELLATION_REASONS = [
@@ -78,12 +81,27 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   SHIPPED: 'En Reparto',
   DELIVERED: 'Completado',
   CANCELLED: 'Cancelado',
+  PAYMENT_FAILED: 'Pago Fallido',
+  EXPIRED: 'Expirado',
 };
 
 const formatMXN = (amount: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount);
 
 const orderCode = (id: number) => `ORD${String(id).padStart(6, '0')}`;
+
+const ADMIN_STATUS_BADGE_CLASSES: Record<OrderStatus, string> = {
+  PENDING: 'bg-amber-400/15 text-amber-200 border border-amber-300/30',
+  PROCESSING: 'bg-sky-400/15 text-sky-100 border border-sky-300/30',
+  SHIPPED: 'bg-cyan-400/15 text-cyan-100 border border-cyan-300/30',
+  DELIVERED: 'bg-emerald-400/15 text-emerald-100 border border-emerald-300/30',
+  CANCELLED: 'bg-rose-500/20 text-rose-100 border border-rose-400/30',
+  PAYMENT_FAILED: 'bg-red-500/15 text-red-100 border border-red-400/30',
+  EXPIRED: 'bg-slate-500/20 text-slate-200 border border-slate-400/30',
+};
+
+const getAdminStatusBadgeClass = (status: OrderStatus) =>
+  ADMIN_STATUS_BADGE_CLASSES[status] ?? 'bg-white/10 text-white border border-white/15';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -172,6 +190,9 @@ export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
   const [state, dispatch] = useReducer(dialogReducer, defaultValue, makeInitialState);
   const { open, step, isSubmitting, selectedValue, customPct, reason, customReason, cancelResult } = state;
 
+  const friendlyOrderCode = order.code ?? orderCode(order.id);
+  const statusBadgeClass = getAdminStatusBadgeClass(order.status);
+
   const effectivePct =
     selectedValue === '-1'
       ? Math.min(100, Math.max(0, Number(customPct) || 0))
@@ -245,7 +266,11 @@ export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
       <span onClick={() => handleOpenChange(true)}>{trigger}</span>
 
       <DialogContent
-        className="sm:max-w-md"
+        className={cn(
+          step === 'refund'
+            ? 'max-w-xl overflow-hidden rounded-[2.2rem] border border-white/10 bg-[#08090c] p-0 text-slate-100 shadow-[0_35px_80px_rgba(0,0,0,0.75)]'
+            : 'sm:max-w-md rounded-2xl bg-background p-6 text-foreground'
+        )}
         onInteractOutside={(e) => {
           if (isSubmitting) e.preventDefault();
         }}
@@ -253,99 +278,156 @@ export function AdminCancelOrderDialog({ order, trigger, onSuccess }: Props) {
         {/* ── Step 1: Refund percentage ──────────────────────────────── */}
         {step === 'refund' && (
           <>
-            <DialogHeader>
-              <DialogTitle className="font-headline text-xl text-destructive flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5" />
-                Cancelar pedido
-              </DialogTitle>
-              <DialogDescription>
-                <span className="font-semibold">{orderCode(order.id)}</span> ·{' '}
-                {order.customerName} · Estado:{' '}
-                <span className="font-semibold">{STATUS_LABELS[order.status]}</span>
-              </DialogDescription>
+            <DialogHeader className="sr-only">
+              <DialogTitle>Cancelar pedido</DialogTitle>
+              <DialogDescription>Selecciona el porcentaje de reembolso</DialogDescription>
             </DialogHeader>
+            <div className="relative px-8 pt-12 pb-8 bg-[#101116] text-center">
+              <button
+                type="button"
+                onClick={() => handleOpenChange(false)}
+                disabled={isSubmitting}
+                className="absolute top-5 right-5 flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-400 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-40"
+                aria-label="Cerrar"
+              >
+                <X className="h-4 w-4" />
+              </button>
 
-            <div className="space-y-4 py-2">
-              {hasPayment ? (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    Monto cobrado:{' '}
-                    <span className="font-semibold text-foreground">
-                      {formatMXN(order.total)}
-                    </span>{' '}
-                    · Vía{' '}
-                    <span className="capitalize">
-                      {order.paymentGateway ?? 'pasarela desconocida'}
-                    </span>
+              <div className="mx-auto flex flex-col items-center gap-5">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]">
+                  <AlertTriangle className="h-11 w-11" />
+                </div>
+                <div className="max-w-sm space-y-3">
+                  <h2 className="text-3xl font-black tracking-tight">Cancelar pedido</h2>
+                  <p className="text-sm text-slate-400">
+                    Revisa los detalles del pedido <span className="font-semibold text-white">{friendlyOrderCode}</span> antes de confirmar la cancelación.
                   </p>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">
-                      Porcentaje a reembolsar
-                    </Label>
-                    <RadioGroup
-                      value={selectedValue}
-                      onValueChange={(v) => dispatch({ type: 'set_selected_value', value: v })}
-                      className="space-y-2"
-                    >
-                      {options.map((opt) => (
-                        <div key={opt.value} className="flex items-center space-x-2">
-                          <RadioGroupItem
-                            value={String(opt.value)}
-                            id={`refund-${opt.value}`}
-                          />
-                          <Label
-                            htmlFor={`refund-${opt.value}`}
-                            className="cursor-pointer font-normal"
-                          >
-                            {opt.label}
-                          </Label>
-                        </div>
-                      ))}
-                    </RadioGroup>
-
-                    {selectedValue === '-1' && (
-                      <div className="flex items-center gap-2 mt-2 pl-6">
-                        <Input
-                          type="number"
-                          min={1}
-                          max={100}
-                          value={customPct}
-                          onChange={(e) => dispatch({ type: 'set_custom_pct', value: e.target.value })}
-                          placeholder="Ej: 15"
-                          className="w-28"
-                        />
-                        <span className="text-sm text-muted-foreground">%</span>
-                      </div>
-                    )}
-
-                    {effectivePct > 0 && (
-                      <p className="text-sm font-semibold text-primary mt-1 pl-6">
-                        Reembolso estimado: {formatMXN(refundAmount)}
-                      </p>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Este pedido no tiene un pago registrado. Se cancelará sin emitir
-                  reembolso.
-                </p>
-              )}
+                </div>
+              </div>
             </div>
 
-            <DialogFooter>
-              <Button variant="secondary" onClick={() => handleOpenChange(false)}>
-                Cerrar
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => dispatch({ type: 'set_step', step: 'reason' })}
-                disabled={hasPayment && !isRefundStepValid}
-              >
-                Siguiente
-              </Button>
-            </DialogFooter>
+            <div className="px-8 py-8 space-y-6">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+                <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-slate-400">ID del pedido</p>
+                    <p className="text-[10px] uppercase tracking-[0.4em] text-slate-500">Referencia</p>
+                  </div>
+                  <span className="text-2xl font-black tracking-tight text-white">{friendlyOrderCode}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-400">Estado actual</span>
+                  <span className={cn('px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-[0.25em]', statusBadgeClass)}>
+                    {STATUS_LABELS[order.status]}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-slate-300">
+                  <span>Cliente</span>
+                  <strong className="text-white">{order.customerName}</strong>
+                </div>
+                <div className="flex items-center justify-between text-sm text-slate-300">
+                  <span>Monto total</span>
+                  <strong className="text-white">{formatMXN(order.total)}</strong>
+                </div>
+              </div>
+
+              {hasPayment ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-slate-300">
+                    Se registró un pago vía <span className="capitalize text-white font-semibold">{order.paymentGateway ?? 'pasarela'}</span>. Selecciona el porcentaje que deseas reembolsar.
+                  </p>
+
+                  <RadioGroup
+                    value={selectedValue}
+                    onValueChange={(v) => dispatch({ type: 'set_selected_value', value: v })}
+                    className="grid gap-3 sm:grid-cols-2"
+                  >
+                    {options.map((opt) => {
+                      const optionValue = String(opt.value);
+                      const isSelected = selectedValue === optionValue;
+                      return (
+                        <label
+                          key={opt.value}
+                          htmlFor={`refund-${opt.value}`}
+                          className={cn(
+                            'flex cursor-pointer items-center justify-between rounded-2xl border px-5 py-4 transition-all',
+                            isSelected
+                              ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary)/0.12)] text-white shadow-[0_18px_40px_hsl(var(--primary)/0.35)]'
+                              : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/30'
+                          )}
+                        >
+                          <div className="flex flex-col text-left">
+                            <span className="text-sm font-semibold leading-tight">{opt.label}</span>
+                            {opt.value === -1 && (
+                              <span className="text-xs text-slate-400">Define un porcentaje personalizado</span>
+                            )}
+                          </div>
+                          <RadioGroupItem
+                            value={optionValue}
+                            id={`refund-${opt.value}`}
+                            className={cn(
+                              'h-5 w-5 rounded-full border-2 border-white/30 text-[hsl(var(--primary))] transition-colors',
+                              isSelected && 'border-[hsl(var(--primary))]'
+                            )}
+                          />
+                        </label>
+                      );
+                    })}
+                  </RadioGroup>
+
+                  {selectedValue === '-1' && (
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={customPct}
+                        onChange={(e) => dispatch({ type: 'set_custom_pct', value: e.target.value })}
+                        placeholder="Ej: 15"
+                        className="h-12 flex-1 rounded-2xl border border-white/15 bg-black/40 text-center text-base font-semibold text-white placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary)/0.4)]"
+                      />
+                      <span className="text-sm font-semibold text-slate-300">%</span>
+                    </div>
+                  )}
+
+                  {effectivePct > 0 && (
+                    <p className="text-sm font-semibold text-[hsl(var(--primary))]">
+                      Reembolso estimado: {formatMXN(refundAmount)}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="flex gap-3 rounded-2xl border border-amber-300/30 bg-amber-400/10 p-4 text-sm leading-relaxed text-amber-50">
+                  <AlertTriangle className="h-5 w-5 text-amber-200 flex-shrink-0" />
+                  <p>
+                    Este pedido no tiene un pago registrado. Se cancelará permanentemente <span className="font-semibold">sin emitir reembolso</span>.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => handleOpenChange(false)}
+                  className="flex-1 h-12 rounded-xl border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+                >
+                  Volver
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => dispatch({ type: 'set_step', step: 'reason' })}
+                  disabled={hasPayment && !isRefundStepValid}
+                  className="flex-1 h-12 rounded-xl bg-[hsl(var(--primary))] text-sm font-bold uppercase tracking-[0.2em] text-white shadow-[0_18px_40px_hsl(var(--primary)/0.35)] hover:bg-[hsl(var(--primary))] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Continuar
+                </Button>
+              </div>
+            </div>
+
+            <div className="bg-black/40 px-8 py-5 text-center text-[10px] font-bold uppercase tracking-[0.5em] text-slate-500">
+              Florarte · Admin
+            </div>
           </>
         )}
 

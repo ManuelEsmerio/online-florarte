@@ -33,6 +33,8 @@ const statusStyles: { [key in OrderStatus]: string } = {
   SHIPPED: 'bg-blue-50 text-blue-600 border-blue-100',
   PROCESSING: 'bg-amber-50 text-amber-600 border-amber-100',
   CANCELLED: 'bg-red-50 text-red-600 border-red-100',
+  PAYMENT_FAILED: 'bg-red-50 text-red-600 border-red-100',
+  EXPIRED: 'bg-slate-100 text-slate-400 border-slate-200',
 };
 
 const statusTranslations: { [key in OrderStatus]: string } = {
@@ -41,6 +43,8 @@ const statusTranslations: { [key in OrderStatus]: string } = {
   SHIPPED: 'En Camino',
   DELIVERED: 'Completado',
   CANCELLED: 'Cancelado',
+  PAYMENT_FAILED: 'Pago Fallido',
+  EXPIRED: 'Expirado',
 };
 
 const activityIcons: Record<Activity['type'], React.ReactNode> = {

@@ -27,7 +27,7 @@ export function getOrCreateSessionId(request: NextRequest) {
       value: sessionId,
       httpOnly: true,
       secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: 60 * 60 * 24 * 30, // 30 días
       path: '/',
     });

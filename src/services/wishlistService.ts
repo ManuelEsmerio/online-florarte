@@ -11,7 +11,7 @@ export type WishlistEntry = {
   selectionKey: string;
   createdAt: Date;
   product: Product;
-  variant?: ProductVariant | null;
+  variant: ProductVariant | null;
 };
 
 type WishlistResponse = {

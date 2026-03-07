@@ -20,8 +20,8 @@ const stripeRefundProvider: RefundProvider = {
 /** Mercado Pago adapter */
 const mpRefundProvider: RefundProvider = {
   async createRefund(params: RefundParams): Promise<RefundResult> {
-    const { Refund } = await import('mercadopago');
-    const refundApi = new Refund(mercadopago);
+    const { PaymentRefund } = await import('mercadopago');
+    const refundApi = new PaymentRefund(mercadopago);
 
     const body: Record<string, unknown> = {};
     if (params.amount !== undefined) {

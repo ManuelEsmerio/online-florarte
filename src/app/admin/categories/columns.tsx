@@ -4,12 +4,12 @@ import { ColumnDef } from '@tanstack/react-table';
 import { MoreHorizontal, ArrowUpDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import type { ProductCategory } from '@/lib/definitions';
 import React from 'react';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 
 type ColumnsProps = {
   onEdit: (category: ProductCategory) => void;
@@ -138,29 +138,30 @@ export const columns = ({ onEdit, onDelete, onToggleShowOnHome, allCategories, i
               <DropdownMenuLabel>Acciones</DropdownMenuLabel>
               <DropdownMenuItem onSelect={() => onEdit(category)}>Editar</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem className="text-destructive focus:bg-destructive/90 focus:text-destructive-foreground" onSelect={(e) => e.preventDefault()}>
+              <AdminConfirmDialog
+                trigger={
+                  <DropdownMenuItem
+                    className="text-destructive focus:bg-destructive/90 focus:text-destructive-foreground"
+                    onSelect={(e) => e.preventDefault()}
+                  >
                     Eliminar
                   </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro de que quieres eliminar esta categoría?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción no se puede deshacer. La categoría <span className="font-medium">{category.name}</span> será eliminada permanentemente.
-                       <br/><br/>
-                      <span className="font-bold text-destructive">Nota:</span> Solo podrás eliminarla si no tiene productos o subcategorías asociadas.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => onDelete(category.id)}>
-                      Sí, eliminar
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                }
+                title="¿Eliminar categoría?"
+                description={
+                  <>
+                    Esta acción no se puede deshacer. La categoría{' '}
+                    <span className="font-semibold">{category.name}</span> será eliminada
+                    permanentemente.
+                    <br />
+                    <br />
+                    <span className="font-semibold text-destructive">Nota:</span> Solo podrás
+                    eliminarla si no tiene productos o subcategorías asociadas.
+                  </>
+                }
+                confirmText="Sí, eliminar"
+                onConfirm={() => onDelete(category.id)}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

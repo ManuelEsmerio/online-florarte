@@ -31,7 +31,7 @@ import {
   PaginationState,
 } from '@tanstack/react-table';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 import type { CouponStatus } from '@/lib/definitions';
 import { useProductContext } from '@/context/ProductContext';
 import { CouponPreview, CouponPreviewSkeleton } from './coupon-preview';
@@ -39,7 +39,15 @@ import { CouponPreview, CouponPreviewSkeleton } from './coupon-preview';
 
 export default function CouponsPage() {
   const { toast } = useToast();
-  const { products, categories } = useProductContext();
+  const { products, categories, fetchAppData } = useProductContext();
+
+  // ProductContext es lazy: no auto-fetchea. Esta página es la única consumidora
+  // de sus datos, así que dispara la carga al montarse.
+  // fetchAppData es estable ([] deps) y tiene guards internos, así que este
+  // useEffect solo dispara 1 fetch real aunque el componente se monte dos veces.
+  useEffect(() => {
+    fetchAppData();
+  }, [fetchAppData]);
 
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -343,32 +351,26 @@ export default function CouponsPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                      {table.getFilteredSelectedRowModel().rows.length > 0 && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
+                        <AdminConfirmDialog
+                          trigger={
                             <Button variant="destructive" className="h-10 rounded-xl px-4 font-bold shadow-lg shadow-destructive/10 bg-destructive hover:bg-destructive/90 transition-all transform hover:-translate-y-0.5 ml-2">
                               <Trash2 className="mr-2 h-4 w-4" />
                               Eliminar ({table.getFilteredSelectedRowModel().rows.length})
                             </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl">
-                            <AlertDialogHeader>
-                              <AlertDialogTitle className="font-headline text-2xl">¿Estás seguro?</AlertDialogTitle>
-                              <AlertDialogDescription className="text-sm leading-relaxed">
-                                Esta acción eliminará permanentemente {table.getFilteredSelectedRowModel().rows.length} cupones.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter className="gap-2">
-                              <AlertDialogCancel className="rounded-2xl h-12 border-none bg-muted/50 font-bold">Cancelar</AlertDialogCancel>
-                              <AlertDialogAction
-                                className="bg-destructive hover:bg-destructive/90 rounded-2xl h-12 font-bold shadow-lg shadow-destructive/20"
-                                onClick={handleBulkDelete}
-                                disabled={isDeleting}
-                              >
-                                {isDeleting ? "Eliminando..." : "Sí, eliminar"}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                          }
+                          title="¿Eliminar cupones seleccionados?"
+                          description={
+                            <>
+                              Esta acción eliminará permanentemente{' '}
+                              <span className="font-semibold">
+                                {table.getFilteredSelectedRowModel().rows.length} cupón{table.getFilteredSelectedRowModel().rows.length !== 1 ? 'es' : ''}
+                              </span>.
+                            </>
+                          }
+                          confirmText={isDeleting ? 'Eliminando...' : 'Sí, eliminar'}
+                          isLoading={isDeleting}
+                          onConfirm={handleBulkDelete}
+                        />
                       )}
                 </div>
               </div>

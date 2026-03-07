@@ -38,22 +38,13 @@ function getPool(): Pool {
   if (global.pool) {
     return global.pool;
   }
-  
-  console.log('Using Mock DB Pool');
-  global.pool = {
-    getConnection: async () => ({
-      beginTransaction: async () => {},
-      commit: async () => {},
-      rollback: async () => {},
-      release: () => {},
-      query: async () => [[], {}],
-      execute: async () => [[], {}]
-    } as unknown as PoolConnection),
-    query: async () => [[], {}],
-    execute: async () => [[], {}]
-  } as unknown as Pool;
 
-  return global.pool;
+  // db.ts es un stub. Ningún código debería importar de aquí en producción.
+  // Si ves este error, cambia el import a `@/lib/prisma` en el archivo afectado.
+  throw new Error(
+    '[db.ts] Este módulo es un stub no funcional. ' +
+    'Usa `prisma` de `@/lib/prisma` para todas las operaciones de base de datos.'
+  );
 }
 
 export async function dbWithAudit<T>(

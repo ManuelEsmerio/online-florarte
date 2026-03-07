@@ -3,7 +3,7 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { DraggableAttributes } from '@dnd-kit/core';
-import type { SyntheticListenerMap } from '@dnd-kit/core';
+import type { DraggableSyntheticListeners } from '@dnd-kit/core';
 
 export function useSortableItem(id: string | number) {
   const {
@@ -33,7 +33,7 @@ export function useSortableItem(id: string | number) {
 
 interface SortableItemProps {
     id: string | number;
-    children: (attributes: DraggableAttributes, listeners: SyntheticListenerMap | undefined) => React.ReactNode;
+    children: (attributes: DraggableAttributes, listeners: DraggableSyntheticListeners) => React.ReactNode;
 }
 
 export function SortableItem({ id, children }: SortableItemProps) {

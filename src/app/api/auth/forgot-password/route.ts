@@ -32,12 +32,13 @@ export async function POST(req: NextRequest) {
 
     // Token seguro: 32 bytes = 64 chars hex
     const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
 
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        passwordResetToken: token,
+        passwordResetToken: tokenHash,
         passwordResetExpiry: expiry,
       },
     });

@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
     const deliveryTimeSlot = formData.get('deliveryTimeSlot') as string | null;
     
     if (quantity < 1) throw new Error('La cantidad debe ser al menos 1.');
+    if (quantity > 99) throw new Error('La cantidad máxima por producto es 99.');
 
     const product = await productService.getCompleteProductDetailsById(productId);
     if (!product) throw new Error('Producto no encontrado.');

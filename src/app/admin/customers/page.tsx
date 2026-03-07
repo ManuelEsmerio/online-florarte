@@ -24,7 +24,7 @@ import {
 } from '@tanstack/react-table';
 import { DataTableToolbar } from './customer-table-toolbar';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 import { CustomerDetailModal } from './customer-detail-modal';
 
 type State = {
@@ -299,32 +299,27 @@ export default function CustomersPage() {
               setSearchTerm={(value) => setState({ searchTerm: value })}
             />
             {table.getFilteredSelectedRowModel().rows.length > 0 && (
-              <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm" className="h-8 rounded-xl px-4 font-bold shadow-lg shadow-destructive/10 bg-destructive hover:bg-destructive/90 transition-all transform hover:-translate-y-0.5 ml-2">
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Eliminar ({table.getFilteredSelectedRowModel().rows.length})
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle className="font-headline text-2xl">¿Estás seguro?</AlertDialogTitle>
-                      <AlertDialogDescription className="text-sm leading-relaxed text-muted-foreground">
-                        Esta acción desactivará a {table.getFilteredSelectedRowModel().rows.length} usuarios del sistema. Podrán ser reactivados después.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="gap-2">
-                      <AlertDialogCancel className="rounded-2xl h-12 border-none bg-muted font-bold text-foreground">Cancelar</AlertDialogCancel>
-                      <AlertDialogAction
-                        className="bg-destructive hover:bg-destructive/90 rounded-2xl h-12 font-bold shadow-lg shadow-destructive/20 text-white"
-                        onClick={handleBulkDelete}
-                        disabled={isDeleting}
-                      >
-                        {isDeleting ? "Eliminando..." : "Sí, desactivar"}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+              <AdminConfirmDialog
+                trigger={
+                  <Button variant="destructive" size="sm" className="h-8 rounded-xl px-4 font-bold shadow-lg shadow-destructive/10 bg-destructive hover:bg-destructive/90 transition-all transform hover:-translate-y-0.5 ml-2">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Eliminar ({table.getFilteredSelectedRowModel().rows.length})
+                  </Button>
+                }
+                title="¿Desactivar usuarios seleccionados?"
+                description={
+                  <>
+                    Esta acción desactivará a{' '}
+                    <span className="font-semibold">
+                      {table.getFilteredSelectedRowModel().rows.length} usuario{table.getFilteredSelectedRowModel().rows.length !== 1 ? 's' : ''}
+                    </span>{' '}
+                    del sistema. Podrán ser reactivados después.
+                  </>
+                }
+                confirmText={isDeleting ? 'Desactivando...' : 'Sí, desactivar'}
+                isLoading={isDeleting}
+                onConfirm={handleBulkDelete}
+              />
             )}
           </div>
         }

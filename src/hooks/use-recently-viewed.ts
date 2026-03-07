@@ -1,7 +1,7 @@
 // src/hooks/use-recently-viewed.ts
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Product } from '@/lib/definitions';
 import { handleApiResponse } from '@/utils/handleApiResponse';
 
@@ -11,10 +11,14 @@ const LOCAL_STORAGE_KEY = 'recentlyViewed';
 export const useRecentlyViewed = (currentSlug: string) => {
   const [recentlyViewedProducts, setRecentlyViewedProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Guard: evita doble fetch en React Strict Mode (doble invocación de effects en dev)
+  const isFetchingRef = useRef(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
         const fetchRecentlyViewed = async (slugs: string[]) => {
+            if (isFetchingRef.current) return;
+            isFetchingRef.current = true;
             setIsLoading(true);
             try {
                 if (slugs.length > 0) {
@@ -33,6 +37,7 @@ export const useRecentlyViewed = (currentSlug: string) => {
                 setRecentlyViewedProducts([]);
             } finally {
                 setIsLoading(false);
+                isFetchingRef.current = false;
             }
         };
 

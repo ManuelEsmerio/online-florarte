@@ -5,10 +5,10 @@ import { ColumnDef } from '@tanstack/react-table';
 import { MoreHorizontal, ArrowUpDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ShippingZone } from '@/lib/definitions';
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 
 type ColumnsProps = {
   onEdit: (zone: ShippingZone) => void;
@@ -79,27 +79,26 @@ export const columns = ({ onEdit, onDelete, isDeletingId }: ColumnsProps): Colum
               <DropdownMenuLabel>Acciones</DropdownMenuLabel>
               <DropdownMenuItem onSelect={() => onEdit(zone)}>Editar</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem className="text-destructive focus:bg-destructive/90 focus:text-destructive-foreground" onSelect={(e) => e.preventDefault()}>
+              <AdminConfirmDialog
+                trigger={
+                  <DropdownMenuItem
+                    className="text-destructive focus:bg-destructive/90 focus:text-destructive-foreground"
+                    onSelect={(e) => e.preventDefault()}
+                  >
                     Eliminar
                   </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro de que quieres eliminar esta zona?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción no se puede deshacer. La zona para el código postal <span className="font-mono font-bold">{zone.postalCode}</span> será eliminada permanentemente.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => onDelete(zone.id)}>
-                      Sí, eliminar
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                }
+                title="¿Eliminar zona de envío?"
+                description={
+                  <>
+                    Esta acción no se puede deshacer. La zona para el código postal{' '}
+                    <span className="font-mono font-bold">{zone.postalCode}</span> será eliminada
+                    permanentemente.
+                  </>
+                }
+                confirmText="Sí, eliminar"
+                onConfirm={() => onDelete(zone.id)}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

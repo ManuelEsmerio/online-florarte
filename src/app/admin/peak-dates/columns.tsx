@@ -3,15 +3,14 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
-import { MoreHorizontal, ArrowUpDown, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { MoreHorizontal, ArrowUpDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import type { PeakDate } from '@/lib/definitions';
 import React from 'react';
-import { Badge } from '@/components/ui/badge';
 import { formatDateIntl } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
+import { AdminConfirmDialog } from '@/components/admin/AdminConfirmDialog';
 
 type ColumnsProps = {
   onEdit: (peakDate: PeakDate) => void;
@@ -30,12 +29,6 @@ const RestrictionToggle = ({
   onToggleRestriction: (peakDate: PeakDate) => void;
   isUpdating: boolean;
 }) => {
-
-  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation();
-    onToggleRestriction(peakDate);
-  };
-  
   return (
     <div className="relative flex items-center justify-center">
         {isUpdating && <Loader2 className="absolute h-4 w-4 animate-spin" />}
@@ -102,27 +95,26 @@ export const columns = ({ onEdit, onDelete, onToggleRestriction, isDeletingId, u
               <DropdownMenuLabel>Acciones</DropdownMenuLabel>
               <DropdownMenuItem onSelect={() => onEdit(peakDate)}>Editar</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem className="text-destructive focus:bg-destructive/90 focus:text-destructive-foreground" onSelect={(e) => e.preventDefault()}>
+              <AdminConfirmDialog
+                trigger={
+                  <DropdownMenuItem
+                    className="text-destructive focus:bg-destructive/90 focus:text-destructive-foreground"
+                    onSelect={(e) => e.preventDefault()}
+                  >
                     Eliminar
                   </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro de que quieres eliminar esta fecha?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción no se puede deshacer. La fecha pico <span className="font-medium">{peakDate.name}</span> será eliminada permanentemente.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => onDelete(peakDate.id)}>
-                      Sí, eliminar
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                }
+                title="¿Eliminar fecha pico?"
+                description={
+                  <>
+                    Esta acción no se puede deshacer. La fecha pico{' '}
+                    <span className="font-semibold">{peakDate.name}</span> será eliminada
+                    permanentemente.
+                  </>
+                }
+                confirmText="Sí, eliminar"
+                onConfirm={() => onDelete(peakDate.id)}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

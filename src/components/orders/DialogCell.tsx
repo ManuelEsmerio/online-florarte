@@ -27,28 +27,27 @@ import { Button } from '@/components/ui/button';
 import { Order } from '@/lib/definitions';
 import Link from 'next/link';
 import { 
-  CheckCircle, 
-  Package, 
-  Truck, 
-  XCircle, 
-  Ban, 
-  Star, 
-  Clock, 
-  CreditCard, 
-  Heart, 
-    Headphones, 
-        CalendarDays,
-        MapPin,
-        UserRound,
-    Edit,
-    Lock,
-    X
+    CheckCircle, 
+    Package, 
+    Truck, 
+    XCircle, 
+    Ban, 
+    Star, 
+    Clock, 
+    CreditCard, 
+    Heart, 
+        Headphones, 
+                CalendarDays,
+                MapPin,
+                UserRound,
+        Lock,
+        X,
+        AlertTriangle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useCallback } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import type { Testimonial } from '@/lib/definitions';
 import { useAuth } from '@/context/AuthContext';
 import { handleApiResponse } from '@/utils/handleApiResponse';
 import { formatTimeSlotForUI, cn } from '@/lib/utils';
@@ -99,6 +98,23 @@ const getPaymentStatusBadgeClass = (status?: string) => {
             return 'bg-slate-100 text-slate-600 border-none';
         default:
             return 'bg-amber-100 text-amber-700 border-none';
+    }
+};
+
+const getCancelStatusBadgeClass = (status: string) => {
+    switch (status) {
+        case 'pendiente':
+            return 'bg-amber-400/10 text-amber-200 border border-amber-300/30';
+        case 'procesando':
+            return 'bg-sky-400/15 text-sky-200 border border-sky-300/30';
+        case 'en_reparto':
+            return 'bg-cyan-400/15 text-cyan-200 border border-cyan-300/30';
+        case 'completado':
+            return 'bg-emerald-400/15 text-emerald-200 border border-emerald-300/30';
+        case 'cancelado':
+            return 'bg-rose-500/15 text-rose-200 border border-rose-400/30';
+        default:
+            return 'bg-zinc-700/40 text-zinc-100 border border-white/5';
     }
 };
 
@@ -196,15 +212,13 @@ const OrderDetailsSkeleton = () => (
 
 type PaymentGateway = 'stripe' | 'mercadopago';
 
-const ReviewForm = ({ orderId, onReviewSubmit, onCancel, existingReview }: { orderId: number, onReviewSubmit: () => void, onCancel: () => void, existingReview?: Testimonial | null }) => {
+const ReviewForm = ({ orderId, onReviewSubmit, onCancel }: { orderId: number, onReviewSubmit: () => void, onCancel: () => void }) => {
     const { toast } = useToast();
     const { apiFetch } = useAuth();
-    const [rating, setRating] = useState(existingReview?.rating || 0);
-    const [comment, setComment] = useState(existingReview?.comment || '');
+    const [rating, setRating] = useState(0);
+    const [comment, setComment] = useState('');
     const [hoverRating, setHoverRating] = useState(0);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    
-    const isEditing = !!existingReview?.id;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -229,7 +243,7 @@ const ReviewForm = ({ orderId, onReviewSubmit, onCancel, existingReview }: { ord
             });
 
             const result = await handleApiResponse<{ message?: string }>(response, {});
-            toast({ title: isEditing ? '¡Reseña Actualizada!' : '¡Reseña Enviada!', description: result.message });
+            toast({ title: '¡Reseña enviada!', description: result.message });
             onReviewSubmit();
         } catch (error: any) {
             toast({ title: "Error al enviar reseña", description: error.message, variant: "destructive" });
@@ -289,6 +303,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
     const [paymentStatus, setPaymentStatus] = useState<string>(String((row as any).payment_status || 'PENDING'));
     const [hasPaymentTransaction, setHasPaymentTransaction] = useState<boolean>(Boolean((row as any).has_payment_transaction));
     const [detailedOrder, setDetailedOrder] = useState<any | null>(null);
+    const [hasSubmittedReview, setHasSubmittedReview] = useState(Boolean((row as any).testimonial));
 
      const fetchOrderDetails = useCallback(async () => {
           setIsFetchingDetails(true);
@@ -300,6 +315,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
             }
             if (data?.order) {
                 setDetailedOrder(data.order);
+                setHasSubmittedReview(Boolean(data.order.testimonial));
             }
             if (data?.order?.payment_status) {
                 setPaymentStatus(String(data.order.payment_status));
@@ -359,6 +375,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
     
     const onReviewSubmit = () => {
         setView('details');
+        setHasSubmittedReview(true);
         if (onDataChange) onDataChange();
         else window.location.reload();
     }
@@ -392,50 +409,101 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
     const guestName = (currentOrder as any).guest_name ?? (currentOrder as any).guestName ?? null;
     const guestEmail = (currentOrder as any).guest_email ?? (currentOrder as any).guestEmail ?? null;
     const guestPhone = (currentOrder as any).guest_phone ?? (currentOrder as any).guestPhone ?? null;
+    const hasReview = hasSubmittedReview || Boolean((currentOrder as any).testimonial);
+    const normalizedStatus = String((currentOrder as any).status ?? row.status ?? 'pendiente').toLowerCase();
+    const readableStatus = statusTranslations[normalizedStatus] ?? 'En proceso';
+    const statusBadgeClass = getCancelStatusBadgeClass(normalizedStatus);
+    const numericOrderId = Number((currentOrder as any).id ?? row.id ?? 0);
+    const friendlyOrderCode = (currentOrder as any).code ?? `#FLA-${String(numericOrderId || 0).padStart(5, '0')}`;
+    const cancellationMessage = cancellationInfo.message || (hasPaymentTransaction
+        ? 'Este pedido cuenta con un pago confirmado. Al cancelar iniciaremos el reembolso al método original.'
+        : 'Este pedido no tiene un pago registrado. Se cancelará permanentemente sin emitir reembolso.');
+    const isConfirmDisabled = confirmText !== 'CANCELAR' || isCancelling || !cancellationInfo.canCancel;
     
     return (
         <>
         <AlertDialog open={isCancelAlertOpen} onOpenChange={(open) => { setIsCancelAlertOpen(open); if (!open) setConfirmText(''); }}>
-            <AlertDialogContent className="rounded-[2rem] border-border/50 shadow-2xl text-center max-w-md">
-                <AlertDialogHeader className="text-center items-center">
-                    <AlertDialogTitle className="font-headline text-3xl text-center">¿Deseas cancelar tu pedido?</AlertDialogTitle>
-                    <AlertDialogDescription asChild>
-                        <div className="space-y-3 mt-2">
-                            <p className="text-base text-muted-foreground leading-relaxed">
-                                Tu pago será reembolsado al método de pago original.
-                                El proceso puede tardar entre <span className="font-semibold text-foreground">5 y 12 días hábiles</span> dependiendo de tu banco.
-                            </p>
-                            <p className="text-sm font-medium text-foreground">
-                                Para confirmar, escribe <span className="font-bold select-all">CANCELAR</span> en el campo de abajo.
+            <AlertDialogContent className="max-w-lg p-0 overflow-hidden rounded-[2.2rem] border border-white/10 bg-[#08090c] text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.78)]">
+                <div className="relative px-8 pt-12 pb-7 bg-[#101114] text-center">
+                    <AlertDialogCancel asChild>
+                        <button
+                            type="button"
+                            className="absolute top-5 right-5 flex h-11 w-11 items-center justify-center rounded-full bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-40"
+                            disabled={isCancelling}
+                            aria-label="Cerrar"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    </AlertDialogCancel>
+
+                    <div className="flex flex-col items-center gap-5">
+                        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]">
+                            <AlertTriangle className="h-11 w-11" />
+                        </div>
+                        <div className="space-y-3">
+                            <h2 className="text-3xl font-black tracking-tight">Cancelar pedido</h2>
+                            <p className="text-sm text-slate-400 max-w-sm">
+                                Por favor, revisa los detalles antes de confirmar la cancelación. Esta acción no se puede deshacer.
                             </p>
                         </div>
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-
-                <div className="py-4">
-                    <Input
-                        autoComplete="off"
-                        placeholder="Escribe CANCELAR"
-                        value={confirmText}
-                        onChange={(e) => setConfirmText(e.target.value)}
-                        className="h-13 text-center text-base rounded-2xl border-2 border-border bg-muted/30 focus-visible:border-destructive focus-visible:ring-0 transition-colors"
-                        disabled={isCancelling}
-                    />
+                    </div>
                 </div>
 
-                <AlertDialogFooter className="flex-col sm:flex-row gap-3 sm:gap-3">
-                    <AlertDialogCancel className="rounded-xl h-11 font-bold flex-1" disabled={isCancelling}>
-                        Volver
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                        onClick={handleCancelOrder}
-                        disabled={confirmText !== 'CANCELAR' || isCancelling}
-                        className="bg-[#FF4D4D] hover:bg-[#ff3333] rounded-xl h-11 font-bold flex-1 shadow-lg shadow-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
-                        loading={isCancelling}
-                    >
-                        Confirmar cancelación
-                    </AlertDialogAction>
-                </AlertDialogFooter>
+                <div className="px-8 py-8 space-y-6">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+                        <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                            <div>
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-slate-400">ID del pedido</p>
+                                <p className="text-[10px] uppercase tracking-[0.4em] text-slate-500">Referencia interna</p>
+                            </div>
+                            <span className="text-xl font-black tracking-tight text-white">{friendlyOrderCode}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.4em] text-slate-400">Estado actual</span>
+                            <span className={cn('px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-[0.25em]', statusBadgeClass)}>
+                                {readableStatus}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 rounded-2xl border border-[hsl(var(--primary)/0.35)] bg-[hsl(var(--primary)/0.08)] p-4 text-sm leading-relaxed">
+                        <AlertTriangle className="h-5 w-5 text-[hsl(var(--primary))] flex-shrink-0" />
+                        <p className="text-slate-200">{cancellationMessage}</p>
+                    </div>
+
+                    <div>
+                        <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.4em] text-slate-500">
+                            Validación de seguridad
+                        </label>
+                        <Input
+                            autoComplete="off"
+                            placeholder="Escribe CANCELAR para confirmar"
+                            value={confirmText}
+                            onChange={(e) => setConfirmText(e.target.value)}
+                            className="h-13 rounded-2xl border border-white/10 bg-black/40 text-center text-base font-semibold text-white placeholder:text-slate-600 focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary)/0.4)]"
+                            disabled={isCancelling}
+                        />
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <AlertDialogCancel className="flex-1 h-12 rounded-xl border border-white/10 bg-white/5 text-sm font-bold uppercase tracking-[0.2em] text-slate-200 hover:bg-white/10" disabled={isCancelling}>
+                            Volver
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleCancelOrder}
+                            disabled={isConfirmDisabled}
+                            className="flex-1 h-12 rounded-xl bg-[hsl(var(--primary))] text-sm font-bold uppercase tracking-[0.2em] text-white shadow-[0_18px_35px_hsl(var(--primary)/0.35)] hover:bg-[hsl(var(--primary))] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-30"
+                            loading={isCancelling}
+                        >
+                            Confirmar cancelación
+                        </AlertDialogAction>
+                    </div>
+                </div>
+
+                <div className="bg-black/50 px-8 py-5 flex items-center justify-center gap-3 text-[11px] font-bold uppercase tracking-[0.5em] text-slate-500">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[hsl(var(--primary)/0.15)] text-[hsl(var(--primary))] text-base font-black">F</span>
+                    Florarte
+                </div>
             </AlertDialogContent>
         </AlertDialog>
 
@@ -506,7 +574,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
             <DialogContent className="w-[96vw] max-w-6xl p-0 max-h-[92vh] overflow-hidden border-border/50 shadow-2xl rounded-[2rem] flex flex-col">
                 <DialogHeader className="px-6 md:px-10 pt-8 md:pt-10 pb-6 border-b border-border/50 text-left">
                     <DialogTitle className='font-headline text-3xl md:text-5xl font-bold tracking-tight'>
-                        {view === 'review' ? (row.testimonial ? 'Editar Reseña' : 'Califica tu Pedido') : (
+                        {view === 'review' ? 'Califica tu Pedido' : (
                             <>Detalles del Pedido: <span className="text-primary italic">{orderCode}</span></>
                         )}
                     </DialogTitle>
@@ -549,7 +617,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                             </Link>
                         </div>
                     ) : view === 'review' ? (
-                        <ReviewForm orderId={currentOrder.id} onReviewSubmit={onReviewSubmit} onCancel={() => setView('details')} existingReview={(currentOrder as any).testimonial as any} />
+                        <ReviewForm orderId={currentOrder.id} onReviewSubmit={onReviewSubmit} onCancel={() => setView('details')} />
                     ) : isFetchingDetails ? (
                         <OrderDetailsSkeleton />
                     ) : (
@@ -734,13 +802,21 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                         ) : (
                             <>
                         {currentOrder.status === 'completado' && (
-                            <Button
-                                variant="outline"
-                                className="sm:w-auto h-12 rounded-xl border-primary text-primary font-bold hover:bg-primary hover:text-white transition-all gap-2"
-                                onClick={() => setView('review')}
-                            >
-                                {(currentOrder as any).testimonial ? <><Edit className="w-4 h-4" /> Editar Reseña</> : <><Star className="w-4 h-4" /> Dejar una Reseña</>}
-                            </Button>
+                            <div className="sm:w-auto flex-1">
+                                <Button
+                                    variant="outline"
+                                    className="w-full h-12 rounded-xl border-primary text-primary font-bold hover:bg-primary hover:text-white transition-all gap-2"
+                                    onClick={() => setView('review')}
+                                    disabled={hasReview}
+                                >
+                                    <Star className="w-4 h-4" /> Dejar una Reseña
+                                </Button>
+                                {hasReview && (
+                                    <p className="mt-2 text-sm text-muted-foreground flex items-center gap-2" aria-live="polite">
+                                        <Lock className="w-4 h-4" /> Ya enviaste una reseña para este pedido. El botón se desactiva para evitar duplicados.
+                                    </p>
+                                )}
+                            </div>
                         )}
 
                         <Button

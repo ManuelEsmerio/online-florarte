@@ -121,10 +121,13 @@ export default async function OrderSuccessPage({ searchParams }: Props) {
   const orderNumber = rawOrderId || ticketOrder?.id ? `ORD#${String(rawOrderId || ticketOrder?.id).padStart(4, '0')}` : 'ORD#----';
   const deliveryDateLabel = ticketOrder ? formatDateOnly(ticketOrder.deliveryDate) : 'Por confirmar';
   const deliveryWindowLabel = ticketOrder ? formatTimeSlotForUI(ticketOrder.deliveryTimeSlot) : 'Horario por confirmar';
-  const orderPlacedLabel = orderDetails ? formatDateTime(orderDetails.created_at) : '—';
+  const orderPlacedLabel = orderDetails?.createdAt
+    ? formatDateTime(typeof orderDetails.createdAt === 'string' ? orderDetails.createdAt : orderDetails.createdAt.toISOString())
+    : '—';
   const paymentStatus = ticketOrder?.paymentStatus ? ticketOrder.paymentStatus.toUpperCase() : 'PENDING';
   const paymentBadge = PAYMENT_BADGE_MAP[paymentStatus] ?? PAYMENT_BADGE_MAP.PENDING;
   const statusLabel = orderDetails?.status ? orderDetails.status.replace('_', ' ') : 'pendiente';
+  const isGuestOrder = Boolean(ticketOrder?.isGuest ?? (!ticketOrder?.userId));
 
   const highlights = [
     { label: 'Número de orden', value: orderNumber },
@@ -182,11 +185,11 @@ export default async function OrderSuccessPage({ searchParams }: Props) {
                   </div>
                   <div className="flex justify-between">
                     <span>Cliente</span>
-                    <span className="font-semibold text-foreground">{orderDetails?.customerName ?? 'Cliente invitado'}</span>
+                    <span className="font-semibold text-foreground">{orderDetails?.user?.name ?? orderDetails?.guestName ?? 'Cliente invitado'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Contacto</span>
-                    <span className="font-semibold text-foreground">{orderDetails?.customerEmail ?? '—'}</span>
+                    <span className="font-semibold text-foreground">{orderDetails?.user?.email ?? orderDetails?.guestEmail ?? '—'}</span>
                   </div>
                 </div>
               </div>
@@ -213,12 +216,14 @@ export default async function OrderSuccessPage({ searchParams }: Props) {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
-                <Button asChild className="h-12 rounded-xl font-bold flex-1">
-                  <Link href="/orders">
-                    <Package className="w-4 h-4 mr-2" />
-                    Ver mis pedidos
-                  </Link>
-                </Button>
+                {!isGuestOrder && (
+                  <Button asChild className="h-12 rounded-xl font-bold flex-1">
+                    <Link href="/orders">
+                      <Package className="w-4 h-4 mr-2" />
+                      Ver mis pedidos
+                    </Link>
+                  </Button>
+                )}
                 <Button asChild variant="outline" className="h-12 rounded-xl font-bold flex-1">
                   <Link href="/">
                     <Home className="w-4 h-4 mr-2" />

@@ -4,7 +4,61 @@ import { successResponse, errorHandler } from '@/utils/api-utils';
 import { getDecodedToken, UserSession, isAdminRole } from '@/utils/auth';
 import { productService } from '@/services/productService';
 import type { ProductStatus } from '@/lib/definitions';
-import { ZodError } from 'zod';
+import { z, ZodError } from 'zod';
+
+// Mismo schema que en products/route.ts POST — aplicado también al PUT
+const variantImageSchema = z.union([
+  z.string().min(1),
+  z
+    .object({
+      id: z.number().optional(),
+      src: z.string(),
+      alt: z.string().optional().nullable(),
+      isNew: z.boolean().optional(),
+      is_new: z.boolean().optional(),
+      display_order: z.number().optional().nullable(),
+      sortOrder: z.number().optional().nullable(),
+      is_deleted: z.boolean().optional(),
+      isDeleted: z.boolean().optional(),
+      is_primary: z.boolean().optional(),
+      isPrimary: z.boolean().optional(),
+    })
+    .passthrough(),
+]);
+
+const productVariantSchema = z
+  .object({
+    name: z.string().min(1).max(200),
+    sku: z.string().max(100).optional().nullable(),
+    price: z.number().nonnegative().optional().nullable(),
+    stock: z.number().int().min(0).optional(),
+    images: z.array(variantImageSchema).optional(),
+  })
+  .passthrough();
+
+const productUpdateSchema = z.object({
+  name: z.string().min(1, 'El nombre es obligatorio').max(300),
+  slug: z.string().max(350).optional(),
+  code: z.string().max(100).optional(),
+  description: z.string().max(10000).optional().nullable(),
+  short_description: z.string().max(500).optional().nullable(),
+  price: z.number().nonnegative(),
+  sale_price: z.number().nonnegative().optional().nullable(),
+  stock: z.number().int().min(0).optional(),
+  has_variants: z.boolean().optional(),
+  status: z.enum(['PUBLISHED', 'HIDDEN', 'DRAFT', 'PUBLICADO', 'OCULTO', 'BORRADOR']).optional(),
+  care: z.string().max(2000).optional().nullable(),
+  badge_text: z.string().max(50).optional().nullable(),
+  allow_photo: z.boolean().optional(),
+  photo_price: z.number().nonnegative().optional().nullable(),
+  category_id: z.number().int().positive('La categoría es obligatoria'),
+  main_image: z.string().max(1000).optional().nullable(),
+  images: z.array(z.unknown()).optional(),
+  tag_ids: z.array(z.number().int().positive()).optional(),
+  occasion_ids: z.array(z.number().int().positive()).optional(),
+  specifications: z.array(z.record(z.unknown())).optional(),
+  variants: z.array(productVariantSchema).optional(),
+}).passthrough();
 
 interface RouteParams {
   params: Promise<{ slug: string }>;
@@ -70,13 +124,13 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     const formData = await req.formData();
     const productDataString = formData.get('productData') as string;
-    
+
     if (!productDataString) {
       return errorHandler(new Error('No se proporcionaron datos del producto.'), 400);
     }
-    
-    const productData = JSON.parse(productDataString);
-    
+
+    const productData = productUpdateSchema.parse(JSON.parse(productDataString));
+
     // Capturar todas las imágenes y asociarlas a sus variantes
     const imageFiles: { main: File[], variants: { index: number, files: File[] }[] } = {
         main: formData.getAll('images') as File[],

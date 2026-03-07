@@ -54,7 +54,7 @@ export function Categories({ categories, isLoading }: CategoriesProps) {
               mainCategories.map((category, index) => (
                  <CarouselItem key={category.id} className="basis-[70%] sm:basis-1/3 lg:basis-1/4 pl-2 md:pl-4 animate-fade-in-up" style={{ animationDelay: `${index * 100}ms` }}>
                     <Link href={`/categories/${category.slug}`} className="group relative block h-full">
-                      <Card className="relative overflow-hidden h-full aspect-[4/5] rounded-[2.5rem] shadow-md border-none transition-[border-radius,transform,box-shadow] duration-500 ease-[cubic-bezier(.25,1,.5,1)] group-hover:shadow-2xl group-hover:-translate-y-2 group-hover:rounded-[3rem]">
+                      <Card className="relative overflow-hidden h-full aspect-[4/5] rounded-[2.5rem] shadow-md border-none transition-[border-radius,transform,box-shadow] duration-500 transition-all duration-500 [transition-timing-function:cubic-bezier(.25,1,.5,1)] group-hover:shadow-2xl group-hover:-translate-y-2 group-hover:rounded-[3rem]">
                             <Image
                                 src={category.imageUrl || '/placehold.webp'}
                                 alt={`Colección de ${category.name}`}

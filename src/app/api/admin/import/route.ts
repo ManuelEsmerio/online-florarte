@@ -105,11 +105,22 @@ export async function POST(req: NextRequest) {
     }
     if (!file) return errorHandler(new Error('No se subió ningún archivo.'), 400);
 
+    const MAX_CSV_BYTES = 5 * 1024 * 1024; // 5 MB
+    const MAX_CSV_ROWS = 10_000;
+
+    if (file.size > MAX_CSV_BYTES) {
+      return errorHandler(new Error('El archivo CSV no puede superar los 5 MB.'), 400);
+    }
+
     const text = await file.text();
     const rows = parseCsv(text);
     const headers = rows.shift();
-    
+
     if(!headers || rows.length === 0) return errorHandler(new Error('El archivo CSV está vacío o no tiene cabeceras.'), 400);
+
+    if (rows.length > MAX_CSV_ROWS) {
+      return errorHandler(new Error(`El archivo CSV no puede contener más de ${MAX_CSV_ROWS} filas.`), 400);
+    }
     
     let processed = 0;
     let inserted = 0;
