@@ -129,6 +129,15 @@ export default function ProductsPage() {
 
   const apiFetchRef = useRef(apiFetch);
   const toastRef = useRef(toast);
+  // Refs para leer el estado actual dentro de fetchAppData sin añadirlos como
+  // dependencias del useCallback. Esto rompe el ciclo:
+  //   setCategories() → categories.length cambia → useCallback recrea fetchAppData
+  //   → useEffect([fetchAppData]) se dispara de nuevo → doble fetch.
+  const categoriesRef = useRef<ProductCategory[]>([]);
+  const occasionsRef = useRef<Occasion[]>([]);
+  const tagsRef = useRef<Tag[]>([]);
+  // Guard: evita llamadas concurrentes (React Strict Mode, renders rápidos)
+  const fetchInFlightRef = useRef<Promise<void> | null>(null);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
@@ -178,64 +187,86 @@ export default function ProductsPage() {
   }, []);
 
   const fetchAppData = useCallback(async (opts?: { includeMeta?: boolean }) => {
-    setIsLoading(true);
-    try {
-      const cachedCategories = readCachedMeta<ProductCategory[]>(PRODUCT_META_CACHE_KEYS.categories);
-      const cachedOccasions = readCachedMeta<Occasion[]>(PRODUCT_META_CACHE_KEYS.occasions);
-      const cachedTags = readCachedMeta<Tag[]>(PRODUCT_META_CACHE_KEYS.tags);
-      const hasUsableCategoriesCache = Array.isArray(cachedCategories) && cachedCategories.length > 0;
-      const hasUsableOccasionsCache = Array.isArray(cachedOccasions) && cachedOccasions.length > 0;
-      const hasUsableTagsCache = Array.isArray(cachedTags) && cachedTags.length > 0;
+    // Guard: para la carga inicial (sin opts), reutiliza la promesa si ya hay
+    // un fetch en curso. Previene la doble ejecución en React Strict Mode.
+    if (!opts && fetchInFlightRef.current) return fetchInFlightRef.current;
 
-      if (hasUsableCategoriesCache && categories.length === 0) {
-        setCategories(cachedCategories.map((c: any) => adaptCategory(c)));
-      }
-      if (hasUsableOccasionsCache && occasions.length === 0) {
-        setOccasions(cachedOccasions);
-      }
-      if (hasUsableTagsCache && tags.length === 0) {
-        setTags(cachedTags);
-      }
+    const doFetch = async () => {
+      setIsLoading(true);
+      try {
+        // Leer estado actual desde refs — no necesitamos estos valores como
+        // dependencias del useCallback porque los refs siempre están actualizados.
+        const currentCategories = categoriesRef.current;
+        const currentOccasions = occasionsRef.current;
+        const currentTags = tagsRef.current;
 
-      const hasCategoriesLoaded = Array.isArray(categories) && categories.length > 0;
-      const needsMeta = opts?.includeMeta ?? (!(hasCategoriesLoaded || hasUsableCategoriesCache) || !(hasUsableOccasionsCache && hasUsableTagsCache));
-      const response = await apiFetchRef.current(`/api/admin/products?includeMeta=${needsMeta ? '1' : '0'}`);
-      const result = await response.json();
+        const cachedCategories = readCachedMeta<ProductCategory[]>(PRODUCT_META_CACHE_KEYS.categories);
+        const cachedOccasions = readCachedMeta<Occasion[]>(PRODUCT_META_CACHE_KEYS.occasions);
+        const cachedTags = readCachedMeta<Tag[]>(PRODUCT_META_CACHE_KEYS.tags);
+        const hasUsableCategoriesCache = Array.isArray(cachedCategories) && cachedCategories.length > 0;
+        const hasUsableOccasionsCache = Array.isArray(cachedOccasions) && cachedOccasions.length > 0;
+        const hasUsableTagsCache = Array.isArray(cachedTags) && cachedTags.length > 0;
 
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.message || 'No se pudieron cargar los productos.');
+        if (hasUsableCategoriesCache && currentCategories.length === 0) {
+          setCategories(cachedCategories.map((c: any) => adaptCategory(c)));
+        }
+        if (hasUsableOccasionsCache && currentOccasions.length === 0) {
+          setOccasions(cachedOccasions);
+        }
+        if (hasUsableTagsCache && currentTags.length === 0) {
+          setTags(cachedTags);
+        }
+
+        const hasCategoriesLoaded = currentCategories.length > 0;
+        const needsMeta = opts?.includeMeta ?? (!(hasCategoriesLoaded || hasUsableCategoriesCache) || !(hasUsableOccasionsCache && hasUsableTagsCache));
+        const response = await apiFetchRef.current(`/api/admin/products?includeMeta=${needsMeta ? '1' : '0'}`);
+        const result = await response.json();
+
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.message || 'No se pudieron cargar los productos.');
+        }
+
+        const payload = result?.data ?? {};
+        const adaptedProducts = (payload?.products ?? []).map((p: any) => adaptProduct(p));
+        const adaptedCategories = (payload?.categories ?? []).map((c: any) => adaptCategory(c));
+
+        setProducts(adaptedProducts);
+        if (Array.isArray(payload?.categories)) {
+          setCategories(adaptedCategories);
+          writeCachedMeta(PRODUCT_META_CACHE_KEYS.categories, payload.categories);
+        }
+
+        if (Array.isArray(payload?.occasions)) {
+          setOccasions(payload.occasions);
+          writeCachedMeta(PRODUCT_META_CACHE_KEYS.occasions, payload.occasions);
+        }
+
+        if (Array.isArray(payload?.tags)) {
+          setTags(payload.tags);
+          writeCachedMeta(PRODUCT_META_CACHE_KEYS.tags, payload.tags);
+        }
+      } catch (error: any) {
+        toastRef.current({
+          title: 'Error al cargar productos',
+          description: error?.message || 'No se pudieron obtener los productos.',
+          variant: 'destructive',
+        });
+        setProducts([]);
+      } finally {
+        setIsLoading(false);
+        if (!opts) fetchInFlightRef.current = null;
       }
+    };
 
-      const payload = result?.data ?? {};
-      const adaptedProducts = (payload?.products ?? []).map((p: any) => adaptProduct(p));
-      const adaptedCategories = (payload?.categories ?? []).map((c: any) => adaptCategory(c));
-
-      setProducts(adaptedProducts);
-      if (Array.isArray(payload?.categories)) {
-        setCategories(adaptedCategories);
-        writeCachedMeta(PRODUCT_META_CACHE_KEYS.categories, payload.categories);
-      }
-
-      if (Array.isArray(payload?.occasions)) {
-        setOccasions(payload.occasions);
-        writeCachedMeta(PRODUCT_META_CACHE_KEYS.occasions, payload.occasions);
-      }
-
-      if (Array.isArray(payload?.tags)) {
-        setTags(payload.tags);
-        writeCachedMeta(PRODUCT_META_CACHE_KEYS.tags, payload.tags);
-      }
-    } catch (error: any) {
-      toastRef.current({
-        title: 'Error al cargar productos',
-        description: error?.message || 'No se pudieron obtener los productos.',
-        variant: 'destructive',
-      });
-      setProducts([]);
-    } finally {
-      setIsLoading(false);
+    if (!opts) {
+      fetchInFlightRef.current = doFetch();
+      return fetchInFlightRef.current;
     }
-  }, [categories.length, occasions.length, readCachedMeta, tags.length, writeCachedMeta]);
+    return doFetch();
+    // categoriesRef, occasionsRef, tagsRef son refs estables: no son deps.
+    // readCachedMeta y writeCachedMeta tienen [] como deps propias → estables.
+    // fetchAppData mantiene identidad estable entre renders → useEffect solo dispara 1 vez.
+  }, [readCachedMeta, writeCachedMeta]);
 
   useEffect(() => {
     apiFetchRef.current = apiFetch;
@@ -244,6 +275,11 @@ export default function ProductsPage() {
   useEffect(() => {
     toastRef.current = toast;
   }, [toast]);
+
+  // Sincronizar state → refs para que fetchAppData lea valores actualizados
+  useEffect(() => { categoriesRef.current = categories; }, [categories]);
+  useEffect(() => { occasionsRef.current = occasions; }, [occasions]);
+  useEffect(() => { tagsRef.current = tags; }, [tags]);
 
   useEffect(() => {
     fetchAppData();

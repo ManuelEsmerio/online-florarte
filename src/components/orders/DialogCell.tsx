@@ -437,7 +437,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                     </AlertDialogCancel>
 
                     <div className="flex flex-col items-center gap-5">
-                        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#fa337c]/10 text-[#fa337c]">
+                        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]">
                             <AlertTriangle className="h-11 w-11" />
                         </div>
                         <div className="space-y-3">
@@ -466,8 +466,8 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                         </div>
                     </div>
 
-                    <div className="flex gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm leading-relaxed">
-                        <AlertTriangle className="h-5 w-5 text-rose-200 flex-shrink-0" />
+                    <div className="flex gap-3 rounded-2xl border border-[hsl(var(--primary)/0.35)] bg-[hsl(var(--primary)/0.08)] p-4 text-sm leading-relaxed">
+                        <AlertTriangle className="h-5 w-5 text-[hsl(var(--primary))] flex-shrink-0" />
                         <p className="text-slate-200">{cancellationMessage}</p>
                     </div>
 
@@ -480,7 +480,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                             placeholder="Escribe CANCELAR para confirmar"
                             value={confirmText}
                             onChange={(e) => setConfirmText(e.target.value)}
-                            className="h-13 rounded-2xl border border-white/10 bg-black/40 text-center text-base font-semibold text-white placeholder:text-slate-600 focus-visible:ring-2 focus-visible:ring-[#fa337c]/40"
+                            className="h-13 rounded-2xl border border-white/10 bg-black/40 text-center text-base font-semibold text-white placeholder:text-slate-600 focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary)/0.4)]"
                             disabled={isCancelling}
                         />
                     </div>
@@ -492,7 +492,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                         <AlertDialogAction
                             onClick={handleCancelOrder}
                             disabled={isConfirmDisabled}
-                            className="flex-1 h-12 rounded-xl bg-[#fa337c] text-sm font-bold uppercase tracking-[0.2em] text-white shadow-[0_18px_35px_rgba(250,51,124,0.35)] hover:bg-[#ff4d8e] disabled:cursor-not-allowed disabled:opacity-30"
+                            className="flex-1 h-12 rounded-xl bg-[hsl(var(--primary))] text-sm font-bold uppercase tracking-[0.2em] text-white shadow-[0_18px_35px_hsl(var(--primary)/0.35)] hover:bg-[hsl(var(--primary))] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-30"
                             loading={isCancelling}
                         >
                             Confirmar cancelación
@@ -501,7 +501,7 @@ export const DialogCell = ({ row, trigger, onDataChange }: { row: any, trigger: 
                 </div>
 
                 <div className="bg-black/50 px-8 py-5 flex items-center justify-center gap-3 text-[11px] font-bold uppercase tracking-[0.5em] text-slate-500">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#fa337c]/15 text-[#fa337c] text-base font-black">F</span>
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[hsl(var(--primary)/0.15)] text-[hsl(var(--primary))] text-base font-black">F</span>
                     Florarte
                 </div>
             </AlertDialogContent>

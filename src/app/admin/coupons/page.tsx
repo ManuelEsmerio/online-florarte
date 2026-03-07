@@ -39,7 +39,15 @@ import { CouponPreview, CouponPreviewSkeleton } from './coupon-preview';
 
 export default function CouponsPage() {
   const { toast } = useToast();
-  const { products, categories } = useProductContext();
+  const { products, categories, fetchAppData } = useProductContext();
+
+  // ProductContext es lazy: no auto-fetchea. Esta página es la única consumidora
+  // de sus datos, así que dispara la carga al montarse.
+  // fetchAppData es estable ([] deps) y tiene guards internos, así que este
+  // useEffect solo dispara 1 fetch real aunque el componente se monte dos veces.
+  useEffect(() => {
+    fetchAppData();
+  }, [fetchAppData]);
 
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [isLoading, setIsLoading] = useState(true);
